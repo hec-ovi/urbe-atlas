@@ -101,8 +101,9 @@ describe('blueprint output', () => {
     expect(bp.streets.nodes.length).toBeGreaterThan(0);
     expect(bp.streets.edges.length).toBeGreaterThan(0);
     for (const e of bp.streets.edges.slice(0, 50)) {
-      expect(['street', 'road', 'highway']).toContain(e.class);
-      expect(e.width).toBeGreaterThan(0);
+      expect(['street', 'road', 'highway', 'alley']).toContain(e.class);
+      if (e.class === 'alley') expect(e.width).toBe(0);
+      else expect(e.width).toBeGreaterThan(0);
       expect(e.path.length).toBeGreaterThanOrEqual(2);
     }
 
@@ -221,6 +222,34 @@ describe('blueprint output', () => {
     for (const l of [...bp.transit.subwayLines, ...bp.transit.trainLines]) {
       expect(l.stationIds.length).toBeGreaterThanOrEqual(2);
     }
+  });
+});
+
+describe('alleys', () => {
+  it('cuts pedestrian-only alleys no vehicle can use', () => {
+    const bp = defaultCity();
+    const alleys = bp.streets.edges.filter((e) => e.class === 'alley');
+    expect(alleys.length).toBeGreaterThan(0);
+    for (const a of alleys) {
+      expect(a.width, `${a.id} carriageway`).toBe(0);
+      expect(a.sidewalk.left).toBeGreaterThan(0);
+      expect(a.sidewalk.right).toBeGreaterThan(0);
+      const width = a.sidewalk.left + a.sidewalk.right;
+      expect(width, `${a.id} width`).toBeGreaterThanOrEqual(3);
+      expect(width, `${a.id} width`).toBeLessThanOrEqual(5);
+    }
+    const alleyIds = new Set(alleys.map((a) => a.id));
+    for (const s of bp.transit.busStops) expect(alleyIds.has(s.edgeId)).toBe(false);
+    for (const r of bp.transit.busRoutes) {
+      for (const id of r.edgeIds) expect(alleyIds.has(id)).toBe(false);
+    }
+  });
+
+  it('leaves them out when the toggle is off', () => {
+    const params = { seed: 'alleys', size: { width: 1200, depth: 1200 } };
+    const hasAlley = (bp: CityBlueprint): boolean => bp.streets.edges.some((e) => e.class === 'alley');
+    expect(hasAlley(generateCity(params))).toBe(true);
+    expect(hasAlley(generateCity({ ...params, features: { alleys: false } }))).toBe(false);
   });
 });
 

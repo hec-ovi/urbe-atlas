@@ -117,7 +117,9 @@ export class MapView {
 
     if (this.layers.streets) {
       for (const e of bp.streets.edges) {
-        this.line(ctx, e.path, streetColor(e.class), Math.max(e.width * this.scale * 0.35, 0.6));
+        // an alley has no carriageway: its width is the sidewalk pair
+        const width = e.class === 'alley' ? e.sidewalk.left + e.sidewalk.right : e.width;
+        this.line(ctx, e.path, streetColor(e.class), Math.max(width * this.scale * 0.35, 0.6));
       }
     }
 

@@ -14,7 +14,11 @@ export type Vec2 = [x: number, z: number];
 export type Polygon = Vec2[];
 export type Polyline = Vec2[];
 
-export type StreetClass = 'street' | 'road' | 'highway';
+/**
+ * `alley` is pedestrian only: no carriageway (width 0), 3 to 5 m of ground,
+ * all of it sidewalk. No vehicle route ever uses one.
+ */
+export type StreetClass = 'street' | 'road' | 'highway' | 'alley';
 
 export type ParcelType =
   | 'residential'
@@ -86,7 +90,7 @@ export interface StreetEdge {
   to: string;
   /** Centerline from `from` to `to`; curves are polylines with <= 1 m deviation. */
   path: Polyline;
-  /** Carriageway width in meters, sidewalks excluded. */
+  /** Carriageway width in meters, sidewalks excluded. 0 on alleys. */
   width: number;
   /** Sidewalk width per side in meters, 0 = none (highways). Left/right relative to path direction. */
   sidewalk: { left: number; right: number };

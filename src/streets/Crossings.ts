@@ -18,6 +18,7 @@ export class Crossings {
         const edge = edgeById.get(edgeId)!;
         const sw = sidewalkOf(edgeId);
         if (sw <= 0) continue;
+        if (edge.class === 'alley') continue; // no carriageway to cross
         const w = carriagewayWidth(edge.class);
         const l = lineLength(edge.path);
         const back = Math.min(w / 2 + 3, l / 3);

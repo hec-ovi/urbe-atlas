@@ -14,7 +14,8 @@ export class ParamsPanel {
     const highways = el('input', { type: 'checkbox', id: 'highways' });
     const trains = el('input', { type: 'checkbox', id: 'trains' });
     const subways = el('input', { type: 'checkbox', id: 'subways' });
-    highways.checked = trains.checked = subways.checked = true;
+    const alleys = el('input', { type: 'checkbox', id: 'alleys' });
+    highways.checked = trains.checked = subways.checked = alleys.checked = true;
 
     const generate = el('button', { text: 'Generate', id: 'generate' });
     this.status = el('p', { class: 'status', text: '' });
@@ -25,7 +26,12 @@ export class ParamsPanel {
         size: { width: Number(size.value), depth: Number(size.value) },
         irregularity: Number(irregularity.value),
         maxFloors: Number(maxFloors.value),
-        features: { highways: highways.checked, trains: trains.checked, subways: subways.checked },
+        features: {
+          highways: highways.checked,
+          trains: trains.checked,
+          subways: subways.checked,
+          alleys: alleys.checked,
+        },
       });
     });
 
@@ -38,6 +44,7 @@ export class ParamsPanel {
       field('Highways', highways),
       field('Trains', trains),
       field('Subways', subways),
+      field('Alleys', alleys),
       generate,
       this.status,
     ]);

@@ -9,7 +9,7 @@ const TYPES: ParcelType[] = [
   'military', 'factory', 'commerce', 'mall', 'restaurant', 'coffee_shop',
 ];
 const TIERS: WealthTier[] = ['poor', 'mid', 'rich', 'high_rich'];
-const STREETS: StreetClass[] = ['street', 'road', 'highway'];
+const STREETS: StreetClass[] = ['street', 'road', 'highway', 'alley'];
 
 export class LegendWidget {
   readonly root: HTMLElement;

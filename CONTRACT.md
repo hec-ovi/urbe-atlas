@@ -2,7 +2,7 @@
 
 Purpose: deterministically generates the 2D city blueprint (districts, streets with sidewalks, typed parcels with 3D envelopes, transit) from a seed and parameters.
 
-Status: draft v0.2. Shapes are stable enough to build against; additive fields may come, breaking changes go through the orchestrator.
+Status: draft v0.3. Shapes are stable enough to build against; additive fields may come, breaking changes go through the orchestrator.
 
 ## Conventions
 - Units: meters. Ground plane XZ, +Y up. 2D points are `[x, z]`; heights along +Y.
@@ -13,9 +13,9 @@ Status: draft v0.2. Shapes are stable enough to build against; additive fields m
 ## In
 `generateCity(params: AtlasParams): CityBlueprint`
 
-Params: [schema/params.ts](schema/params.ts). Only `seed` is required; every other field has a documented default (size, irregularity, district count range, max floors global and per district kind, wealth tier weights, feature toggles for highways, trains, subways, air and underground tunnels).
+Params: [schema/params.ts](schema/params.ts). Only `seed` is required; every other field has a documented default (size, irregularity, district count range, max floors global and per district kind, wealth tier weights, feature toggles for highways, trains, subways, alleys, air and underground tunnels).
 
-CLI: `npm run generate -- --seed <seed> --out <file.json> [--size N] [--irregularity X] [--max-floors N] [--no-highways] [--no-trains] [--no-subways]` writes the blueprint JSON. Exit 1 on AtlasError (code printed), 2 on usage error.
+CLI: `npm run generate -- --seed <seed> --out <file.json> [--size N] [--irregularity X] [--max-floors N] [--no-highways] [--no-trains] [--no-subways] [--no-alleys]` writes the blueprint JSON. Exit 1 on AtlasError (code printed), 2 on usage error.
 
 Samples, committed and test-guaranteed to regenerate byte-identical:
 - [samples/city-urbe.json](samples/city-urbe.json): seed `urbe`, default params (full-size city).
@@ -26,7 +26,7 @@ Samples, committed and test-guaranteed to regenerate byte-identical:
 `CityBlueprint`: [schema/blueprint.ts](schema/blueprint.ts).
 - `meta`: schema version, seed, resolved params, bounds, irregular city boundary polygon.
 - `districts`: kind (downtown, commercial, residential, industrial, mixed), wealth tier, boundary, floor cap.
-- `streets`: planar graph of nodes and edges; each edge has class (`street` | `road` | `highway`), centerline path (curves as polylines), carriageway width, per-side sidewalk widths; pedestrian crossings at intersections.
+- `streets`: planar graph of nodes and edges; each edge has class (`street` | `road` | `highway` | `alley`), centerline path (curves as polylines), carriageway width, per-side sidewalk widths; pedestrian crossings at intersections. An alley is pedestrian only: carriageway 0, 3 to 5 m of ground, all of it sidewalk, cut through long blocks (dense in poor and commercial districts, elsewhere only as a mid-block connector).
 - `blocks`: street-bounded faces with sidewalk strip polygons, contained parcels, open areas. Curb corners at intersections carry a rounded return.
 - `parcels`: type (residential, hotel, offices, corpo, hospital, clinic, police, military, factory, commerce, mall, restaurant, coffee_shop), tier (poor, mid, rich, high_rich), footprint polygon, street access point, 3D envelope (min/max floors, nominal floor height and max height; real per-floor elevations are owned by exterior).
 - `transit`: bus stops and routes over street edges; train and subway stations (with street-level entrances) and lines.
@@ -44,6 +44,7 @@ Closed set, thrown as `AtlasError { code, message, details? }` ([schema/blueprin
 - Street graph is connected; every parcel's access point lies on a sidewalk of its access edge.
 - Every edge is a real run of street: its two nodes differ, no path point repeats, and no vertex turns more than 120 degrees. A sharper turn would fold the edge's sidewalk band back over its own roadway.
 - Sidewalks are continuous along every street and road, linked across intersections by crossings.
+- An alley has no carriageway, a sidewalk on both sides summing to 3 to 5 m (the bands of the two blocks it separates, which meet at its centerline), and carries no bus stop and no bus route: vehicles never enter one.
 - Every stop and station belongs to at least one route or line; every route and line serves at least 2 stops/stations; a line that cannot reach 2 stations is dropped together with the stations it would have served; each rail network is connected; station entrances lie on sidewalks.
 - Parcels never overlap; parcels, sidewalk and open areas cover their block; ground surfaces cover the city without gaps.
 - The volumetric ground cover is a partition: roadway, sidewalk, block and open polygons are pairwise disjoint. Coordinates live on a 1 mm grid, so surfaces sharing a boundary may report a sliver there; nothing overlaps by a band 1 cm or wider.

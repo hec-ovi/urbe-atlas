@@ -29,7 +29,8 @@ interface Adj {
   length: number;
 }
 
-const CLASS_COST: Record<StreetClass, number> = { highway: 1.4, road: 0.6, street: 1.0 };
+/** Alleys are pedestrian: they never enter the planner's graph, and the cost keeps them out. */
+const CLASS_COST: Record<StreetClass, number> = { highway: 1.4, road: 0.6, street: 1.0, alley: Infinity };
 
 export class TransitPlanner {
   private readonly nodes: BuiltNode[];
@@ -176,7 +177,7 @@ export class TransitPlanner {
       const lineCount = Math.min(Math.max(Math.round(3.5 * Math.pow(population / 1_000_000, 0.6)), 1), 6);
       const hubNode = this.nearestNode(cityCenter, (n) => (this.adjacency.get(n.id) ?? []).length >= 3);
       const subRng = rng.fork('subway');
-      const subCost: Record<StreetClass, number> = { highway: 1.2, road: 0.5, street: 1.1 };
+      const subCost: Record<StreetClass, number> = { highway: 1.2, road: 0.5, street: 1.1, alley: Infinity };
       for (let l = 0; l < lineCount; l++) {
         const [da, db] = pairs[(l * 2 + 1) % pairs.length];
         const a = this.nearestNode(add(da.center, [subRng.range(-100, 100), subRng.range(-100, 100)]));

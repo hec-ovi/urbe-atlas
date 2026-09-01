@@ -1,7 +1,7 @@
 /**
  * Generate a blueprint from the command line.
  * npm run generate -- --seed urbe --out samples/city-urbe.json [--size 3000]
- * [--irregularity 0.6] [--max-floors 40] [--no-highways] [--no-trains] [--no-subways]
+ * [--irregularity 0.6] [--max-floors 40] [--no-highways] [--no-trains] [--no-subways] [--no-alleys]
  */
 import { writeFileSync } from 'node:fs';
 import { generateCity } from './index';
@@ -19,7 +19,7 @@ function opt(name: string): string | undefined {
 const seed = opt('seed');
 const out = opt('out');
 if (!seed || !out) {
-  console.error('usage: --seed <seed> --out <file.json> [--size N] [--irregularity X] [--max-floors N] [--no-highways] [--no-trains] [--no-subways]');
+  console.error('usage: --seed <seed> --out <file.json> [--size N] [--irregularity X] [--max-floors N] [--no-highways] [--no-trains] [--no-subways] [--no-alleys]');
   process.exit(2);
 }
 
@@ -31,7 +31,12 @@ try {
     ...(size !== undefined ? { size: { width: size, depth: size } } : {}),
     ...(opt('irregularity') !== undefined ? { irregularity: Number(opt('irregularity')) } : {}),
     ...(opt('max-floors') !== undefined ? { maxFloors: Number(opt('max-floors')) } : {}),
-    features: { highways: !flag('no-highways'), trains: !flag('no-trains'), subways: !flag('no-subways') },
+    features: {
+      highways: !flag('no-highways'),
+      trains: !flag('no-trains'),
+      subways: !flag('no-subways'),
+      alleys: !flag('no-alleys'),
+    },
   });
   writeFileSync(out, JSON.stringify(bp));
   console.log(

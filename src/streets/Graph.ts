@@ -26,7 +26,7 @@ export interface BuiltEdge {
   path: Polyline;
 }
 
-const CLASS_RANK: Record<StreetClass, number> = { highway: 0, road: 1, street: 2 };
+const CLASS_RANK: Record<StreetClass, number> = { highway: 0, road: 1, street: 2, alley: 3 };
 
 interface WorkEdge {
   class: StreetClass;

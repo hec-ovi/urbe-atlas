@@ -80,6 +80,7 @@ export function resolveParams(input: AtlasParams): ResolvedParams {
     highways: input.features?.highways ?? true,
     trains: input.features?.trains ?? true,
     subways: input.features?.subways ?? true,
+    alleys: input.features?.alleys ?? true,
     airTunnels: input.features?.airTunnels ?? true,
     undergroundTunnels: input.features?.undergroundTunnels ?? true,
   };

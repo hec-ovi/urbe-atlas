@@ -18,11 +18,13 @@ import { CityBoundary } from './boundary/CityBoundary';
 import { DistrictPlanner } from './districts/DistrictPlanner';
 import { DistrictShapes } from './districts/DistrictShapes';
 import { StreetGrowth } from './streets/StreetGrowth';
+import { AlleyPlanner } from './streets/AlleyPlanner';
 import { StreetGraphBuilder } from './streets/Graph';
 import { FaceExtractor } from './streets/Faces';
+import type { Face } from './streets/Faces';
 import { Crossings } from './streets/Crossings';
 import { carriagewayWidth, sidewalkWidth } from './streets/widths';
-import { BlockBuilder } from './blocks/BlockBuilder';
+import { BlockBuilder, BuiltBlock } from './blocks/BlockBuilder';
 import { Buildability } from './blocks/Buildability';
 import { Subdivision, SubdivisionConfig } from './blocks/Subdivision';
 import { Zoning, LotInput } from './zoning/Zoning';
@@ -31,10 +33,10 @@ import { TransitPlanner } from './transit/TransitPlanner';
 import { Invariants } from './invariants/Invariants';
 import { bufferLine, difference, snapPoint } from './geom/clip';
 import { area, bounds, centroid, pointInPolygon } from './geom/polygon';
-import { length as lineLength, pointAt } from './geom/polyline';
-import { closestOnSegment, dist } from './geom/vec';
+import { directionAt, length as lineLength, pointAt } from './geom/polyline';
+import { closestOnSegment, cross, dist, sub } from './geom/vec';
 
-export const BLUEPRINT_VERSION = '0.2.5';
+export const BLUEPRINT_VERSION = '0.3.0';
 
 const SUBDIVISION: Record<DistrictKind, SubdivisionConfig> = {
   downtown: { minLotArea: 500, maxLotArea: 2600, chanceNoDivide: 0.12 },
@@ -64,8 +66,6 @@ export function generateCity(input: AtlasParams): CityBlueprint {
   const planned = DistrictPlanner.plan(Rng.from(seed, 'districts'), boundary, params);
   const field = StreetGrowth.buildField(Rng.from(seed, 'field'), boundary, params, planned);
   const lines = StreetGrowth.grow(field, boundary, Rng.from(seed, 'streets'), params, planned);
-  const graph = StreetGraphBuilder.build(lines, { simplifyTolerance: 1.5, snapRadius: 10 });
-  if (graph.edges.length < 8) throw unsatisfiable('street network too small; enlarge size', { edges: graph.edges.length });
 
   const cityCenter = centroid(boundary);
   const extent = Math.max(params.size.width, params.size.depth) * 3;
@@ -83,6 +83,40 @@ export function generateCity(input: AtlasParams): CityBlueprint {
     }
     return best;
   };
+
+  // --- street graph, then the alleys cut into its long blocks ------------
+  // An alley crosses the buildable land of a block, so the graph is built
+  // twice: once to read those blocks, once with the alleys inside it, which
+  // makes them nodes and edges of the same planar network.
+  const buildGraph = (traced: typeof lines): ReturnType<typeof StreetGraphBuilder.build> =>
+    StreetGraphBuilder.build(traced, { simplifyTolerance: 1.5, snapRadius: 10 });
+  const facesOf = (edges: ReturnType<typeof buildGraph>['edges']): Face[] =>
+    FaceExtractor.faces(edges, 400, area(boundary) / 2);
+  const roadwayOf = (edges: ReturnType<typeof buildGraph>['edges']): Map<string, Polygon[]> => {
+    const buffers = new Map<string, Polygon[]>();
+    for (const e of edges) {
+      const width = carriagewayWidth(e.class);
+      if (width > 0) buffers.set(e.id, bufferLine(e.path, width));
+    }
+    return buffers;
+  };
+
+  let graph = buildGraph(lines);
+  if (graph.edges.length < 8) throw unsatisfiable('street network too small; enlarge size', { edges: graph.edges.length });
+  let faces = facesOf(graph.edges);
+  if (params.features.alleys) {
+    const land = BlockBuilder.pieces(faces, roadwayOf(graph.edges));
+    const alleys = AlleyPlanner.plan(
+      land.map((piece) => piece.polygon),
+      graph.nodes.map((n) => n.position),
+      (p) => planned[districtOfPoint(p)],
+      Rng.from(seed, 'alleys'),
+    );
+    if (alleys.length > 0) {
+      graph = buildGraph([...lines, ...alleys.map((path) => ({ path, class: 'alley' as const }))]);
+      faces = facesOf(graph.edges);
+    }
+  }
 
   // --- street edges with widths and districts ---------------------------
   const edgeDistrict = new Map<string, number>();
@@ -111,19 +145,24 @@ export function generateCity(input: AtlasParams): CityBlueprint {
   };
   const streetEdgeById = new Map(streetEdges.map((e) => [e.id, e]));
 
-  // --- faces, blocks ----------------------------------------------------
-  const faces = FaceExtractor.faces(graph.edges, 400, area(boundary) / 2);
-  const edgeBuffers = new Map<string, Polygon[]>();
-  for (const e of streetEdges) edgeBuffers.set(e.id, bufferLine(e.path, e.width));
+  // --- blocks -----------------------------------------------------------
+  // An alley has no carriageway to carve out: the sidewalk rings of the two
+  // blocks it separates meet at its centerline and are the whole alley, so
+  // those blocks keep their rings narrow enough to stay within ALLEY_WIDTH.
+  const alleyEdgeIds = new Set(streetEdges.filter((e) => e.class === 'alley').map((e) => e.id));
   const builtBlocks = BlockBuilder.build(
     faces,
-    edgeBuffers,
+    roadwayOf(graph.edges),
     (face) => {
       const di = districtOfPoint(centroid(face.polygon));
-      return sidewalkWidth('street', planned[di].kind);
+      const cls = face.edgeIds.some((id) => alleyEdgeIds.has(id)) ? 'alley' : 'street';
+      return sidewalkWidth(cls, planned[di].kind);
     },
     Rng.from(seed, 'curbs'),
   );
+  for (const e of streetEdges) {
+    if (e.class === 'alley') adoptFlankingSidewalks(e, builtBlocks);
+  }
 
   // --- parcels ----------------------------------------------------------
   const lotRng = Rng.from(seed, 'parcels');
@@ -246,7 +285,11 @@ export function generateCity(input: AtlasParams): CityBlueprint {
 
   // --- transit -----------------------------------------------------------
   const population = zonedParcels.reduce((s, z) => s + z.residents, 0);
-  const planner = new TransitPlanner(graph.nodes, graph.edges, sidewalkOf);
+  // vehicles never enter an alley: the planner only sees the driveable graph
+  const vehicleEdges = graph.edges.filter((e) => e.class !== 'alley');
+  const vehicleEdgeIds = new Set(vehicleEdges.map((e) => e.id));
+  const vehicleNodes = graph.nodes.filter((n) => n.edgeIds.some((id) => vehicleEdgeIds.has(id)));
+  const planner = new TransitPlanner(vehicleNodes, vehicleEdges, sidewalkOf);
   const nodeById = new Map(graph.nodes.map((n) => [n.id, n]));
   const anchors = parcels
     .filter((p) => p.type === 'hospital' || p.type === 'mall' || p.type === 'corpo')
@@ -341,6 +384,22 @@ export function generateCity(input: AtlasParams): CityBlueprint {
 
   Invariants.check(blueprint);
   return blueprint;
+}
+
+/**
+ * An alley is the pair of sidewalk bands its flanking blocks lay along it, so
+ * its declared widths are those bands. A side with no block keeps the default.
+ */
+function adoptFlankingSidewalks(edge: StreetEdge, blocks: BuiltBlock[]): void {
+  const half = lineLength(edge.path) / 2;
+  const mid = pointAt(edge.path, half);
+  const dir = directionAt(edge.path, half);
+  for (const block of blocks) {
+    if (!block.edgeIds.includes(edge.id)) continue;
+    const side = cross(dir, sub(centroid(block.boundary), mid));
+    if (side > 0) edge.sidewalk.left = block.sidewalkWidth;
+    else if (side < 0) edge.sidewalk.right = block.sidewalkWidth;
+  }
 }
 
 /** Point on the block's sidewalk band closest to any vertex of the lot. */

@@ -11,6 +11,7 @@ import {
   fitsWalkupCore,
 } from '../zoning/core';
 import { minFloorHeight } from '../zoning/floorMinimums';
+import { ALLEY_WIDTH } from '../streets/widths';
 import { area, isSimpleRing, pointInPolygon } from '../geom/polygon';
 import { distanceTo } from '../geom/polyline';
 import { closestOnSegment, dist } from '../geom/vec';
@@ -95,6 +96,25 @@ export class Invariants {
       }
     }
 
+    // alleys: no carriageway, a sidewalk-only band, no vehicle traffic
+    const alleyIds = new Set(bp.streets.edges.filter((e) => e.class === 'alley').map((e) => e.id));
+    for (const id of alleyIds) {
+      const e = edgeById.get(id)!;
+      if (e.width !== 0) throw invariantFailure(`alley ${e.id} has a ${e.width} m carriageway`);
+      const width = e.sidewalk.left + e.sidewalk.right;
+      if (width < ALLEY_WIDTH[0] - 1e-9 || width > ALLEY_WIDTH[1] + 1e-9) {
+        throw invariantFailure(`alley ${e.id} is ${width} m wide, outside ${ALLEY_WIDTH[0]}-${ALLEY_WIDTH[1]} m`);
+      }
+    }
+    for (const s of bp.transit.busStops) {
+      if (alleyIds.has(s.edgeId)) throw invariantFailure(`bus stop ${s.id} stands on alley ${s.edgeId}`);
+    }
+    for (const r of bp.transit.busRoutes) {
+      for (const id of r.edgeIds) {
+        if (alleyIds.has(id)) throw invariantFailure(`bus route ${r.id} drives through alley ${id}`);
+      }
+    }
+
     // transit membership and rail connectivity
     const usedStops = new Set(bp.transit.busRoutes.flatMap((r) => r.stopIds));
     for (const s of bp.transit.busStops) {
@@ -138,6 +158,7 @@ export class Invariants {
     if (f.trains === false && (bp.transit.trainLines.length > 0 || bp.transit.trainStations.length > 0)) {
       throw invariantFailure('trains disabled but train entities exist');
     }
+    if (f.alleys === false && alleyIds.size > 0) throw invariantFailure('alleys disabled but alley edges exist');
 
     // ground coverage: surfaces fill the city with no gaps beyond tolerance
     const cityArea = area(bp.meta.boundary);

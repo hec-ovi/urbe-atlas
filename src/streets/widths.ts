@@ -2,6 +2,12 @@
 import type { StreetClass } from '../../schema/blueprint';
 import type { DistrictKind } from '../../schema/params';
 
+/** An alley is this wide, ground to ground, all of it sidewalk. */
+export const ALLEY_WIDTH: [min: number, max: number] = [3, 5];
+
+/** Widest band one side of an alley may take, so the pair stays within ALLEY_WIDTH. */
+const ALLEY_SIDE_MAX = ALLEY_WIDTH[1] / 2;
+
 export function carriagewayWidth(cls: StreetClass): number {
   switch (cls) {
     case 'highway':
@@ -10,6 +16,8 @@ export function carriagewayWidth(cls: StreetClass): number {
       return 10;
     case 'street':
       return 7;
+    case 'alley':
+      return 0; // pedestrian only
   }
 }
 
@@ -18,5 +26,7 @@ export function sidewalkWidth(cls: StreetClass, district: DistrictKind | undefin
   if (cls === 'highway') return 0;
   const wide = district === 'downtown' || district === 'commercial';
   if (cls === 'road') return wide ? 3.2 : 2.4;
-  return wide ? 2.8 : district === 'industrial' ? 2.0 : 1.8;
+  const street = wide ? 2.8 : district === 'industrial' ? 2.0 : 1.8;
+  // an alley is two sidewalks meeting at its centerline: keep the pair narrow
+  return cls === 'alley' ? Math.min(street, ALLEY_SIDE_MAX) : street;
 }

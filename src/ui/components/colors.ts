@@ -38,6 +38,8 @@ export function streetColor(cls: StreetClass): string {
       return '#565d66';
     case 'street':
       return '#767d86';
+    case 'alley':
+      return '#a98b62';
   }
 }
 

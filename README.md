@@ -1,6 +1,6 @@
 # urbe-atlas
 
-Deterministic 2D city map generator. A seed plus a few parameters produce a complete typed city blueprint: districts, a street hierarchy with real widths and sidewalks, buildable parcels with quality tiers and 3D envelopes, transit networks, and a low poly volumetric city for previews. Same input, byte-identical JSON, generated in well under a second.
+Deterministic 2D city map generator. A seed plus a few parameters produce a complete typed city blueprint: districts, a street hierarchy with real widths and sidewalks, buildable parcels with quality tiers and 3D envelopes, transit networks, and a low poly volumetric city for previews. Same input, byte-identical JSON: a 3 km city takes about a second, a village a tenth of that.
 
 ## Run
 
@@ -11,18 +11,18 @@ npm run preview                             # browser map: pan, zoom, legend, la
 npm run generate -- --seed urbe --out city.json
 ```
 
-Generator flags: `--size N`, `--irregularity X`, `--max-floors N`, `--no-highways`, `--no-trains`, `--no-subways`. Only `--seed` is required; everything else has a documented default in `schema/params.ts`.
+Generator flags: `--size N`, `--irregularity X`, `--max-floors N`, `--no-highways`, `--no-trains`, `--no-subways`, `--no-alleys`. Only `--seed` is required; everything else has a documented default in `schema/params.ts`.
 
 ## In
 
-`generateCity(params)` in TypeScript, or the CLI above. Params are a seed, city size, boundary irregularity, district count range, floor caps global and per district kind, wealth tier weights, and feature toggles for highways, trains, subways, air and underground tunnels.
+`generateCity(params)` in TypeScript, or the CLI above. Params are a seed, city size, boundary irregularity, district count range, floor caps global and per district kind, wealth tier weights, and feature toggles for highways, trains, subways, alleys, air and underground tunnels.
 
 ## Out
 
 One JSON blueprint (`schema/blueprint.ts`):
 
 - **districts** with kind (downtown, commercial, residential, industrial, mixed), wealth tier and floor cap
-- **streets** as a planar graph: street, road and highway classes with carriageway and sidewalk widths, curved centerlines, pedestrian crossings at intersections
+- **streets** as a planar graph: street, road and highway classes with carriageway and sidewalk widths, curved centerlines, pedestrian crossings at intersections, plus pedestrian-only alleys (no carriageway, 3 to 5 m of sidewalk) cut through long blocks in poor and commercial districts
 - **blocks** with continuous sidewalk rings and rounded curb corners at intersections, and **parcels** typed residential through coffee shop, tiered poor to high rich, each with a footprint, a street access point and a 3D envelope
 - **transit**: bus stops and routes over street edges, train and subway stations with street level entrances, and their lines
 - **volumetric**: one prism per parcel plus ground cover polygons, for map rendering

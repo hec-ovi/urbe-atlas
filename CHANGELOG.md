@@ -1,5 +1,7 @@
 # Changelog
 
+0.1.7: alley street class, on by default and switched by `features.alleys` (`--no-alleys`): a pedestrian-only cut with no carriageway and 3 to 5 m of sidewalk-full ground, driven through long blocks, dense in poor and commercial districts and elsewhere only where a block runs long enough to need a mid-block connector. Cars never enter one: bus stops and routes are planned on the driveable graph alone, and crossings skip alley arms. The street graph is built twice, once to read the blocks and once with the alleys inside it, so an alley is a node-and-edge member of the same planar network. Samples regenerated; blueprint 0.3.0.
+
 0.1.6: street centerlines stay runs of street: a streamline join only ever continues the line it is drawing, and every edge joins two different nodes with no repeated point and no vertex turning more than 120 degrees, so no sidewalk band folds back over its own roadway; the volumetric ground cover is machine checked as a partition, with roadway, sidewalk, block and open polygons pairwise disjoint; the small-size fuzz grid asserts both across all its sizes and seeds; samples regenerated; blueprint 0.2.5.
 
 0.1.5: curb corners round off at intersections with a seeded 1.5 to 3 m arc on the block outline and the sidewalk band; block and sidewalk rings are machine checked as simple polygons; samples regenerated; blueprint 0.2.4.

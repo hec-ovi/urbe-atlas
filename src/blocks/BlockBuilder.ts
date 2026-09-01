@@ -11,6 +11,13 @@ import { difference, offset } from '../geom/clip';
 import { filletCorners } from '../geom/fillet';
 import { area } from '../geom/polygon';
 
+/** Face land left over by the roadway: what a block is cut from. */
+export interface FacePiece {
+  faceIndex: number;
+  pieceIndex: number;
+  polygon: Polygon;
+}
+
 export interface BuiltBlock {
   faceIndex: number;
   /** Outer edge of the sidewalk (face minus roadway). */
@@ -29,13 +36,9 @@ const MIN_BLOCK_AREA = 250;
 const CURB_RADIUS: [number, number] = [1.5, 3];
 
 export class BlockBuilder {
-  static build(
-    faces: Face[],
-    edgeBuffers: Map<string, Polygon[]>,
-    sidewalkWidthOfFace: (face: Face) => number,
-    curbRng: Rng,
-  ): BuiltBlock[] {
-    const blocks: BuiltBlock[] = [];
+  /** Land each face keeps once the roadway of its own edges is subtracted. */
+  static pieces(faces: Face[], edgeBuffers: Map<string, Polygon[]>): FacePiece[] {
+    const out: FacePiece[] = [];
     faces.forEach((face, faceIndex) => {
       const roadway: Polygon[] = [];
       for (const id of face.edgeIds) {
@@ -43,18 +46,30 @@ export class BlockBuilder {
         if (buf) roadway.push(...buf);
       }
       // pieces below MIN_BLOCK_AREA stay part of the face's roadway ground
-      const pieces = difference([face.polygon], roadway);
-      pieces.forEach((raw, pieceIndex) => {
-        if (area(raw) < MIN_BLOCK_AREA) return;
-        const rng = curbRng.fork(`${faceIndex}:${pieceIndex}`);
-        const piece = filletCorners(raw, () => rng.range(CURB_RADIUS[0], CURB_RADIUS[1]));
-        const sw = sidewalkWidthOfFace(face);
-        const interior = offset([piece], -sw).filter((p) => area(p) >= 60);
-        if (interior.length === 0) return;
-        const sidewalk = difference([piece], interior);
-        blocks.push({ faceIndex, boundary: piece, sidewalk, sidewalkWidth: sw, interior, edgeIds: face.edgeIds });
+      difference([face.polygon], roadway).forEach((polygon, pieceIndex) => {
+        if (area(polygon) >= MIN_BLOCK_AREA) out.push({ faceIndex, pieceIndex, polygon });
       });
     });
+    return out;
+  }
+
+  static build(
+    faces: Face[],
+    edgeBuffers: Map<string, Polygon[]>,
+    sidewalkWidthOfFace: (face: Face) => number,
+    curbRng: Rng,
+  ): BuiltBlock[] {
+    const blocks: BuiltBlock[] = [];
+    for (const { faceIndex, pieceIndex, polygon } of this.pieces(faces, edgeBuffers)) {
+      const face = faces[faceIndex];
+      const rng = curbRng.fork(`${faceIndex}:${pieceIndex}`);
+      const piece = filletCorners(polygon, () => rng.range(CURB_RADIUS[0], CURB_RADIUS[1]));
+      const sw = sidewalkWidthOfFace(face);
+      const interior = offset([piece], -sw).filter((p) => area(p) >= 60);
+      if (interior.length === 0) continue;
+      const sidewalk = difference([piece], interior);
+      blocks.push({ faceIndex, boundary: piece, sidewalk, sidewalkWidth: sw, interior, edgeIds: face.edgeIds });
+    }
     return blocks;
   }
 }

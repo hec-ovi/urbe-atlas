@@ -32,6 +32,8 @@ export interface FeatureToggles {
   highways?: boolean;
   /** Generate train stations and lines. Default true. */
   trains?: boolean;
+  /** Generate alleys: narrow pedestrian cuts through long blocks. Default true. */
+  alleys?: boolean;
   /** Generate subway stations and lines. Default true. */
   subways?: boolean;
   /** Permit above-ground tube/bridge connections downstream. Echoed in blueprint meta; atlas draws no geometry for it. Default true. */
