@@ -1,24 +1,41 @@
-# atlas
+# urbe-atlas
 
-Deterministic 2D city map generator. A seed plus parameters produce a complete typed city blueprint: districts, a street hierarchy with real widths and sidewalks, buildable parcels with quality tiers and 3D envelopes, transit networks, and a low poly volumetric city for previews. Same input, byte-identical JSON, generated in well under a second.
+Deterministic 2D city map generator. A seed plus a few parameters produce a complete typed city blueprint: districts, a street hierarchy with real widths and sidewalks, buildable parcels with quality tiers and 3D envelopes, transit networks, and a low poly volumetric city for previews. Same input, byte-identical JSON, generated in well under a second.
 
-## Quick start
+## Run
 
 ```
 npm install
-npm test           # contract tests
-npm run preview    # browser preview: pan, zoom, legend, layer toggles
+npm test                                    # contract tests
+npm run preview                             # browser map: pan, zoom, legend, layer toggles
 npm run generate -- --seed urbe --out city.json
 ```
 
-## What comes out
+Generator flags: `--size N`, `--irregularity X`, `--max-floors N`, `--no-highways`, `--no-trains`, `--no-subways`. Only `--seed` is required; everything else has a documented default in `schema/params.ts`.
 
-One JSON blueprint (schema in `schema/blueprint.ts`): districts with kind and wealth tier, a planar street graph (street, road, highway classes with carriageway and sidewalk widths, pedestrian crossings), blocks with continuous sidewalk rings, parcels typed residential to coffee shop with poor to high rich tiers and floor envelopes, bus routes and stops, subway and train lines with stations, ground surfaces and building prisms for map rendering, and per-district statistics.
+## In
 
-`CONTRACT.md` is the full surface: parameters, schemas, the closed error set, and the coherence invariants the generator enforces (connected street graph, every parcel reachable from a sidewalk, connected transit networks, gap-free ground coverage).
+`generateCity(params)` in TypeScript, or the CLI above. Params are a seed, city size, boundary irregularity, district count range, floor caps global and per district kind, wealth tier weights, and feature toggles for highways, trains, subways, air and underground tunnels.
+
+## Out
+
+One JSON blueprint (`schema/blueprint.ts`):
+
+- **districts** with kind (downtown, commercial, residential, industrial, mixed), wealth tier and floor cap
+- **streets** as a planar graph: street, road and highway classes with carriageway and sidewalk widths, curved centerlines, pedestrian crossings at intersections
+- **blocks** with continuous sidewalk rings, and **parcels** typed residential through coffee shop, tiered poor to high rich, each with a footprint, a street access point and a 3D envelope
+- **transit**: bus stops and routes over street edges, train and subway stations with street level entrances, and their lines
+- **volumetric**: one prism per parcel plus ground cover polygons, for map rendering
+- **stats**: population estimate and parcel counts per type and per district
+
+The generator enforces its own coherence before it returns: connected street graph, every parcel reachable from a sidewalk of its access edge, continuous sidewalks linked by crossings, connected rail networks, parcels that never overlap, gap-free ground coverage. `CONTRACT.md` lists every invariant and the closed error set.
+
+Two samples are committed and tested to regenerate byte-identical: `samples/city-urbe.json` (full size) and `samples/city-urbe-small.json` (an 800 m village).
 
 ## How it works
 
-Streets grow as streamlines through a composite tensor field (grid, radial and boundary basis fields), which is what mixes curved, radial and rectangular patterns in one city. Blocks are the faces of the resulting planar graph, parcels come from recursive oriented-box subdivision, and zoning applies researched urban ratios (hospitals, police, commerce per population; floor bands per type and tier). Sources and numbers live in `docs/RESEARCH.md`.
+Streets grow as streamlines through a composite tensor field (grid, radial and boundary basis fields), which is what mixes curved, radial and rectangular patterns in one city. Blocks are the faces of the resulting planar graph, parcels come from recursive oriented-box subdivision, and zoning applies researched urban ratios: hospitals, police and commerce per population, floor bands per type and tier. Sources and numbers live in `docs/RESEARCH.md`.
 
-A fixed sample lives at `samples/city-urbe.json`.
+## In the urbe family
+
+atlas is the root of the world: nothing feeds it, and every other layer starts from its blueprint. [urbe-transit](../urbe-transit) turns it into links and movement networks, [urbe-population](../urbe-population) reads its districts and stats, [urbe-namer](../urbe-namer) names its placeholders, and [urbe-engine](../urbe-engine) assembles the result. Each parcel becomes a real building through [buildingforge](../buildingforge). The full picture lives in [urbe](../urbe).
