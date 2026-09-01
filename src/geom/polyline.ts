@@ -1,5 +1,5 @@
 import type { Polyline, Vec2 } from '../../schema/blueprint';
-import { dist, lerp, sub, scale, add, closestOnSegment } from './vec';
+import { dist, dot, lerp, sub, scale, add, closestOnSegment } from './vec';
 
 export function length(line: Polyline): number {
   let l = 0;
@@ -43,6 +43,31 @@ export function simplify(line: Polyline, tolerance: number): Polyline {
     }
   }
   return line.filter((_, i) => keep[i]);
+}
+
+/**
+ * Index of the first interior vertex where the line folds back on itself:
+ * a repeated point, or a turn whose cosine is at or below `maxTurnCos`.
+ * Returns -1 when the line never folds.
+ */
+export function doubleBackAt(line: Polyline, maxTurnCos: number): number {
+  for (let i = 1; i < line.length - 1; i++) {
+    const u = sub(line[i], line[i - 1]);
+    const v = sub(line[i + 1], line[i]);
+    const l = Math.hypot(u[0], u[1]) * Math.hypot(v[0], v[1]);
+    if (l < 1e-12) return i;
+    if (dot(u, v) / l <= maxTurnCos) return i;
+  }
+  return -1;
+}
+
+/** Drop the interior vertices where the line folds back; endpoints stay. */
+export function removeDoubleBacks(line: Polyline, maxTurnCos: number): Polyline {
+  let out = line;
+  for (let i = doubleBackAt(out, maxTurnCos); i >= 0; i = doubleBackAt(out, maxTurnCos)) {
+    out = [...out.slice(0, i), ...out.slice(i + 1)];
+  }
+  return out;
 }
 
 /** Direction of the line at arc-length d (unit vector of the containing segment). */

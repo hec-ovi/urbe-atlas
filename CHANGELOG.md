@@ -1,5 +1,7 @@
 # Changelog
 
+0.1.6: street centerlines stay runs of street: a streamline join only ever continues the line it is drawing, and every edge joins two different nodes with no repeated point and no vertex turning more than 120 degrees, so no sidewalk band folds back over its own roadway; the volumetric ground cover is machine checked as a partition, with roadway, sidewalk, block and open polygons pairwise disjoint; the small-size fuzz grid asserts both across all its sizes and seeds; samples regenerated; blueprint 0.2.5.
+
 0.1.5: curb corners round off at intersections with a seeded 1.5 to 3 m arc on the block outline and the sidewalk band; block and sidewalk rings are machine checked as simple polygons; samples regenerated; blueprint 0.2.4.
 
 0.1.4: every parcel footprint hosts a 7.9 x 5.5 m walkup core (a lot below it merges into a neighbour parcel or becomes open area); every envelope admits one floor at the minimum floor height of its type's family; a rail line that cannot reach 2 stations is dropped together with its stations, and station entrances are verified against their edge's sidewalk band; third committed sample city-urbe-tiny.json (seed urbe-tiny, 400 m, 6 floors, highways, trains and subways off); all three samples regeneration-tested byte-identical, plus a fuzz test over small sizes and seeds; blueprint 0.2.3.

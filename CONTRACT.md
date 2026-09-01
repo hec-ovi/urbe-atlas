@@ -42,9 +42,11 @@ Closed set, thrown as `AtlasError { code, message, details? }` ([schema/blueprin
 ## Invariants
 - IDs are globally unique across the whole blueprint (disjoint prefixes per collection).
 - Street graph is connected; every parcel's access point lies on a sidewalk of its access edge.
+- Every edge is a real run of street: its two nodes differ, no path point repeats, and no vertex turns more than 120 degrees. A sharper turn would fold the edge's sidewalk band back over its own roadway.
 - Sidewalks are continuous along every street and road, linked across intersections by crossings.
 - Every stop and station belongs to at least one route or line; every route and line serves at least 2 stops/stations; a line that cannot reach 2 stations is dropped together with the stations it would have served; each rail network is connected; station entrances lie on sidewalks.
 - Parcels never overlap; parcels, sidewalk and open areas cover their block; ground surfaces cover the city without gaps.
+- The volumetric ground cover is a partition: roadway, sidewalk, block and open polygons are pairwise disjoint. Coordinates live on a 1 mm grid, so surfaces sharing a boundary may report a sliver there; nothing overlaps by a band 1 cm or wider.
 - Block outlines and sidewalk polygons are simple rings (3+ points, real area, no crossing edges); every convex curb corner with room for a 0.6 m return is rounded by an arc of 1.5 to 3 m.
 - Feature toggles are respected: a disabled feature produces no entities of that kind.
 - Every parcel footprint contains a 7.9 x 5.5 m rectangle (walkup stair core, constants mirrored from interior's core feasibility); a lot below it merges into a neighbour parcel or becomes open area instead of becoming a parcel.

@@ -25,8 +25,11 @@ export class SeparationGrid {
     for (const p of points) this.insert(p);
   }
 
-  /** Nearest stored point within radius r of p, or null. */
-  nearestWithin(p: Vec2, r: number): Vec2 | null {
+  /**
+   * Nearest stored point within radius r of p, or null.
+   * `accept` narrows the candidates, e.g. to points ahead of a traced line.
+   */
+  nearestWithin(p: Vec2, r: number, accept?: (q: Vec2) => boolean): Vec2 | null {
     const r2 = r * r;
     const span = Math.ceil(r / this.cell);
     const cx = Math.floor(p[0] / this.cell);
@@ -39,10 +42,10 @@ export class SeparationGrid {
         if (!bucket) continue;
         for (const q of bucket) {
           const d2 = distSq(p, q);
-          if (d2 <= bestD2) {
-            bestD2 = d2;
-            best = q;
-          }
+          if (d2 > bestD2) continue;
+          if (accept && !accept(q)) continue;
+          bestD2 = d2;
+          best = q;
         }
       }
     }

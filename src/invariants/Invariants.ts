@@ -14,6 +14,8 @@ import { minFloorHeight } from '../zoning/floorMinimums';
 import { area, isSimpleRing, pointInPolygon } from '../geom/polygon';
 import { distanceTo } from '../geom/polyline';
 import { closestOnSegment, dist } from '../geom/vec';
+import { checkGroundCover } from './groundCover';
+import { checkStreetEdges } from './streetEdges';
 
 export class Invariants {
   static check(bp: CityBlueprint): void {
@@ -83,6 +85,9 @@ export class Invariants {
       }
     }
 
+    // street edges: no degenerate run, no centerline folded over its own band
+    checkStreetEdges(bp);
+
     // sidewalk presence along streets and roads
     for (const e of bp.streets.edges) {
       if (e.class !== 'highway' && (e.sidewalk.left <= 0 || e.sidewalk.right <= 0)) {
@@ -144,6 +149,8 @@ export class Invariants {
         covered,
       });
     }
+    // and they tile it: no two ground surfaces overlap
+    checkGroundCover(bp);
 
     // per-block: valid rings, and lots + open areas within the interior area
     for (const b of bp.blocks) {

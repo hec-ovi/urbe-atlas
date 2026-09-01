@@ -6,7 +6,9 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { AtlasError, generateCity } from '../src';
 import { orientedBoundingBox } from '../src/geom/obb';
-import type { CityBlueprint, ParcelType } from '../schema/blueprint';
+import { intersection, offset } from '../src/geom/clip';
+import { bounds } from '../src/geom/polygon';
+import type { CityBlueprint, ParcelType, Polyline, Vec2 } from '../schema/blueprint';
 
 const PARCEL_TYPES: ParcelType[] = [
   'residential', 'hotel', 'offices', 'corpo', 'hospital', 'clinic', 'police',
@@ -20,8 +22,56 @@ const MIN_FLOOR_HEIGHT: Record<ParcelType, number> = {
   police: 3.0, military: 3.0, factory: 4.5, commerce: 3.0, mall: 3.0, restaurant: 3.0, coffee_shop: 3.0,
 };
 
+/** Sharpest turn a street centerline may make, from CONTRACT.md. */
+const MAX_TURN_DEG = 120;
+/** Overlap band a ground surface pair may not exceed, meters (CONTRACT.md). */
+const OVERLAP_EPS = 0.01;
+
 let cached: CityBlueprint | null = null;
 const defaultCity = (): CityBlueprint => (cached ??= generateCity({ seed: 'contract' }));
+
+const distance = (a: Vec2, b: Vec2): number => Math.hypot(a[0] - b[0], a[1] - b[1]);
+
+/** Turn at path[i], in degrees: 0 straight ahead, 180 straight back. */
+function turnAt(path: Polyline, i: number): number {
+  const u: Vec2 = [path[i][0] - path[i - 1][0], path[i][1] - path[i - 1][1]];
+  const v: Vec2 = [path[i + 1][0] - path[i][0], path[i + 1][1] - path[i][1]];
+  const l = Math.hypot(u[0], u[1]) * Math.hypot(v[0], v[1]);
+  if (l === 0) return 180;
+  const cos = Math.min(1, Math.max(-1, (u[0] * v[0] + u[1] * v[1]) / l));
+  return (Math.acos(cos) * 180) / Math.PI;
+}
+
+/** No edge is degenerate and none folds back over its own sidewalk band. */
+function expectStreetEdgesAreRuns(bp: CityBlueprint): void {
+  for (const e of bp.streets.edges) {
+    expect(e.from, `${e.id} is a self-loop`).not.toBe(e.to);
+    expect(e.path.length, `${e.id} path`).toBeGreaterThanOrEqual(2);
+    for (let i = 1; i < e.path.length; i++) {
+      expect(distance(e.path[i - 1], e.path[i]), `${e.id} point ${i}`).toBeGreaterThan(0);
+    }
+    for (let i = 1; i < e.path.length - 1; i++) {
+      expect(turnAt(e.path, i), `${e.id} folds at point ${i}`).toBeLessThanOrEqual(MAX_TURN_DEG);
+    }
+  }
+}
+
+/** Roadway, sidewalk, block and open surfaces tile the city: none overlaps another. */
+function expectGroundSurfacesAreDisjoint(bp: CityBlueprint): void {
+  const ground = bp.volumetric.ground;
+  const boxes = ground.map((g) => bounds(g.polygon));
+  for (let i = 0; i < ground.length; i++) {
+    for (let j = i + 1; j < ground.length; j++) {
+      const a = boxes[i];
+      const b = boxes[j];
+      if (a.max[0] - OVERLAP_EPS < b.min[0] + OVERLAP_EPS || b.max[0] - OVERLAP_EPS < a.min[0] + OVERLAP_EPS) continue;
+      if (a.max[1] - OVERLAP_EPS < b.min[1] + OVERLAP_EPS || b.max[1] - OVERLAP_EPS < a.min[1] + OVERLAP_EPS) continue;
+      const shared = intersection([ground[i].polygon], [ground[j].polygon]);
+      const band = shared.length === 0 ? [] : offset(shared, -OVERLAP_EPS);
+      expect(band, `${ground[i].surface} ${i} overlaps ${ground[j].surface} ${j}`).toHaveLength(0);
+    }
+  }
+}
 
 describe('determinism', () => {
   it('same seed and params give byte-identical JSON', () => {
@@ -215,6 +265,8 @@ describe('small cities', () => {
           expect(served.has(s.id)).toBe(true);
         }
         for (const l of lines) expect(l.stationIds.length).toBeGreaterThanOrEqual(2);
+        expectStreetEdgesAreRuns(bp);
+        expectGroundSurfacesAreDisjoint(bp);
       }
     }
   });

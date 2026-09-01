@@ -1,13 +1,15 @@
 /**
  * Builds the planar street graph from traced streamlines:
- * split at intersections, snap-cluster nodes, prune dangling chains,
- * keep the largest connected component, assign stable sorted ids.
+ * split at intersections, snap-cluster nodes, drop folds and self-loops,
+ * prune dangling chains, keep the largest connected component,
+ * assign stable sorted ids.
  */
 import type { Polyline, StreetClass, Vec2 } from '../../schema/blueprint';
 import { segmentIntersection } from '../geom/vec';
 import { dist } from '../geom/vec';
 import { snapPoint } from '../geom/clip';
 import { length as lineLength, simplify } from '../geom/polyline';
+import { cleanCenterline } from './centerline';
 import type { TracedLine } from './StreamlineTracer';
 
 export interface BuiltNode {
@@ -177,8 +179,9 @@ export class StreetGraphBuilder {
         if (path.length < 2) continue;
         const a = canonical(path[0]);
         const b = canonical(path[path.length - 1]);
-        const fixed: Polyline = [nodePositions[a], ...path.slice(1, -1), nodePositions[b]];
-        if (a === b && lineLength(fixed) < snapRadius * 3) continue;
+        // a run that returns to the node it left is a fold, never a street
+        if (a === b) continue;
+        const fixed = cleanCenterline([nodePositions[a], ...path.slice(1, -1), nodePositions[b]]);
         workEdges.push({ class: m.class, a, b, path: fixed });
       }
     }

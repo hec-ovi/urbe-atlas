@@ -34,7 +34,7 @@ import { area, bounds, centroid, pointInPolygon } from './geom/polygon';
 import { length as lineLength, pointAt } from './geom/polyline';
 import { closestOnSegment, dist } from './geom/vec';
 
-export const BLUEPRINT_VERSION = '0.2.4';
+export const BLUEPRINT_VERSION = '0.2.5';
 
 const SUBDIVISION: Record<DistrictKind, SubdivisionConfig> = {
   downtown: { minLotArea: 500, maxLotArea: 2600, chanceNoDivide: 0.12 },

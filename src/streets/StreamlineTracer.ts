@@ -10,7 +10,22 @@ import { add, dist, dot, neg, scale, sub } from '../geom/vec';
 import { pointInPolygon } from '../geom/polygon';
 import type { Polygon } from '../../schema/blueprint';
 import { SeparationGrid } from './SeparationGrid';
+import { MAX_TURN_COS } from './centerline';
 import { length as lineLength } from '../geom/polyline';
+
+/**
+ * A join is only allowed to continue the line, never to fold it: the step to
+ * the joined sample must turn no more than a centerline is allowed to turn.
+ * Without this a trace can end by snapping to a sample behind its own tip,
+ * which lays an out-and-back spike over the street it just drew.
+ */
+const continues =
+  (from: Vec2, dir: Vec2) =>
+  (q: Vec2): boolean => {
+    const v = sub(q, from);
+    const l = Math.hypot(v[0], v[1]) * Math.hypot(dir[0], dir[1]);
+    return l > 1e-12 && dot(v, dir) / l > MAX_TURN_COS;
+  };
 
 export interface TierParams {
   /** Separation between parallel streamlines of this tier. */
@@ -79,9 +94,9 @@ export class StreamlineTracer {
         }
       }
       if (selfHit) break;
-      // proximity to same-family lines: stop and join
+      // proximity to same-family lines: stop and join, always reaching forward
       if (i * params.dstep > params.dtest * 2) {
-        const near = this.samples[family].nearestWithin(next, params.dtest);
+        const near = this.samples[family].nearestWithin(next, params.dtest, continues(p, step));
         if (near) {
           out.push(near);
           return out;
@@ -92,12 +107,13 @@ export class StreamlineTracer {
       prev = step;
       p = next;
     }
-    // join a dangling end to any nearby line of either family
-    if (out.length > 0) {
+    // join a dangling end to any nearby line of either family, still going forward
+    if (out.length > 0 && prev !== null) {
       const last = out[out.length - 1];
-      const nearSame = this.samples[family].nearestWithin(last, params.dsep);
+      const onward = continues(last, prev);
+      const nearSame = this.samples[family].nearestWithin(last, params.dsep, onward);
       const other: 'major' | 'minor' = family === 'major' ? 'minor' : 'major';
-      const nearOther = this.samples[other].nearestWithin(last, params.dsep);
+      const nearOther = this.samples[other].nearestWithin(last, params.dsep, onward);
       const near =
         nearSame && nearOther
           ? dist(nearSame, last) <= dist(nearOther, last)
