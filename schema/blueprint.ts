@@ -127,9 +127,9 @@ export interface Parcel {
 export interface Envelope {
   minFloors: number;
   maxFloors: number;
-  /** Typical floor height for the type/tier, meters. */
+  /** Nominal floor height for the type/tier, meters. Preview and estimation only; real per-floor elevations are owned by exterior and vary 2-4 m. */
   floorHeight: number;
-  /** maxFloors * floorHeight, meters. */
+  /** maxFloors * floorHeight, meters. Nominal cap, same caveat as floorHeight. */
   maxHeight: number;
 }
 

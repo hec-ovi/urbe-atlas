@@ -21,7 +21,7 @@ Params: [schema/params.ts](schema/params.ts). Only `seed` is required; every oth
 - `districts`: kind (downtown, commercial, residential, industrial, mixed), wealth tier, boundary, floor cap.
 - `streets`: planar graph of nodes and edges; each edge has class (`street` | `road` | `highway`), centerline path (curves as polylines), carriageway width, per-side sidewalk widths; pedestrian crossings at intersections.
 - `blocks`: street-bounded faces with sidewalk strip polygons, contained parcels, open areas.
-- `parcels`: type (residential, hotel, offices, corpo, hospital, clinic, police, military, factory, commerce, mall, restaurant, coffee_shop), tier (poor, mid, rich, high_rich), footprint polygon, street access point, 3D envelope (min/max floors, floor height, max height).
+- `parcels`: type (residential, hotel, offices, corpo, hospital, clinic, police, military, factory, commerce, mall, restaurant, coffee_shop), tier (poor, mid, rich, high_rich), footprint polygon, street access point, 3D envelope (min/max floors, nominal floor height and max height; real per-floor elevations are owned by exterior).
 - `transit`: bus stops and routes over street edges; train and subway stations (with street-level entrances) and lines.
 - `volumetric`: low poly city for map previews: one prism per parcel plus ground cover polygons (roadway, sidewalk, block, open).
 - `stats`: population estimate, parcel counts per type, per district.
