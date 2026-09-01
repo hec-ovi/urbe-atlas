@@ -1,15 +1,16 @@
 /**
  * Minimum footprint band per parcel type: the width a footprint must keep
  * between its two long sides along its whole length, so the interior core of
- * that type always fits (orchestrator ruling of 2026-09-01; the heavy band
- * wraps interior's 10.4 m compact core row).
+ * that type always fits behind the shell wall (orchestrator ruling of
+ * 2026-09-01 on interior 0.18: the heavy band is interior's 11 m core band
+ * plus up to 0.5 m of wall each side).
  */
 import type { ParcelType } from '../../schema/blueprint';
 
 /** Band for elevator-core types, meters. */
-export const HEAVY_BAND = 11;
+export const HEAVY_BAND = 12;
 /** Band for walkup-core types, meters. */
-export const LIGHT_BAND = 7.5;
+export const LIGHT_BAND = 8.5;
 
 const HEAVY_TYPES: ReadonlySet<ParcelType> = new Set<ParcelType>(['offices', 'corpo', 'hotel', 'hospital', 'mall', 'factory']);
 

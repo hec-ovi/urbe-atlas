@@ -25,7 +25,7 @@ const MIN_FLOOR_HEIGHT: Record<ParcelType, number> = {
 
 /** Band each type's footprint keeps end to end, meters (CONTRACT.md). */
 const HEAVY_TYPES = new Set<ParcelType>(['offices', 'corpo', 'hotel', 'hospital', 'mall', 'factory']);
-const minBand = (type: ParcelType): number => (HEAVY_TYPES.has(type) ? 11 : 7.5);
+const minBand = (type: ParcelType): number => (HEAVY_TYPES.has(type) ? 12 : 8.5);
 
 /** Sharpest turn a street centerline may make, from CONTRACT.md. */
 const MAX_TURN_DEG = 120;

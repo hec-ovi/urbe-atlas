@@ -133,8 +133,8 @@ export interface Parcel {
 
 /**
  * 3D envelope for downstream building generation.
- * Every parcel footprint keeps its type's band end to end (11 m for offices,
- * corpo, hotel, hospital, mall and factory, 7.5 m for the rest), contains a
+ * Every parcel footprint keeps its type's band end to end (12 m for offices,
+ * corpo, hotel, hospital, mall and factory, 8.5 m for the rest), contains a
  * 7.9 x 5.5 m rectangle for the walkup stair core, and a 10.4 x 8.0 m one
  * for the elevator core when the type is one of those six or the envelope
  * exceeds 6 floors. maxHeight always fits at least one floor of the type's family.

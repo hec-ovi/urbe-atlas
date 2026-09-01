@@ -25,7 +25,7 @@ One JSON blueprint (`schema/blueprint.ts`):
 
 - **districts** with kind (downtown, commercial, residential, industrial, mixed), wealth tier and floor cap
 - **streets** as a planar graph: street, road and highway classes with carriageway and sidewalk widths, curved centerlines, pedestrian crossings at intersections, plus pedestrian-only alleys (no carriageway, 3 to 5 m of sidewalk) cut through long blocks in poor and commercial districts
-- **blocks** with continuous sidewalk rings and rounded curb corners at intersections, and **parcels** typed residential through coffee shop, tiered poor to high rich, each with a lot, a footprint that keeps the band its type needs (11 m for elevator types such as offices and hotels, 7.5 m for the rest), a street access point and a 3D envelope
+- **blocks** with continuous sidewalk rings and rounded curb corners at intersections, and **parcels** typed residential through coffee shop, tiered poor to high rich, each with a lot, a footprint that keeps the band its type needs (12 m for elevator types such as offices and hotels, 8.5 m for the rest), a street access point and a 3D envelope
 - **transit**: bus stops and routes over street edges, train and subway stations with street level entrances, and their lines
 - **volumetric**: one prism per parcel plus ground cover polygons, for map rendering
 - **stats**: population estimate and parcel counts per type and per district
