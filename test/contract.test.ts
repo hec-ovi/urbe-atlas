@@ -2,6 +2,7 @@
  * Contract-surface tests: every declared input, output and error of
  * generateCity once, through the real entry point (CONTRACT.md).
  */
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { AtlasError, generateCity } from '../src';
 import { orientedBoundingBox } from '../src/geom/obb';
@@ -133,6 +134,18 @@ describe('blueprint output', () => {
     for (const l of [...bp.transit.subwayLines, ...bp.transit.trainLines]) {
       expect(l.stationIds.length).toBeGreaterThanOrEqual(2);
     }
+  });
+});
+
+describe('committed samples', () => {
+  it('samples/city-urbe.json regenerates byte-identical', () => {
+    const file = readFileSync(new URL('../samples/city-urbe.json', import.meta.url), 'utf8');
+    expect(JSON.stringify(generateCity({ seed: 'urbe' }))).toBe(file);
+  });
+
+  it('samples/city-urbe-small.json regenerates byte-identical', () => {
+    const file = readFileSync(new URL('../samples/city-urbe-small.json', import.meta.url), 'utf8');
+    expect(JSON.stringify(generateCity({ seed: 'urbe-small', size: { width: 800, depth: 800 } }))).toBe(file);
   });
 });
 

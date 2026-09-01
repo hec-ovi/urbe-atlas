@@ -15,6 +15,17 @@ export interface ResolvedParams {
 /** Minimum ground area a district needs to hold blocks and streets. */
 const MIN_DISTRICT_AREA = 90_000; // 300 m x 300 m
 
+/**
+ * Default district count scales with city area: around 2 per sqrt(km2),
+ * so a village gets 1-3 districts and the default 3 km city 4-8.
+ */
+function defaultDistrictCount(areaM2: number): [number, number] {
+  const c = 2 * Math.sqrt(areaM2 / 1_000_000);
+  const min = Math.max(1, Math.round(0.7 * c));
+  const max = Math.max(min, Math.round(1.3 * c));
+  return [min, max];
+}
+
 export function resolveParams(input: AtlasParams): ResolvedParams {
   if (input === null || typeof input !== 'object') {
     throw invalidParams('params must be an object');
@@ -34,7 +45,7 @@ export function resolveParams(input: AtlasParams): ResolvedParams {
     throw invalidParams('irregularity must be in [0, 1]', { field: 'irregularity' });
   }
 
-  const districtCount = input.districtCount ?? [4, 8];
+  const districtCount = input.districtCount ?? defaultDistrictCount(size.width * size.depth);
   const [dMin, dMax] = districtCount;
   if (!Number.isInteger(dMin) || !Number.isInteger(dMax) || dMin < 1 || dMin > dMax) {
     throw invalidParams('districtCount must be integers with 1 <= min <= max', { field: 'districtCount' });

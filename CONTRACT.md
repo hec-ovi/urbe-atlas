@@ -17,7 +17,9 @@ Params: [schema/params.ts](schema/params.ts). Only `seed` is required; every oth
 
 CLI: `npm run generate -- --seed <seed> --out <file.json> [--size N] [--irregularity X] [--max-floors N] [--no-highways] [--no-trains] [--no-subways]` writes the blueprint JSON. Exit 1 on AtlasError (code printed), 2 on usage error.
 
-Sample: [samples/city-urbe.json](samples/city-urbe.json) is the committed blueprint for seed `urbe` with default params; it regenerates byte-identical.
+Samples, committed and test-guaranteed to regenerate byte-identical:
+- [samples/city-urbe.json](samples/city-urbe.json): seed `urbe`, default params (full-size city).
+- [samples/city-urbe-small.json](samples/city-urbe-small.json): seed `urbe-small`, size 800x800 (village, first complete-city build target).
 
 ## Out
 `CityBlueprint`: [schema/blueprint.ts](schema/blueprint.ts).
