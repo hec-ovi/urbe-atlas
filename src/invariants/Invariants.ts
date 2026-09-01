@@ -63,7 +63,24 @@ export class Invariants {
     const usedStops = new Set(bp.transit.busRoutes.flatMap((r) => r.stopIds));
     for (const s of bp.transit.busStops) {
       if (!usedStops.has(s.id)) throw invariantFailure(`bus stop ${s.id} belongs to no route`);
-      if (!edgeById.has(s.edgeId)) throw invariantFailure(`bus stop ${s.id} references missing edge`);
+      const edge = edgeById.get(s.edgeId);
+      if (!edge) throw invariantFailure(`bus stop ${s.id} references missing edge`);
+      const d = distToPath(s.position, edge.path);
+      const maxSw = Math.max(edge.sidewalk.left, edge.sidewalk.right);
+      if (d < edge.width / 2 - 0.5 || d > edge.width / 2 + maxSw + 0.5) {
+        throw invariantFailure(`bus stop ${s.id} is not on its edge sidewalk band`, { distance: d });
+      }
+    }
+    // station entrances sit in a sidewalk band beside some street or road
+    const sidewalked = bp.streets.edges.filter((e) => e.sidewalk.left > 0 || e.sidewalk.right > 0);
+    for (const st of [...bp.transit.trainStations, ...bp.transit.subwayStations]) {
+      for (const entrance of st.entrances) {
+        const ok = sidewalked.some((e) => {
+          const d = distToPath(entrance, e.path);
+          return d >= e.width / 2 - 0.5 && d <= e.width / 2 + Math.max(e.sidewalk.left, e.sidewalk.right) + 0.5;
+        });
+        if (!ok) throw invariantFailure(`station ${st.id} entrance is not on a sidewalk band`, { entrance });
+      }
     }
     for (const r of bp.transit.busRoutes) {
       for (const id of r.edgeIds) {
@@ -106,6 +123,15 @@ export class Invariants {
       }
     }
   }
+}
+
+function distToPath(p: [number, number], path: [number, number][]): number {
+  let best = Infinity;
+  for (let i = 0; i < path.length - 1; i++) {
+    const { point } = closestOnSegment(p, path[i], path[i + 1]);
+    best = Math.min(best, dist(p, point));
+  }
+  return best;
 }
 
 function distToOutline(p: [number, number], poly: [number, number][]): number {

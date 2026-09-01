@@ -9,7 +9,7 @@ export class ParamsPanel {
   constructor(onGenerate: (params: AtlasParams) => void) {
     const seed = el('input', { type: 'text', value: 'urbe', id: 'seed' });
     const size = el('input', { type: 'number', value: '3000', min: '600', step: '100', id: 'size' });
-    const irregularity = el('input', { type: 'range', value: '0.6', min: '0', max: '1', step: '0.05', id: 'irregularity' });
+    const irregularity = el('input', { type: 'range', min: '0', max: '1', step: '0.05', value: '0.6', id: 'irregularity' });
     const maxFloors = el('input', { type: 'number', value: '40', min: '1', id: 'maxFloors' });
     const highways = el('input', { type: 'checkbox', id: 'highways' });
     const trains = el('input', { type: 'checkbox', id: 'trains' });

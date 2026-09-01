@@ -1,4 +1,4 @@
 # Box map
 
-- root box: atlas, the deterministic 2D city blueprint generator. See CONTRACT.md; schemas in schema/.
-- No inner boxes yet. Planned: generator (src/), preview UI (src/ui/).
+- atlas (root): deterministic 2D city blueprint generator. CONTRACT.md, schemas in schema/, generator in src/.
+- src/ui: preview box (canvas map view, params panel, legend, layer toggles). src/ui/CONTRACT.md. Depends on the root contract only.

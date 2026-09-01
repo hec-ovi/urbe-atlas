@@ -316,9 +316,11 @@ export class TransitPlanner {
   }
 
   private makeStation(id: string, position: Vec2, districtOfNode: (nodeId: string) => number): Station {
-    const node = this.nearestNode(position);
-    // entrances mid-sidewalk on the nearest edge's two sides
-    const adj = (this.adjacency.get(node.id) ?? [])[0];
+    // entrances go mid-sidewalk, so anchor to a node with a sidewalked edge
+    const node = this.nearestNode(position, (n) =>
+      (this.adjacency.get(n.id) ?? []).some((a) => this.sidewalkOf(a.edge.id) > 0),
+    );
+    const adj = (this.adjacency.get(node.id) ?? []).find((a) => this.sidewalkOf(a.edge.id) > 0);
     const entrances: Vec2[] = [];
     if (adj) {
       const w = carriagewayWidth(adj.edge.class) / 2 + this.sidewalkOf(adj.edge.id) / 2;
