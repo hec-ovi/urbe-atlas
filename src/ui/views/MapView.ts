@@ -1,5 +1,8 @@
-/** Canvas renderer for a CityBlueprint: pan (drag), zoom (wheel, cursor-anchored), layer toggles. */
-import type { CityBlueprint, Polygon, Polyline, Vec2 } from '../../../schema/blueprint';
+/**
+ * Canvas renderer for a CityBlueprint: pan (drag), zoom (wheel,
+ * cursor-anchored), layer toggles, and a parcel pick on click.
+ */
+import type { CityBlueprint, Parcel, Polygon, Polyline, Vec2 } from '../../../schema/blueprint';
 import {
   BOUNDARY_COLOR,
   DISTRICT_OUTLINE,
@@ -19,6 +22,9 @@ export interface Layers {
 
 export const DEFAULT_LAYERS: Layers = { ground: true, zones: true, streets: true, transit: true, districts: false };
 
+/** Pointer travel that turns a click into a pan, pixels. */
+const DRAG_SLOP = 4;
+
 export class MapView {
   readonly canvas: HTMLCanvasElement;
   private blueprint: CityBlueprint | null = null;
@@ -29,20 +35,29 @@ export class MapView {
   private dragging = false;
   private lastX = 0;
   private lastZ = 0;
+  private travel = 0;
 
-  constructor() {
+  constructor(onParcelClick?: (parcel: Parcel) => void) {
     this.canvas = document.createElement('canvas');
     this.canvas.className = 'map-view';
     this.canvas.addEventListener('mousedown', (e) => {
       this.dragging = true;
+      this.travel = 0;
       this.lastX = e.clientX;
       this.lastZ = e.clientY;
+    });
+    this.canvas.addEventListener('click', (e) => {
+      if (!onParcelClick || this.travel > DRAG_SLOP) return;
+      const rect = this.canvas.getBoundingClientRect();
+      const parcel = this.parcelAt(this.world(e.clientX - rect.left, e.clientY - rect.top));
+      if (parcel) onParcelClick(parcel);
     });
     window.addEventListener('mouseup', () => {
       this.dragging = false;
     });
     window.addEventListener('mousemove', (e) => {
       if (!this.dragging) return;
+      this.travel += Math.abs(e.clientX - this.lastX) + Math.abs(e.clientY - this.lastZ);
       this.offsetX += e.clientX - this.lastX;
       this.offsetZ += e.clientY - this.lastZ;
       this.lastX = e.clientX;
@@ -91,6 +106,19 @@ export class MapView {
 
   private tx(p: Vec2): [number, number] {
     return [p[0] * this.scale + this.offsetX, p[1] * this.scale + this.offsetZ];
+  }
+
+  /** Canvas pixels back to city meters. */
+  private world(x: number, z: number): Vec2 {
+    return [(x - this.offsetX) / this.scale, (z - this.offsetZ) / this.scale];
+  }
+
+  private parcelAt(point: Vec2): Parcel | null {
+    if (!this.blueprint) return null;
+    for (const parcel of this.blueprint.parcels) {
+      if (contains(point, parcel.lot)) return parcel;
+    }
+    return null;
   }
 
   render(): void {
@@ -200,4 +228,17 @@ export class MapView {
     ctx.fillStyle = color;
     ctx.fillRect(x - r, z - r, r * 2, r * 2);
   }
+}
+
+/** Ray cast: is the point inside the ring? */
+function contains(p: Vec2, ring: Polygon): boolean {
+  let inside = false;
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const a = ring[i];
+    const b = ring[j];
+    if (a[1] > p[1] !== b[1] > p[1] && p[0] < ((b[0] - a[0]) * (p[1] - a[1])) / (b[1] - a[1]) + a[0]) {
+      inside = !inside;
+    }
+  }
+  return inside;
 }
