@@ -103,7 +103,7 @@ export interface Crossing {
 export interface Block {
   id: string;
   districtId: string;
-  /** Face polygon bounded by street centerline offsets (outer edge of the sidewalk). */
+  /** Curb line: the face minus the roadway, with rounded corners at intersections. */
   boundary: Polygon;
   /** Sidewalk strip polygons between boundary and the buildable interior. */
   sidewalk: Polygon[];

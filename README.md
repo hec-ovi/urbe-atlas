@@ -23,12 +23,12 @@ One JSON blueprint (`schema/blueprint.ts`):
 
 - **districts** with kind (downtown, commercial, residential, industrial, mixed), wealth tier and floor cap
 - **streets** as a planar graph: street, road and highway classes with carriageway and sidewalk widths, curved centerlines, pedestrian crossings at intersections
-- **blocks** with continuous sidewalk rings, and **parcels** typed residential through coffee shop, tiered poor to high rich, each with a footprint, a street access point and a 3D envelope
+- **blocks** with continuous sidewalk rings and rounded curb corners at intersections, and **parcels** typed residential through coffee shop, tiered poor to high rich, each with a footprint, a street access point and a 3D envelope
 - **transit**: bus stops and routes over street edges, train and subway stations with street level entrances, and their lines
 - **volumetric**: one prism per parcel plus ground cover polygons, for map rendering
 - **stats**: population estimate and parcel counts per type and per district
 
-The generator enforces its own coherence before it returns: connected street graph, every parcel reachable from a sidewalk of its access edge, continuous sidewalks linked by crossings, connected rail networks, parcels that never overlap, gap-free ground coverage. `CONTRACT.md` lists every invariant and the closed error set.
+The generator enforces its own coherence before it returns: connected street graph, every parcel reachable from a sidewalk of its access edge, continuous sidewalks linked by crossings, connected rail networks, parcels that never overlap, gap-free ground coverage, simple block and sidewalk rings. `CONTRACT.md` lists every invariant and the closed error set.
 
 Three samples are committed and tested to regenerate byte-identical: `samples/city-urbe.json` (full size), `samples/city-urbe-small.json` (an 800 m village) and `samples/city-urbe-tiny.json` (a 400 m hamlet with highways, trains and subways off).
 

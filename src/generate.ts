@@ -34,7 +34,7 @@ import { area, bounds, centroid, pointInPolygon } from './geom/polygon';
 import { length as lineLength, pointAt } from './geom/polyline';
 import { closestOnSegment, dist } from './geom/vec';
 
-export const BLUEPRINT_VERSION = '0.2.3';
+export const BLUEPRINT_VERSION = '0.2.4';
 
 const SUBDIVISION: Record<DistrictKind, SubdivisionConfig> = {
   downtown: { minLotArea: 500, maxLotArea: 2600, chanceNoDivide: 0.12 },
@@ -115,10 +115,15 @@ export function generateCity(input: AtlasParams): CityBlueprint {
   const faces = FaceExtractor.faces(graph.edges, 400, area(boundary) / 2);
   const edgeBuffers = new Map<string, Polygon[]>();
   for (const e of streetEdges) edgeBuffers.set(e.id, bufferLine(e.path, e.width));
-  const builtBlocks = BlockBuilder.build(faces, edgeBuffers, (face) => {
-    const di = districtOfPoint(centroid(face.polygon));
-    return sidewalkWidth('street', planned[di].kind);
-  });
+  const builtBlocks = BlockBuilder.build(
+    faces,
+    edgeBuffers,
+    (face) => {
+      const di = districtOfPoint(centroid(face.polygon));
+      return sidewalkWidth('street', planned[di].kind);
+    },
+    Rng.from(seed, 'curbs'),
+  );
 
   // --- parcels ----------------------------------------------------------
   const lotRng = Rng.from(seed, 'parcels');

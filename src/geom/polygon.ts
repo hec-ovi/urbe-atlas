@@ -66,6 +66,34 @@ export function bounds(points: readonly Vec2[]): { min: Vec2; max: Vec2 } {
   return { min: [minX, minZ], max: [maxX, maxZ] };
 }
 
+/** A ring is valid when it has 3+ points, real area and no crossing edges. */
+export function isSimpleRing(poly: Polygon): boolean {
+  const n = poly.length;
+  if (n < 3 || area(poly) <= 1e-9) return false;
+  for (let i = 0; i < n; i++) {
+    const a1 = poly[i];
+    const a2 = poly[(i + 1) % n];
+    for (let j = i + 2; j < n; j++) {
+      if (i === 0 && j === n - 1) continue; // segments sharing a vertex
+      if (segmentsCross(a1, a2, poly[j], poly[(j + 1) % n])) return false;
+    }
+  }
+  return true;
+}
+
+/** True when two segments cross at a point interior to both. */
+function segmentsCross(a1: Vec2, a2: Vec2, b1: Vec2, b2: Vec2): boolean {
+  const d1 = side(b1, b2, a1);
+  const d2 = side(b1, b2, a2);
+  const d3 = side(a1, a2, b1);
+  const d4 = side(a1, a2, b2);
+  return d1 * d2 < 0 && d3 * d4 < 0;
+}
+
+function side(a: Vec2, b: Vec2, p: Vec2): number {
+  return (b[0] - a[0]) * (p[1] - a[1]) - (b[1] - a[1]) * (p[0] - a[0]);
+}
+
 /** Longest edge index of the polygon. */
 export function longestEdge(poly: Polygon): number {
   let best = 0;

@@ -89,6 +89,32 @@ describe('blueprint output', () => {
     expect(bp.stats.perDistrict.length).toBe(bp.districts.length);
   });
 
+  it('rounds curb corners on every block outline', () => {
+    const bp = defaultCity();
+    let arcVertices = 0;
+    for (const b of bp.blocks) {
+      const n = b.boundary.length;
+      for (let i = 0; i < n; i++) {
+        const a = b.boundary[(i - 1 + n) % n];
+        const corner = b.boundary[i];
+        const c = b.boundary[(i + 1) % n];
+        const la = Math.hypot(corner[0] - a[0], corner[1] - a[1]);
+        const lc = Math.hypot(c[0] - corner[0], c[1] - corner[1]);
+        if (la < 1e-6 || lc < 1e-6) continue;
+        // blocks come out CCW, so a left turn is a convex (curb) corner
+        const convex = (corner[0] - a[0]) * (c[1] - corner[1]) - (corner[1] - a[1]) * (c[0] - corner[0]) > 0;
+        const cos = ((a[0] - corner[0]) * (c[0] - corner[0]) + (a[1] - corner[1]) * (c[1] - corner[1])) / (la * lc);
+        const interior = Math.acos(Math.min(1, Math.max(-1, cos)));
+        const turn = (180 * (Math.PI - interior)) / Math.PI;
+        if (turn < 18) arcVertices++;
+        // room for at least a 0.6 m return, using at most 40% of each edge
+        const room = 0.4 * Math.min(la, lc) * Math.tan(interior / 2);
+        if (convex && room >= 0.6) expect(turn).toBeLessThanOrEqual(35);
+      }
+    }
+    expect(arcVertices).toBeGreaterThan(bp.blocks.length);
+  });
+
   it('keeps ids globally unique with the documented prefixes', () => {
     const bp = defaultCity();
     const all = [

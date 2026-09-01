@@ -11,7 +11,7 @@ import {
   fitsWalkupCore,
 } from '../zoning/core';
 import { minFloorHeight } from '../zoning/floorMinimums';
-import { area, pointInPolygon } from '../geom/polygon';
+import { area, isSimpleRing, pointInPolygon } from '../geom/polygon';
 import { distanceTo } from '../geom/polyline';
 import { closestOnSegment, dist } from '../geom/vec';
 
@@ -145,8 +145,12 @@ export class Invariants {
       });
     }
 
-    // per-block containment: lots + open areas stay within the interior area
+    // per-block: valid rings, and lots + open areas within the interior area
     for (const b of bp.blocks) {
+      if (!isSimpleRing(b.boundary)) throw invariantFailure(`block ${b.id} boundary is not a simple ring`);
+      for (const poly of b.sidewalk) {
+        if (!isSimpleRing(poly)) throw invariantFailure(`block ${b.id} has a sidewalk polygon that is not a simple ring`);
+      }
       const interior = area(b.boundary) - b.sidewalk.reduce((s, poly) => s + area(poly), 0);
       const parts = bp.parcels.filter((p) => p.blockId === b.id).reduce((s, p) => s + area(p.lot), 0)
         + b.openAreas.reduce((s, poly) => s + area(poly), 0);

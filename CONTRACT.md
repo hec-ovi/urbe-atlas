@@ -27,7 +27,7 @@ Samples, committed and test-guaranteed to regenerate byte-identical:
 - `meta`: schema version, seed, resolved params, bounds, irregular city boundary polygon.
 - `districts`: kind (downtown, commercial, residential, industrial, mixed), wealth tier, boundary, floor cap.
 - `streets`: planar graph of nodes and edges; each edge has class (`street` | `road` | `highway`), centerline path (curves as polylines), carriageway width, per-side sidewalk widths; pedestrian crossings at intersections.
-- `blocks`: street-bounded faces with sidewalk strip polygons, contained parcels, open areas.
+- `blocks`: street-bounded faces with sidewalk strip polygons, contained parcels, open areas. Curb corners at intersections carry a rounded return.
 - `parcels`: type (residential, hotel, offices, corpo, hospital, clinic, police, military, factory, commerce, mall, restaurant, coffee_shop), tier (poor, mid, rich, high_rich), footprint polygon, street access point, 3D envelope (min/max floors, nominal floor height and max height; real per-floor elevations are owned by exterior).
 - `transit`: bus stops and routes over street edges; train and subway stations (with street-level entrances) and lines.
 - `volumetric`: low poly city for map previews: one prism per parcel plus ground cover polygons (roadway, sidewalk, block, open).
@@ -45,6 +45,7 @@ Closed set, thrown as `AtlasError { code, message, details? }` ([schema/blueprin
 - Sidewalks are continuous along every street and road, linked across intersections by crossings.
 - Every stop and station belongs to at least one route or line; every route and line serves at least 2 stops/stations; a line that cannot reach 2 stations is dropped together with the stations it would have served; each rail network is connected; station entrances lie on sidewalks.
 - Parcels never overlap; parcels, sidewalk and open areas cover their block; ground surfaces cover the city without gaps.
+- Block outlines and sidewalk polygons are simple rings (3+ points, real area, no crossing edges); every convex curb corner with room for a 0.6 m return is rounded by an arc of 1.5 to 3 m.
 - Feature toggles are respected: a disabled feature produces no entities of that kind.
 - Every parcel footprint contains a 7.9 x 5.5 m rectangle (walkup stair core, constants mirrored from interior's core feasibility); a lot below it merges into a neighbour parcel or becomes open area instead of becoming a parcel.
 - Envelopes above 6 floors have a footprint that contains a 10.4 x 8.0 m rectangle (elevator/stair core, same mirror); smaller footprints are capped at 6 floors.
