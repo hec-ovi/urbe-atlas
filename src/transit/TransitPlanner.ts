@@ -199,25 +199,26 @@ export class TransitPlanner {
 
     // --- train -----------------------------------------------------------
     if (options.features.trains) {
-      const stationCount = population >= 500_000 ? 2 : 1;
+      // every line serves at least 2 stations: the main station and a second
+      // one toward the exit side (through-running pattern)
       const trainRng = rng.fork('train');
       const entryAngle = trainRng.range(0, Math.PI * 2);
       const entry = boundaryPointAt(options.boundary, entryAngle, cityCenter);
       const exit = boundaryPointAt(options.boundary, entryAngle + Math.PI + trainRng.range(-0.5, 0.5), cityCenter);
-      const mainPos = this.nearestNode(add(cityCenter, scale(normalize(sub(entry, cityCenter)), 250))).position;
+      const mainNode = this.nearestNode(add(cityCenter, scale(normalize(sub(entry, cityCenter)), 250)));
+      const mainPos = mainNode.position;
+      const second = this.nearestNode(
+        add(cityCenter, scale(normalize(sub(exit, cityCenter)), 400)),
+        (n) => n.id !== mainNode.id,
+      ).position;
       const path: Polyline = [entry];
       path.push(lerpBend(entry, mainPos, trainRng));
       path.push(mainPos);
       const stations: Vec2[] = [mainPos];
-      if (stationCount === 2) {
-        const second = this.nearestNode(add(cityCenter, scale(normalize(sub(exit, cityCenter)), 400))).position;
-        path.push(lerpBend(mainPos, second, trainRng));
-        path.push(second);
-        stations.push(second);
-        path.push(lerpBend(second, exit, trainRng));
-      } else {
-        path.push(lerpBend(mainPos, exit, trainRng));
-      }
+      path.push(lerpBend(mainPos, second, trainRng));
+      path.push(second);
+      stations.push(second);
+      path.push(lerpBend(second, exit, trainRng));
       path.push(exit);
       const stationIds: string[] = [];
       for (const pos of stations) {

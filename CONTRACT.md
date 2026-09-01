@@ -40,7 +40,7 @@ Closed set, thrown as `AtlasError { code, message, details? }` ([schema/blueprin
 - IDs are globally unique across the whole blueprint (disjoint prefixes per collection).
 - Street graph is connected; every parcel's access point lies on a sidewalk of its access edge.
 - Sidewalks are continuous along every street and road, linked across intersections by crossings.
-- Every stop and station belongs to at least one route or line; each rail network is connected; station entrances lie on sidewalks.
+- Every stop and station belongs to at least one route or line; every route and line serves at least 2 stops/stations; each rail network is connected; station entrances lie on sidewalks.
 - Parcels never overlap; parcels, sidewalk and open areas cover their block; ground surfaces cover the city without gaps.
 - Feature toggles are respected: a disabled feature produces no entities of that kind.
 

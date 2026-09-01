@@ -83,6 +83,7 @@ export class Invariants {
       }
     }
     for (const r of bp.transit.busRoutes) {
+      if (r.stopIds.length < 2) throw invariantFailure(`bus route ${r.id} serves fewer than 2 stops`);
       for (const id of r.edgeIds) {
         if (!edgeById.has(id)) throw invariantFailure(`bus route ${r.id} references missing edge ${id}`);
       }
@@ -159,7 +160,7 @@ function checkRailNetwork(
     for (const id of l.stationIds) {
       if (!stations.some((s) => s.id === id)) throw invariantFailure(`${label} line ${l.id} references missing station ${id}`);
     }
-    if (l.stationIds.length < 1) throw invariantFailure(`${label} line ${l.id} has no stations`);
+    if (l.stationIds.length < 2) throw invariantFailure(`${label} line ${l.id} serves fewer than 2 stations`);
   }
   // network connected: stations linked when they share a line
   const parent = new Map<string, string>();

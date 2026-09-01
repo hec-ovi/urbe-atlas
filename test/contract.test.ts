@@ -122,6 +122,10 @@ describe('blueprint output', () => {
     for (const s of bp.transit.busStops) expect(routed.has(s.id)).toBe(true);
     const onLine = new Set(bp.transit.subwayLines.flatMap((l) => l.stationIds));
     for (const s of bp.transit.subwayStations) expect(onLine.has(s.id)).toBe(true);
+    for (const r of bp.transit.busRoutes) expect(r.stopIds.length).toBeGreaterThanOrEqual(2);
+    for (const l of [...bp.transit.subwayLines, ...bp.transit.trainLines]) {
+      expect(l.stationIds.length).toBeGreaterThanOrEqual(2);
+    }
   });
 });
 
