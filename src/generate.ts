@@ -30,7 +30,7 @@ import { Invariants } from './invariants/Invariants';
 import { bufferLine, difference, offset, snapPoint } from './geom/clip';
 import { area, bounds, centroid, pointInPolygon } from './geom/polygon';
 import { length as lineLength, pointAt } from './geom/polyline';
-import { closestOnSegment, dist, normalize, sub, add, scale } from './geom/vec';
+import { closestOnSegment, dist } from './geom/vec';
 
 export const BLUEPRINT_VERSION = '0.2.0';
 
@@ -128,11 +128,22 @@ export function generateCity(input: AtlasParams): CityBlueprint {
   const rawLots: RawLot[] = [];
   const blockOpenAreas: Polygon[][] = builtBlocks.map(() => []);
   const blockDistrict: number[] = builtBlocks.map((b) => districtOfPoint(centroid(b.boundary)));
+  const sidewalkedEdges: string[][] = builtBlocks.map((b) =>
+    b.edgeIds.filter((id) => {
+      const e = streetEdgeById.get(id);
+      return e !== undefined && (e.sidewalk.left > 0 || e.sidewalk.right > 0);
+    }),
+  );
   builtBlocks.forEach((block, blockIndex) => {
     const districtIndex = blockDistrict[blockIndex];
     const cfg = SUBDIVISION[planned[districtIndex].kind];
     const rng = lotRng.fork(blockIndex);
     for (const interior of block.interior) {
+      // a block reachable only via highways gets no parcels: open ground instead
+      if (sidewalkedEdges[blockIndex].length === 0) {
+        blockOpenAreas[blockIndex].push(interior);
+        continue;
+      }
       const { lots, openAreas } = Subdivision.subdivide(interior, interior, cfg, rng);
       for (const lot of lots) rawLots.push({ polygon: lot, blockIndex, districtIndex });
       blockOpenAreas[blockIndex].push(...openAreas);
@@ -159,27 +170,21 @@ export function generateCity(input: AtlasParams): CityBlueprint {
     const setback = SETBACK[z.type] ?? 1;
     const inset = offset([raw.polygon], -setback).sort((a, b) => area(b) - area(a));
     const footprint = inset[0] ?? raw.polygon;
-    // access: nearest street edge of the block, entry point mid-sidewalk
-    const lotCenter = centroid(raw.polygon);
-    let bestEdge = block.edgeIds[0];
-    let bestPoint: Vec2 = lotCenter;
+    // access: the block sidewalk point nearest the lot, then the edge serving it
+    const accessPoint = snapPoint(closestSidewalkPoint(raw.polygon, block.sidewalk));
+    let bestEdge = sidewalkedEdges[raw.blockIndex][0];
     let bestD = Infinity;
-    for (const edgeId of block.edgeIds) {
-      const e = streetEdgeById.get(edgeId);
-      if (!e) continue;
+    for (const edgeId of sidewalkedEdges[raw.blockIndex]) {
+      const e = streetEdgeById.get(edgeId)!;
       for (let s = 0; s < e.path.length - 1; s++) {
-        const { point } = closestOnSegment(lotCenter, e.path[s], e.path[s + 1]);
-        const d = dist(lotCenter, point);
+        const { point } = closestOnSegment(accessPoint, e.path[s], e.path[s + 1]);
+        const d = dist(accessPoint, point);
         if (d < bestD) {
           bestD = d;
           bestEdge = edgeId;
-          bestPoint = point;
         }
       }
     }
-    const e = streetEdgeById.get(bestEdge)!;
-    const toLot = normalize(sub(lotCenter, bestPoint));
-    const accessPoint = snapPoint(add(bestPoint, scale(toLot, e.width / 2 + sidewalkOf(bestEdge) / 2)));
     return {
       id: `p${i}`,
       blockId: `b${raw.blockIndex}`,
@@ -309,6 +314,25 @@ export function generateCity(input: AtlasParams): CityBlueprint {
 
   Invariants.check(blueprint);
   return blueprint;
+}
+
+/** Point on the block's sidewalk band closest to any vertex of the lot. */
+function closestSidewalkPoint(lot: Polygon, sidewalk: Polygon[]): Vec2 {
+  let best: Vec2 = lot[0];
+  let bestD = Infinity;
+  for (const v of lot) {
+    for (const ring of sidewalk) {
+      for (let i = 0; i < ring.length; i++) {
+        const { point } = closestOnSegment(v, ring[i], ring[(i + 1) % ring.length]);
+        const d = dist(v, point);
+        if (d < bestD) {
+          bestD = d;
+          best = point;
+        }
+      }
+    }
+  }
+  return best;
 }
 
 function pruneUnusedStops(stops: BusStop[], usedIds: string[]): void {

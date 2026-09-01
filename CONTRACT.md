@@ -15,6 +15,10 @@ Status: draft v0.2. Shapes are stable enough to build against; additive fields m
 
 Params: [schema/params.ts](schema/params.ts). Only `seed` is required; every other field has a documented default (size, irregularity, district count range, max floors global and per district kind, wealth tier weights, feature toggles for highways, trains, subways, air and underground tunnels).
 
+CLI: `npm run generate -- --seed <seed> --out <file.json> [--size N] [--irregularity X] [--max-floors N] [--no-highways] [--no-trains] [--no-subways]` writes the blueprint JSON. Exit 1 on AtlasError (code printed), 2 on usage error.
+
+Sample: [samples/city-urbe.json](samples/city-urbe.json) is the committed blueprint for seed `urbe` with default params; it regenerates byte-identical.
+
 ## Out
 `CityBlueprint`: [schema/blueprint.ts](schema/blueprint.ts).
 - `meta`: schema version, seed, resolved params, bounds, irregular city boundary polygon.

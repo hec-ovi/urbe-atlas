@@ -13,6 +13,8 @@ export interface BuiltBlock {
   /** Outer edge of the sidewalk (face minus roadway). */
   boundary: Polygon;
   sidewalk: Polygon[];
+  /** Ring width used for this block's sidewalk, meters. */
+  sidewalkWidth: number;
   /** Buildable area inside the sidewalk ring. */
   interior: Polygon[];
   edgeIds: string[];
@@ -41,7 +43,7 @@ export class BlockBuilder {
         const interior = offset([piece], -sw).filter((p) => area(p) >= 60);
         if (interior.length === 0) continue;
         const sidewalk = difference([piece], interior);
-        blocks.push({ faceIndex, boundary: piece, sidewalk, interior, edgeIds: face.edgeIds });
+        blocks.push({ faceIndex, boundary: piece, sidewalk, sidewalkWidth: sw, interior, edgeIds: face.edgeIds });
       }
     });
     return blocks;
