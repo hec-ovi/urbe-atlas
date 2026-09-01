@@ -26,8 +26,11 @@ export class Notifications {
     if (link) {
       item.append(el('a', { class: 'notification-link', href: link.href, target: '_blank', rel: 'noopener', text: link.label }));
     }
-    const dismiss = el('button', { type: 'button', class: 'notification-dismiss', 'aria-label': 'Dismiss', text: 'x' });
-    dismiss.addEventListener('click', () => item.remove());
+    const dismiss = el('button', { type: 'button', class: 'notification-dismiss', 'aria-label': 'Dismiss', text: '×' });
+    dismiss.addEventListener('click', () => {
+      item.classList.add('dismissing');
+      setTimeout(() => item.remove(), 150);
+    });
     item.append(dismiss);
     this.root.prepend(item);
     while (this.root.children.length > KEEP) this.root.lastElementChild?.remove();

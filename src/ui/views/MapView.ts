@@ -45,6 +45,7 @@ export class MapView {
       this.travel = 0;
       this.lastX = e.clientX;
       this.lastZ = e.clientY;
+      this.canvas.classList.add('dragging');
     });
     this.canvas.addEventListener('click', (e) => {
       if (!onParcelClick || this.travel > DRAG_SLOP) return;
@@ -54,6 +55,7 @@ export class MapView {
     });
     window.addEventListener('mouseup', () => {
       this.dragging = false;
+      this.canvas.classList.remove('dragging');
     });
     window.addEventListener('mousemove', (e) => {
       if (!this.dragging) return;
