@@ -30,7 +30,7 @@ One JSON blueprint (`schema/blueprint.ts`):
 
 The generator enforces its own coherence before it returns: connected street graph, every parcel reachable from a sidewalk of its access edge, continuous sidewalks linked by crossings, connected rail networks, parcels that never overlap, gap-free ground coverage. `CONTRACT.md` lists every invariant and the closed error set.
 
-Two samples are committed and tested to regenerate byte-identical: `samples/city-urbe.json` (full size) and `samples/city-urbe-small.json` (an 800 m village).
+Three samples are committed and tested to regenerate byte-identical: `samples/city-urbe.json` (full size), `samples/city-urbe-small.json` (an 800 m village) and `samples/city-urbe-tiny.json` (a 400 m hamlet with highways, trains and subways off).
 
 ## How it works
 

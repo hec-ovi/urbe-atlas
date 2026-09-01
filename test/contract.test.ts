@@ -14,6 +14,12 @@ const PARCEL_TYPES: ParcelType[] = [
 ];
 const TIERS = ['poor', 'mid', 'rich', 'high_rich'];
 
+/** Shortest floor each type's family builds, mirrored from exterior's floor constants. */
+const MIN_FLOOR_HEIGHT: Record<ParcelType, number> = {
+  residential: 2.6, hotel: 2.8, offices: 3.4, corpo: 3.6, hospital: 3.8, clinic: 3.8,
+  police: 3.0, military: 3.0, factory: 4.5, commerce: 3.0, mall: 3.0, restaurant: 3.0, coffee_shop: 3.0,
+};
+
 let cached: CityBlueprint | null = null;
 const defaultCity = (): CityBlueprint => (cached ??= generateCity({ seed: 'contract' }));
 
@@ -62,9 +68,14 @@ describe('blueprint output', () => {
       expect(p.envelope.maxHeight).toBeCloseTo(p.envelope.maxFloors * p.envelope.floorHeight, 1);
       expect(p.envelope.minFloors).toBeGreaterThanOrEqual(1);
       expect(p.envelope.minFloors).toBeLessThanOrEqual(p.envelope.maxFloors);
+      // the envelope admits at least one floor of the type's family
+      expect(p.envelope.maxHeight).toBeGreaterThanOrEqual(MIN_FLOOR_HEIGHT[p.type]);
+      // walkup core guarantee: footprint OBB must at least span 7.9 x 5.5
+      const obb = orientedBoundingBox(p.footprint);
+      expect(obb.length).toBeGreaterThanOrEqual(7.9);
+      expect(obb.width).toBeGreaterThanOrEqual(5.5);
       if (p.envelope.maxFloors > 6) {
-        // core guarantee: footprint OBB must at least span the 10.4 x 8 core
-        const obb = orientedBoundingBox(p.footprint);
+        // elevator core guarantee: footprint OBB must at least span 10.4 x 8
         expect(obb.length).toBeGreaterThanOrEqual(10.4);
         expect(obb.width).toBeGreaterThanOrEqual(8.0);
       }
@@ -146,6 +157,40 @@ describe('committed samples', () => {
   it('samples/city-urbe-small.json regenerates byte-identical', () => {
     const file = readFileSync(new URL('../samples/city-urbe-small.json', import.meta.url), 'utf8');
     expect(JSON.stringify(generateCity({ seed: 'urbe-small', size: { width: 800, depth: 800 } }))).toBe(file);
+  });
+
+  it('samples/city-urbe-tiny.json regenerates byte-identical', () => {
+    const file = readFileSync(new URL('../samples/city-urbe-tiny.json', import.meta.url), 'utf8');
+    const bp = generateCity({
+      seed: 'urbe-tiny',
+      size: { width: 400, depth: 400 },
+      maxFloors: 6,
+      features: { highways: false, trains: false, subways: false },
+    });
+    expect(JSON.stringify(bp)).toBe(file);
+  });
+});
+
+describe('small cities', () => {
+  it('stays coherent or refuses cleanly across small sizes and seeds', () => {
+    for (const size of [300, 350, 400, 450, 500, 600, 700]) {
+      for (const seed of ['urbe-tiny', 'a', 'b', 'c', 'd', 'e']) {
+        let bp: CityBlueprint;
+        try {
+          bp = generateCity({ seed, size: { width: size, depth: size }, maxFloors: 6 });
+        } catch (e) {
+          // too small to lay a city: refused, never returned incoherent
+          expect((e as AtlasError).code).toBe('E_UNSATISFIABLE');
+          continue;
+        }
+        const lines = [...bp.transit.subwayLines, ...bp.transit.trainLines];
+        const served = new Set(lines.flatMap((l) => l.stationIds));
+        for (const s of [...bp.transit.subwayStations, ...bp.transit.trainStations]) {
+          expect(served.has(s.id)).toBe(true);
+        }
+        for (const l of lines) expect(l.stationIds.length).toBeGreaterThanOrEqual(2);
+      }
+    }
   });
 });
 

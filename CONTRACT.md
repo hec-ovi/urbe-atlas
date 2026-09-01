@@ -20,6 +20,7 @@ CLI: `npm run generate -- --seed <seed> --out <file.json> [--size N] [--irregula
 Samples, committed and test-guaranteed to regenerate byte-identical:
 - [samples/city-urbe.json](samples/city-urbe.json): seed `urbe`, default params (full-size city).
 - [samples/city-urbe-small.json](samples/city-urbe-small.json): seed `urbe-small`, size 800x800 (village, first complete-city build target).
+- [samples/city-urbe-tiny.json](samples/city-urbe-tiny.json): seed `urbe-tiny`, size 400x400, maxFloors 6, highways, trains and subways off (smallest coherent city).
 
 ## Out
 `CityBlueprint`: [schema/blueprint.ts](schema/blueprint.ts).
@@ -42,10 +43,12 @@ Closed set, thrown as `AtlasError { code, message, details? }` ([schema/blueprin
 - IDs are globally unique across the whole blueprint (disjoint prefixes per collection).
 - Street graph is connected; every parcel's access point lies on a sidewalk of its access edge.
 - Sidewalks are continuous along every street and road, linked across intersections by crossings.
-- Every stop and station belongs to at least one route or line; every route and line serves at least 2 stops/stations; each rail network is connected; station entrances lie on sidewalks.
+- Every stop and station belongs to at least one route or line; every route and line serves at least 2 stops/stations; a line that cannot reach 2 stations is dropped together with the stations it would have served; each rail network is connected; station entrances lie on sidewalks.
 - Parcels never overlap; parcels, sidewalk and open areas cover their block; ground surfaces cover the city without gaps.
 - Feature toggles are respected: a disabled feature produces no entities of that kind.
-- Envelopes above 6 floors have a footprint that contains a 10.4 x 8.0 m rectangle (elevator/stair core, constants mirrored from interior's core feasibility); smaller footprints are capped at 6 floors.
+- Every parcel footprint contains a 7.9 x 5.5 m rectangle (walkup stair core, constants mirrored from interior's core feasibility); a lot below it merges into a neighbour parcel or becomes open area instead of becoming a parcel.
+- Envelopes above 6 floors have a footprint that contains a 10.4 x 8.0 m rectangle (elevator/stair core, same mirror); smaller footprints are capped at 6 floors.
+- Every envelope admits at least one floor at the minimum floor height of its type's family, mirrored from exterior's floor constants: 2.6 residential, 2.8 hotel, 3.4 offices, 3.6 corpo, 3.8 hospital and clinic, 3.0 police and military, 4.5 factory, 3.0 commerce, mall, restaurant and coffee shop.
 
 ## Depends on
 None.

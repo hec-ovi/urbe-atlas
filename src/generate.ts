@@ -23,17 +23,18 @@ import { FaceExtractor } from './streets/Faces';
 import { Crossings } from './streets/Crossings';
 import { carriagewayWidth, sidewalkWidth } from './streets/widths';
 import { BlockBuilder } from './blocks/BlockBuilder';
+import { Buildability } from './blocks/Buildability';
 import { Subdivision, SubdivisionConfig } from './blocks/Subdivision';
 import { Zoning, LotInput } from './zoning/Zoning';
 import { NO_CORE_MAX_FLOORS, fitsCore } from './zoning/core';
 import { TransitPlanner } from './transit/TransitPlanner';
 import { Invariants } from './invariants/Invariants';
-import { bufferLine, difference, offset, snapPoint } from './geom/clip';
+import { bufferLine, difference, snapPoint } from './geom/clip';
 import { area, bounds, centroid, pointInPolygon } from './geom/polygon';
 import { length as lineLength, pointAt } from './geom/polyline';
 import { closestOnSegment, dist } from './geom/vec';
 
-export const BLUEPRINT_VERSION = '0.2.2';
+export const BLUEPRINT_VERSION = '0.2.3';
 
 const SUBDIVISION: Record<DistrictKind, SubdivisionConfig> = {
   downtown: { minLotArea: 500, maxLotArea: 2600, chanceNoDivide: 0.12 },
@@ -165,12 +166,19 @@ export function generateCity(input: AtlasParams): CityBlueprint {
   }));
   const zoned = Zoning.assign(lotInputs, planned, cityCenter, Rng.from(seed, 'zoning'));
 
-  const parcels: Parcel[] = zoned.map((z, i) => {
-    const raw = rawLots[i];
+  // buildability: a footprint that cannot host the walkup core is no parcel
+  const buildable = Buildability.enforce(
+    rawLots.map((l, i) => ({ polygon: l.polygon, blockIndex: l.blockIndex, setback: SETBACK[zoned[i].type] ?? 1 })),
+  );
+  for (const [blockIndex, polygons] of buildable.openAreas) blockOpenAreas[blockIndex].push(...polygons);
+  if (buildable.lots.length === 0) throw unsatisfiable('no buildable parcels produced; enlarge size');
+  const zonedParcels = buildable.lots.map((l) => zoned[l.index]);
+
+  const parcels: Parcel[] = buildable.lots.map((lot, i) => {
+    const z = zonedParcels[i];
+    const raw = rawLots[lot.index];
     const block = builtBlocks[raw.blockIndex];
-    const setback = SETBACK[z.type] ?? 1;
-    const inset = offset([raw.polygon], -setback).sort((a, b) => area(b) - area(a));
-    const footprint = inset[0] ?? raw.polygon;
+    const footprint = lot.footprint;
     // above 6 floors the footprint must host the elevator/stair core
     let envelope = z.envelope;
     if (envelope.maxFloors > NO_CORE_MAX_FLOORS && !fitsCore(footprint)) {
@@ -181,10 +189,11 @@ export function generateCity(input: AtlasParams): CityBlueprint {
         floorHeight: envelope.floorHeight,
         maxHeight: Math.round(maxFloors * envelope.floorHeight * 100) / 100,
       };
-      if (z.type === 'residential') z.residents = Zoning.residentsFor(area(raw.polygon), envelope);
     }
+    // capacity follows the final lot, which a merge may have grown
+    if (z.type === 'residential') z.residents = Zoning.residentsFor(area(lot.polygon), envelope);
     // access: the block sidewalk point nearest the lot, then the edge serving it
-    const accessPoint = snapPoint(closestSidewalkPoint(raw.polygon, block.sidewalk));
+    const accessPoint = snapPoint(closestSidewalkPoint(lot.polygon, block.sidewalk));
     let bestEdge = sidewalkedEdges[raw.blockIndex][0];
     let bestD = Infinity;
     for (const edgeId of sidewalkedEdges[raw.blockIndex]) {
@@ -204,7 +213,7 @@ export function generateCity(input: AtlasParams): CityBlueprint {
       districtId: `d${raw.districtIndex}`,
       type: z.type,
       tier: z.tier,
-      lot: raw.polygon,
+      lot: lot.polygon,
       footprint,
       access: { edgeId: bestEdge, point: accessPoint },
       envelope,
@@ -231,7 +240,7 @@ export function generateCity(input: AtlasParams): CityBlueprint {
   }));
 
   // --- transit -----------------------------------------------------------
-  const population = zoned.reduce((s, z) => s + z.residents, 0);
+  const population = zonedParcels.reduce((s, z) => s + z.residents, 0);
   const planner = new TransitPlanner(graph.nodes, graph.edges, sidewalkOf);
   const nodeById = new Map(graph.nodes.map((n) => [n.id, n]));
   const anchors = parcels
@@ -291,7 +300,7 @@ export function generateCity(input: AtlasParams): CityBlueprint {
   const parcelCounts = emptyCounts();
   const perDistrictMap = new Map<string, { population: number; parcelCounts: Record<string, number> }>();
   for (const d of districts) perDistrictMap.set(d.id, { population: 0, parcelCounts: emptyCounts() });
-  zoned.forEach((z, i) => {
+  zonedParcels.forEach((z, i) => {
     const p = parcels[i];
     parcelCounts[p.type] += 1;
     const entry = perDistrictMap.get(p.districtId)!;

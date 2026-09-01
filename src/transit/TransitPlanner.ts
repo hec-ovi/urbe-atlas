@@ -20,7 +20,7 @@ import type { Rng } from '../core/rng';
 import type { PlannedDistrict } from '../districts/DistrictPlanner';
 import type { BuiltEdge, BuiltNode } from '../streets/Graph';
 import { dist, normalize, sub, add, scale } from '../geom/vec';
-import { length as lineLength, offsetAt, pointAt } from '../geom/polyline';
+import { distanceTo, length as lineLength, offsetAt, pointAt } from '../geom/polyline';
 import { carriagewayWidth } from '../streets/widths';
 
 interface Adj {
@@ -186,8 +186,14 @@ export class TransitPlanner {
         if (!leg1 || !leg2) continue;
         const geometry = [...this.pathGeometry(a.id, leg1), ...this.pathGeometry(hubNode.id, leg2).slice(1)];
         if (geometry.length < 2) continue;
+        // a line that cannot reach 2 stations is dropped, and takes the
+        // stations it just created with it: no station outlives its line
+        const before = transit.subwayStations.length;
         const stationIds = this.placeStations(geometry, 950, 150, transit.subwayStations, 'ss', options.districtOfNode);
-        if (stationIds.length < 2) continue;
+        if (stationIds.length < 2) {
+          transit.subwayStations.length = before;
+          continue;
+        }
         transit.subwayLines.push({
           id: `sl${transit.subwayLines.length}`,
           stationIds,
@@ -317,21 +323,38 @@ export class TransitPlanner {
   }
 
   private makeStation(id: string, position: Vec2, districtOfNode: (nodeId: string) => number): Station {
-    // entrances go mid-sidewalk, so anchor to a node with a sidewalked edge
-    const node = this.nearestNode(position, (n) =>
-      (this.adjacency.get(n.id) ?? []).some((a) => this.sidewalkOf(a.edge.id) > 0),
-    );
-    const adj = (this.adjacency.get(node.id) ?? []).find((a) => this.sidewalkOf(a.edge.id) > 0);
-    const entrances: Vec2[] = [];
-    if (adj) {
-      const w = carriagewayWidth(adj.edge.class) / 2 + this.sidewalkOf(adj.edge.id) / 2;
-      const l = lineLength(adj.edge.path);
+    // entrances go mid-sidewalk, so anchor to the nearest node that offers one
+    const node = this.nearestNode(position, (n) => this.entrancesAt(n).length > 0);
+    const entrances = this.entrancesAt(node);
+    return {
+      id,
+      position,
+      districtId: `d${districtOfNode(node.id)}`,
+      entrances: entrances.length > 0 ? entrances : [position],
+    };
+  }
+
+  /**
+   * Sidewalk points beside the node's first edge that serves them, both sides
+   * when both land in the band: a tight bend can push an offset point back
+   * into the roadway, so every candidate is verified against its own edge.
+   */
+  private entrancesAt(node: BuiltNode): Vec2[] {
+    for (const a of this.adjacency.get(node.id) ?? []) {
+      const sidewalk = this.sidewalkOf(a.edge.id);
+      if (sidewalk <= 0) continue;
+      const half = carriagewayWidth(a.edge.class) / 2;
+      const l = lineLength(a.edge.path);
       const arc = Math.min(Math.max(30, l * 0.25), Math.max(l - 30, 0));
-      entrances.push(offsetAt(adj.edge.path, arc, w), offsetAt(adj.edge.path, arc, -w));
-    } else {
-      entrances.push(position);
+      const points: Vec2[] = [];
+      for (const side of [half + sidewalk / 2, -(half + sidewalk / 2)]) {
+        const p = offsetAt(a.edge.path, arc, side);
+        const d = distanceTo(a.edge.path, p);
+        if (d >= half - 0.4 && d <= half + sidewalk + 0.4) points.push(p);
+      }
+      if (points.length > 0) return points;
     }
-    return { id, position, districtId: `d${districtOfNode(node.id)}`, entrances };
+    return [];
   }
 }
 

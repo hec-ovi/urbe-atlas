@@ -1,8 +1,18 @@
 /** Post-generation coherence checks; any failure throws E_INVARIANT. */
 import type { CityBlueprint } from '../../schema/blueprint';
 import { invariantFailure } from '../errors';
-import { CORE_DEPTH, CORE_WIDTH, NO_CORE_MAX_FLOORS, fitsCore } from '../zoning/core';
+import {
+  CORE_DEPTH,
+  CORE_WIDTH,
+  NO_CORE_MAX_FLOORS,
+  WALKUP_CORE_DEPTH,
+  WALKUP_CORE_WIDTH,
+  fitsCore,
+  fitsWalkupCore,
+} from '../zoning/core';
+import { minFloorHeight } from '../zoning/floorMinimums';
 import { area, pointInPolygon } from '../geom/polygon';
+import { distanceTo } from '../geom/polyline';
 import { closestOnSegment, dist } from '../geom/vec';
 
 export class Invariants {
@@ -53,11 +63,22 @@ export class Invariants {
       }
     }
 
-    // tall envelopes need core feasibility
+    // envelopes: core feasibility and one floor of the type's family
     for (const p of bp.parcels) {
+      if (!fitsWalkupCore(p.footprint)) {
+        throw invariantFailure(
+          `parcel ${p.id} footprint cannot host the ${WALKUP_CORE_WIDTH}x${WALKUP_CORE_DEPTH} m walkup core`,
+        );
+      }
       if (p.envelope.maxFloors > NO_CORE_MAX_FLOORS && !fitsCore(p.footprint)) {
         throw invariantFailure(
           `parcel ${p.id} has ${p.envelope.maxFloors} floors but its footprint cannot host the ${CORE_WIDTH}x${CORE_DEPTH} m core`,
+        );
+      }
+      const minHeight = minFloorHeight(p.type);
+      if (p.envelope.maxHeight < minHeight - 1e-6) {
+        throw invariantFailure(
+          `parcel ${p.id} (${p.type}) allows ${p.envelope.maxHeight} m, below the ${minHeight} m minimum floor of its family`,
         );
       }
     }
@@ -75,7 +96,7 @@ export class Invariants {
       if (!usedStops.has(s.id)) throw invariantFailure(`bus stop ${s.id} belongs to no route`);
       const edge = edgeById.get(s.edgeId);
       if (!edge) throw invariantFailure(`bus stop ${s.id} references missing edge`);
-      const d = distToPath(s.position, edge.path);
+      const d = distanceTo(edge.path, s.position);
       const maxSw = Math.max(edge.sidewalk.left, edge.sidewalk.right);
       if (d < edge.width / 2 - 0.5 || d > edge.width / 2 + maxSw + 0.5) {
         throw invariantFailure(`bus stop ${s.id} is not on its edge sidewalk band`, { distance: d });
@@ -86,7 +107,7 @@ export class Invariants {
     for (const st of [...bp.transit.trainStations, ...bp.transit.subwayStations]) {
       for (const entrance of st.entrances) {
         const ok = sidewalked.some((e) => {
-          const d = distToPath(entrance, e.path);
+          const d = distanceTo(e.path, entrance);
           return d >= e.width / 2 - 0.5 && d <= e.width / 2 + Math.max(e.sidewalk.left, e.sidewalk.right) + 0.5;
         });
         if (!ok) throw invariantFailure(`station ${st.id} entrance is not on a sidewalk band`, { entrance });
@@ -134,15 +155,6 @@ export class Invariants {
       }
     }
   }
-}
-
-function distToPath(p: [number, number], path: [number, number][]): number {
-  let best = Infinity;
-  for (let i = 0; i < path.length - 1; i++) {
-    const { point } = closestOnSegment(p, path[i], path[i + 1]);
-    best = Math.min(best, dist(p, point));
-  }
-  return best;
 }
 
 function distToOutline(p: [number, number], poly: [number, number][]): number {

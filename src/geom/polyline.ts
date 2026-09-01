@@ -60,6 +60,16 @@ export function directionAt(line: Polyline, d: number): Vec2 {
   return [1, 0];
 }
 
+/** Distance from a point to the closest point of the line. */
+export function distanceTo(line: Polyline, p: Vec2): number {
+  let best = Infinity;
+  for (let i = 1; i < line.length; i++) {
+    const { point } = closestOnSegment(p, line[i - 1], line[i]);
+    best = Math.min(best, dist(p, point));
+  }
+  return best;
+}
+
 /** Offset a point sideways from the line position at arc-length d. Positive = left of travel. */
 export function offsetAt(line: Polyline, d: number, side: number): Vec2 {
   const p = pointAt(line, d);

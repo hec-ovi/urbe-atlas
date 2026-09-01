@@ -129,8 +129,9 @@ export interface Parcel {
 
 /**
  * 3D envelope for downstream building generation.
- * Above 6 floors the parcel footprint is guaranteed to contain a
- * 10.4 x 8.0 m rectangle for the elevator/stair core.
+ * Every parcel footprint contains a 7.9 x 5.5 m rectangle for the walkup
+ * stair core, and above 6 floors a 10.4 x 8.0 m one for the elevator core.
+ * maxHeight always fits at least one floor of the type's family.
  */
 export interface Envelope {
   minFloors: number;

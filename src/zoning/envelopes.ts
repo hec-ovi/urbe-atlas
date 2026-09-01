@@ -6,6 +6,7 @@
 import type { Envelope, ParcelType } from '../../schema/blueprint';
 import type { WealthTier } from '../../schema/params';
 import type { Rng } from '../core/rng';
+import { minFloorHeight } from './floorMinimums';
 
 /** Nominal floor height, meters, by type. */
 const FLOOR_HEIGHT: Record<ParcelType, number> = {
@@ -76,6 +77,8 @@ export function makeEnvelope(type: ParcelType, tier: WealthTier, districtMaxFloo
     hi = Math.round(band[1] * factor);
     floorHeight = FLOOR_HEIGHT[type];
   }
+  // the envelope must admit one floor of the type's family
+  floorHeight = Math.max(floorHeight, minFloorHeight(type));
   const cap = Math.max(1, Math.min(hi, districtMaxFloors));
   const floor = Math.max(1, Math.min(lo, cap));
   const maxFloors = Math.max(floor, Math.min(cap, floor + rng.int(0, Math.max(0, cap - floor))));
