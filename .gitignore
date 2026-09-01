@@ -5,3 +5,5 @@ node_modules/
 dist/
 .env
 docs/FULL-REQUIREMENTS.md
+CLAUDE.md
+session
