@@ -3,7 +3,9 @@
  * Units: meters. Ground plane is XZ, +Y up; 2D points are [x, z]; heights along +Y.
  * Polygons: CCW rings, first point not repeated, no self-intersections.
  * Determinism: same seed + params produce a byte-identical blueprint JSON.
- * IDs are deterministic strings, unique per collection ("d0", "n12", "e42", "b3", "p107").
+ * IDs are deterministic strings, globally unique via a disjoint prefix per collection:
+ * d district, n street node, e street edge, b block, p parcel,
+ * bs bus stop, br bus route, ts train station, tl train line, ss subway station, sl subway line.
  */
 
 import type { AtlasParams, DistrictKind, WealthTier } from './params';

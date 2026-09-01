@@ -8,7 +8,7 @@ Status: draft v0.2. Shapes are stable enough to build against; additive fields m
 - Units: meters. Ground plane XZ, +Y up. 2D points are `[x, z]`; heights along +Y.
 - Polygons: CCW rings, first point not repeated.
 - Determinism: same seed + params, byte-identical blueprint JSON.
-- IDs: deterministic strings, unique per collection (`d0`, `n12`, `e42`, `b3`, `p107`).
+- IDs: deterministic strings with a disjoint prefix per collection: `d` district, `n` street node, `e` street edge, `b` block, `p` parcel, `bs` bus stop, `br` bus route, `ts` train station, `tl` train line, `ss` subway station, `sl` subway line.
 
 ## In
 `generateCity(params: AtlasParams): CityBlueprint`
@@ -33,6 +33,7 @@ Closed set, thrown as `AtlasError { code, message, details? }` ([schema/blueprin
 - `E_INVARIANT`: post-generation coherence check failed; atlas bug, report with seed and params.
 
 ## Invariants
+- IDs are globally unique across the whole blueprint (disjoint prefixes per collection).
 - Street graph is connected; every parcel's access point lies on a sidewalk of its access edge.
 - Sidewalks are continuous along every street and road, linked across intersections by crossings.
 - Every stop and station belongs to at least one route or line; each rail network is connected; station entrances lie on sidewalks.
