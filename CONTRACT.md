@@ -43,6 +43,7 @@ Closed set, thrown as `AtlasError { code, message, details? }` ([schema/blueprin
 - Every stop and station belongs to at least one route or line; every route and line serves at least 2 stops/stations; each rail network is connected; station entrances lie on sidewalks.
 - Parcels never overlap; parcels, sidewalk and open areas cover their block; ground surfaces cover the city without gaps.
 - Feature toggles are respected: a disabled feature produces no entities of that kind.
+- Envelopes above 6 floors have a footprint that contains a 10.4 x 8.0 m rectangle (elevator/stair core, constants mirrored from interior's core feasibility); smaller footprints are capped at 6 floors.
 
 ## Depends on
 None.

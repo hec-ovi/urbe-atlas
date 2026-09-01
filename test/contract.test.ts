@@ -4,6 +4,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import { AtlasError, generateCity } from '../src';
+import { orientedBoundingBox } from '../src/geom/obb';
 import type { CityBlueprint, ParcelType } from '../schema/blueprint';
 
 const PARCEL_TYPES: ParcelType[] = [
@@ -60,6 +61,12 @@ describe('blueprint output', () => {
       expect(p.envelope.maxHeight).toBeCloseTo(p.envelope.maxFloors * p.envelope.floorHeight, 1);
       expect(p.envelope.minFloors).toBeGreaterThanOrEqual(1);
       expect(p.envelope.minFloors).toBeLessThanOrEqual(p.envelope.maxFloors);
+      if (p.envelope.maxFloors > 6) {
+        // core guarantee: footprint OBB must at least span the 10.4 x 8 core
+        const obb = orientedBoundingBox(p.footprint);
+        expect(obb.length).toBeGreaterThanOrEqual(10.4);
+        expect(obb.width).toBeGreaterThanOrEqual(8.0);
+      }
     }
 
     expect(bp.transit.busRoutes.length).toBeGreaterThan(0);

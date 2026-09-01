@@ -25,6 +25,7 @@ import { carriagewayWidth, sidewalkWidth } from './streets/widths';
 import { BlockBuilder } from './blocks/BlockBuilder';
 import { Subdivision, SubdivisionConfig } from './blocks/Subdivision';
 import { Zoning, LotInput } from './zoning/Zoning';
+import { NO_CORE_MAX_FLOORS, fitsCore } from './zoning/core';
 import { TransitPlanner } from './transit/TransitPlanner';
 import { Invariants } from './invariants/Invariants';
 import { bufferLine, difference, offset, snapPoint } from './geom/clip';
@@ -32,7 +33,7 @@ import { area, bounds, centroid, pointInPolygon } from './geom/polygon';
 import { length as lineLength, pointAt } from './geom/polyline';
 import { closestOnSegment, dist } from './geom/vec';
 
-export const BLUEPRINT_VERSION = '0.2.1';
+export const BLUEPRINT_VERSION = '0.2.2';
 
 const SUBDIVISION: Record<DistrictKind, SubdivisionConfig> = {
   downtown: { minLotArea: 500, maxLotArea: 2600, chanceNoDivide: 0.12 },
@@ -170,6 +171,18 @@ export function generateCity(input: AtlasParams): CityBlueprint {
     const setback = SETBACK[z.type] ?? 1;
     const inset = offset([raw.polygon], -setback).sort((a, b) => area(b) - area(a));
     const footprint = inset[0] ?? raw.polygon;
+    // above 6 floors the footprint must host the elevator/stair core
+    let envelope = z.envelope;
+    if (envelope.maxFloors > NO_CORE_MAX_FLOORS && !fitsCore(footprint)) {
+      const maxFloors = NO_CORE_MAX_FLOORS;
+      envelope = {
+        minFloors: Math.min(envelope.minFloors, maxFloors),
+        maxFloors,
+        floorHeight: envelope.floorHeight,
+        maxHeight: Math.round(maxFloors * envelope.floorHeight * 100) / 100,
+      };
+      if (z.type === 'residential') z.residents = Zoning.residentsFor(area(raw.polygon), envelope);
+    }
     // access: the block sidewalk point nearest the lot, then the edge serving it
     const accessPoint = snapPoint(closestSidewalkPoint(raw.polygon, block.sidewalk));
     let bestEdge = sidewalkedEdges[raw.blockIndex][0];
@@ -194,7 +207,7 @@ export function generateCity(input: AtlasParams): CityBlueprint {
       lot: raw.polygon,
       footprint,
       access: { edgeId: bestEdge, point: accessPoint },
-      envelope: z.envelope,
+      envelope,
     };
   });
 

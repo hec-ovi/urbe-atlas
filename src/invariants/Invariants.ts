@@ -1,6 +1,7 @@
 /** Post-generation coherence checks; any failure throws E_INVARIANT. */
 import type { CityBlueprint } from '../../schema/blueprint';
 import { invariantFailure } from '../errors';
+import { CORE_DEPTH, CORE_WIDTH, NO_CORE_MAX_FLOORS, fitsCore } from '../zoning/core';
 import { area, pointInPolygon } from '../geom/polygon';
 import { closestOnSegment, dist } from '../geom/vec';
 
@@ -49,6 +50,15 @@ export class Invariants {
         throw invariantFailure(`parcel ${p.id} access point is not on its block sidewalk`, {
           point: p.access.point,
         });
+      }
+    }
+
+    // tall envelopes need core feasibility
+    for (const p of bp.parcels) {
+      if (p.envelope.maxFloors > NO_CORE_MAX_FLOORS && !fitsCore(p.footprint)) {
+        throw invariantFailure(
+          `parcel ${p.id} has ${p.envelope.maxFloors} floors but its footprint cannot host the ${CORE_WIDTH}x${CORE_DEPTH} m core`,
+        );
       }
     }
 

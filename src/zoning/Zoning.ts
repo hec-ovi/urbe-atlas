@@ -139,10 +139,15 @@ export class Zoning {
     // --- final residents per residential parcel --------------------------
     for (const p of parcels) {
       if (p.type !== 'residential') continue;
-      const avgFloors = (p.envelope.minFloors + p.envelope.maxFloors) / 2;
-      p.residents = Math.round((areas[p.lotIndex] * 0.55 * avgFloors * RESIDENTIAL_EFFICIENCY) / FLOOR_AREA_PER_RESIDENT);
+      p.residents = Zoning.residentsFor(areas[p.lotIndex], p.envelope);
     }
     return parcels;
+  }
+
+  /** Capacity model: lot coverage 0.55, average floors, usable share, m2 per resident. */
+  static residentsFor(lotArea: number, envelope: Envelope): number {
+    const avgFloors = (envelope.minFloors + envelope.maxFloors) / 2;
+    return Math.round((lotArea * 0.55 * avgFloors * RESIDENTIAL_EFFICIENCY) / FLOOR_AREA_PER_RESIDENT);
   }
 }
 
