@@ -1,0 +1,41 @@
+/**
+ * atlas input parameters.
+ * Units: meters. Ground plane is XZ, +Y up; 2D points are [x, z].
+ * Only `seed` is required; every other field has the documented default.
+ */
+
+export type Seed = string | number;
+
+export type DistrictKind = 'downtown' | 'commercial' | 'residential' | 'industrial' | 'mixed';
+
+export type WealthTier = 'poor' | 'mid' | 'rich' | 'high_rich';
+
+export interface AtlasParams {
+  seed: Seed;
+  /** City extent bounding box in meters. The city shape is irregular inside it. Default { width: 3000, depth: 3000 }. */
+  size?: { width: number; depth: number };
+  /** 0..1: 0 leans rectangular grid, 1 heavily organic/curved. Default 0.6. */
+  irregularity?: number;
+  /** District count range, inclusive. Default [4, 8]. */
+  districtCount?: [min: number, max: number];
+  /** Global building floor cap. Default 40. */
+  maxFloors?: number;
+  /** Floor cap per district kind; overrides maxFloors where set. */
+  maxFloorsByDistrict?: Partial<Record<DistrictKind, number>>;
+  /** Wealth mix weights, normalized internally. Default { poor: 0.3, mid: 0.45, rich: 0.2, high_rich: 0.05 }. */
+  tierWeights?: Partial<Record<WealthTier, number>>;
+  features?: FeatureToggles;
+}
+
+export interface FeatureToggles {
+  /** Generate highways. Default true. */
+  highways?: boolean;
+  /** Generate train stations and lines. Default true. */
+  trains?: boolean;
+  /** Generate subway stations and lines. Default true. */
+  subways?: boolean;
+  /** Permit above-ground tube/bridge connections downstream. Echoed in blueprint meta; atlas draws no geometry for it. Default true. */
+  airTunnels?: boolean;
+  /** Permit underground connections downstream. Echoed in blueprint meta. Default true. */
+  undergroundTunnels?: boolean;
+}

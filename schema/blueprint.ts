@@ -1,0 +1,217 @@
+/**
+ * atlas output: the city blueprint.
+ * Units: meters. Ground plane is XZ, +Y up; 2D points are [x, z]; heights along +Y.
+ * Polygons: CCW rings, first point not repeated, no self-intersections.
+ * Determinism: same seed + params produce a byte-identical blueprint JSON.
+ * IDs are deterministic strings, unique per collection ("d0", "n12", "e42", "b3", "p107").
+ */
+
+import type { AtlasParams, DistrictKind, WealthTier } from './params';
+
+export type Vec2 = [x: number, z: number];
+export type Polygon = Vec2[];
+export type Polyline = Vec2[];
+
+export type StreetClass = 'street' | 'road' | 'highway';
+
+export type ParcelType =
+  | 'residential'
+  | 'hotel'
+  | 'offices'
+  | 'corpo'
+  | 'hospital'
+  | 'clinic'
+  | 'police'
+  | 'military'
+  | 'factory'
+  | 'commerce'
+  | 'mall'
+  | 'restaurant'
+  | 'coffee_shop';
+
+export interface CityBlueprint {
+  meta: BlueprintMeta;
+  districts: District[];
+  streets: StreetGraph;
+  blocks: Block[];
+  parcels: Parcel[];
+  transit: Transit;
+  volumetric: Volumetric;
+  stats: CityStats;
+}
+
+export interface BlueprintMeta {
+  /** Blueprint schema version, semver. */
+  version: string;
+  seed: string;
+  /** Params after defaults were applied: the exact input that reproduces this blueprint. */
+  params: Required<AtlasParams>;
+  /** Axis-aligned bounds of all geometry. */
+  bounds: { min: Vec2; max: Vec2 };
+  units: 'meters';
+  /** Irregular outer city boundary. */
+  boundary: Polygon;
+}
+
+export interface District {
+  id: string;
+  kind: DistrictKind;
+  /** Dominant wealth tier; individual parcels may differ. */
+  tier: WealthTier;
+  boundary: Polygon;
+  center: Vec2;
+  maxFloors: number;
+}
+
+/** Planar street graph. Edges reference nodes; blocks are its interior faces. */
+export interface StreetGraph {
+  nodes: StreetNode[];
+  edges: StreetEdge[];
+  /** Pedestrian crossings linking sidewalks across roadways at intersections. */
+  crossings: Crossing[];
+}
+
+export interface StreetNode {
+  id: string;
+  position: Vec2;
+  edgeIds: string[];
+}
+
+export interface StreetEdge {
+  id: string;
+  class: StreetClass;
+  from: string;
+  to: string;
+  /** Centerline from `from` to `to`; curves are polylines with <= 1 m deviation. */
+  path: Polyline;
+  /** Carriageway width in meters, sidewalks excluded. */
+  width: number;
+  /** Sidewalk width per side in meters, 0 = none (highways). Left/right relative to path direction. */
+  sidewalk: { left: number; right: number };
+  districtIds: string[];
+}
+
+export interface Crossing {
+  nodeId: string;
+  /** Each segment spans the roadway from one sidewalk to another. */
+  segments: { from: Vec2; to: Vec2 }[];
+}
+
+/** A street-bounded area: sidewalk ring on its edge, parcels and open areas inside. */
+export interface Block {
+  id: string;
+  districtId: string;
+  /** Face polygon bounded by street centerline offsets (outer edge of the sidewalk). */
+  boundary: Polygon;
+  /** Sidewalk strip polygons between boundary and the buildable interior. */
+  sidewalk: Polygon[];
+  parcelIds: string[];
+  /** Unbuilt leftover areas (plazas, courtyards). Parcels + sidewalk + openAreas cover the block. */
+  openAreas: Polygon[];
+}
+
+export interface Parcel {
+  id: string;
+  blockId: string;
+  districtId: string;
+  type: ParcelType;
+  tier: WealthTier;
+  /** Buildable footprint, setbacks applied. */
+  footprint: Polygon;
+  /** Street access: the entrance connects to this edge's sidewalk at this point. */
+  access: { edgeId: string; point: Vec2 };
+  envelope: Envelope;
+}
+
+/** 3D envelope for downstream building generation. */
+export interface Envelope {
+  minFloors: number;
+  maxFloors: number;
+  /** Typical floor height for the type/tier, meters. */
+  floorHeight: number;
+  /** maxFloors * floorHeight, meters. */
+  maxHeight: number;
+}
+
+export interface Transit {
+  busStops: BusStop[];
+  busRoutes: BusRoute[];
+  trainStations: Station[];
+  trainLines: RailLine[];
+  subwayStations: Station[];
+  subwayLines: RailLine[];
+}
+
+export interface BusStop {
+  id: string;
+  /** On the sidewalk of this edge. */
+  edgeId: string;
+  position: Vec2;
+  districtId: string;
+}
+
+export interface BusRoute {
+  id: string;
+  /** Ordered stops served. */
+  stopIds: string[];
+  /** Ordered street edges the route drives, terminal to terminal. */
+  edgeIds: string[];
+}
+
+export interface Station {
+  id: string;
+  position: Vec2;
+  districtId: string;
+  /** Street-level entrance points, each on a sidewalk. */
+  entrances: Vec2[];
+}
+
+export interface RailLine {
+  id: string;
+  /** Ordered stations served. */
+  stationIds: string[];
+  /** Track centerline through all stations. */
+  path: Polyline;
+  /** True for subway lines and buried train segments. */
+  underground: boolean;
+}
+
+/** Low poly city for map previews: one prism per parcel plus ground cover. */
+export interface Volumetric {
+  buildings: BuildingVolume[];
+  ground: GroundSurface[];
+}
+
+export interface BuildingVolume {
+  parcelId: string;
+  footprint: Polygon;
+  /** Representative height within the parcel envelope, meters. */
+  height: number;
+}
+
+export interface GroundSurface {
+  surface: 'roadway' | 'sidewalk' | 'block' | 'open';
+  polygon: Polygon;
+}
+
+export interface CityStats {
+  /** Estimated residents from residential capacity. */
+  population: number;
+  parcelCounts: Record<ParcelType, number>;
+  perDistrict: DistrictStats[];
+}
+
+export interface DistrictStats {
+  districtId: string;
+  population: number;
+  parcelCounts: Record<ParcelType, number>;
+}
+
+/** Closed error set. */
+export type AtlasErrorCode = 'E_INVALID_PARAMS' | 'E_UNSATISFIABLE' | 'E_INVARIANT';
+
+export interface AtlasErrorShape {
+  code: AtlasErrorCode;
+  message: string;
+  details?: Record<string, unknown>;
+}
