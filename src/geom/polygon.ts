@@ -1,4 +1,5 @@
 import type { Polygon, Vec2 } from '../../schema/blueprint';
+import { closestOnSegment, dist } from './vec';
 
 /** Signed area; positive = CCW. */
 export function signedArea(poly: Polygon): number {
@@ -106,6 +107,16 @@ export function longestEdge(poly: Polygon): number {
       bestLen = l;
       best = i;
     }
+  }
+  return best;
+}
+
+/** Distance from a point to the polygon's outline (0 on it, positive inside and out). */
+export function distanceToOutline(p: Vec2, poly: Polygon): number {
+  let best = Infinity;
+  for (let i = 0; i < poly.length; i++) {
+    const { point } = closestOnSegment(p, poly[i], poly[(i + 1) % poly.length]);
+    best = Math.min(best, dist(p, point));
   }
   return best;
 }

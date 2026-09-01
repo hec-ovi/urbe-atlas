@@ -9,8 +9,8 @@ import type { Polygon, Polyline, Vec2 } from '../../schema/blueprint';
 import type { Rng } from '../core/rng';
 import type { PlannedDistrict } from '../districts/DistrictPlanner';
 import { orientedBoundingBox } from '../geom/obb';
-import { centroid, pointInPolygon } from '../geom/polygon';
-import { add, closestOnSegment, cross, dist, distSq, scale, sub } from '../geom/vec';
+import { centroid, distanceToOutline, pointInPolygon } from '../geom/polygon';
+import { add, cross, distSq, scale, sub } from '../geom/vec';
 
 /** Block left on each side of a cut, so both halves still hold parcels. */
 const MIN_HALF = 42;
@@ -114,16 +114,7 @@ function chordThrough(
     }
   }
   for (let s = back + THROAT; s <= forward - THROAT; s += 3) {
-    if (distanceToRing(add(origin, scale(dir, s)), block) < CURB_CLEARANCE) return null;
+    if (distanceToOutline(add(origin, scale(dir, s)), block) < CURB_CLEARANCE) return null;
   }
   return [add(ends[0], scale(dir, -OVERSHOOT)), add(ends[1], scale(dir, OVERSHOOT))];
-}
-
-function distanceToRing(p: Vec2, poly: Polygon): number {
-  let best = Infinity;
-  for (let i = 0; i < poly.length; i++) {
-    const { point } = closestOnSegment(p, poly[i], poly[(i + 1) % poly.length]);
-    best = Math.min(best, dist(p, point));
-  }
-  return best;
 }

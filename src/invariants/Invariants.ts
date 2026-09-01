@@ -12,9 +12,8 @@ import {
 } from '../zoning/core';
 import { minFloorHeight } from '../zoning/floorMinimums';
 import { ALLEY_WIDTH } from '../streets/widths';
-import { area, isSimpleRing, pointInPolygon } from '../geom/polygon';
+import { area, distanceToOutline, isSimpleRing, pointInPolygon } from '../geom/polygon';
 import { distanceTo } from '../geom/polyline';
-import { closestOnSegment, dist } from '../geom/vec';
 import { checkGroundCover } from './groundCover';
 import { checkStreetEdges } from './streetEdges';
 
@@ -57,7 +56,7 @@ export class Invariants {
       const block = blockById.get(p.blockId);
       if (!block) throw invariantFailure(`parcel ${p.id} block ${p.blockId} missing`);
       const onSidewalk = block.sidewalk.some(
-        (poly) => pointInPolygon(p.access.point, poly) || distToOutline(p.access.point, poly) < 0.75,
+        (poly) => pointInPolygon(p.access.point, poly) || distanceToOutline(p.access.point, poly) < 0.75,
       );
       if (!onSidewalk) {
         throw invariantFailure(`parcel ${p.id} access point is not on its block sidewalk`, {
@@ -187,17 +186,6 @@ export class Invariants {
       }
     }
   }
-}
-
-function distToOutline(p: [number, number], poly: [number, number][]): number {
-  let best = Infinity;
-  for (let i = 0; i < poly.length; i++) {
-    const a = poly[i];
-    const b = poly[(i + 1) % poly.length];
-    const { point } = closestOnSegment(p, a, b);
-    best = Math.min(best, dist(p, point));
-  }
-  return best;
 }
 
 function checkRailNetwork(
