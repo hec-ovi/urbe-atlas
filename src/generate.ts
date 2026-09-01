@@ -29,6 +29,7 @@ import { Buildability } from './blocks/Buildability';
 import { Subdivision, SubdivisionConfig } from './blocks/Subdivision';
 import { Zoning, LotInput } from './zoning/Zoning';
 import { NO_CORE_MAX_FLOORS, fitsCore } from './zoning/core';
+import { hostingProfiles } from './zoning/profiles';
 import { TransitPlanner } from './transit/TransitPlanner';
 import { Invariants } from './invariants/Invariants';
 import { bufferLine, difference, snapPoint } from './geom/clip';
@@ -36,7 +37,7 @@ import { area, bounds, centroid, pointInPolygon } from './geom/polygon';
 import { directionAt, length as lineLength, pointAt } from './geom/polyline';
 import { closestOnSegment, cross, dist, sub } from './geom/vec';
 
-export const BLUEPRINT_VERSION = '0.3.0';
+export const BLUEPRINT_VERSION = '0.3.1';
 
 const SUBDIVISION: Record<DistrictKind, SubdivisionConfig> = {
   downtown: { minLotArea: 500, maxLotArea: 2600, chanceNoDivide: 0.12 },
@@ -44,17 +45,6 @@ const SUBDIVISION: Record<DistrictKind, SubdivisionConfig> = {
   residential: { minLotArea: 260, maxLotArea: 1300, chanceNoDivide: 0.12 },
   industrial: { minLotArea: 1500, maxLotArea: 9000, chanceNoDivide: 0.2 },
   mixed: { minLotArea: 300, maxLotArea: 1900, chanceNoDivide: 0.12 },
-};
-
-const SETBACK: Record<string, number> = {
-  residential: 2,
-  factory: 3,
-  military: 4,
-  hospital: 3,
-  mall: 2,
-  commerce: 0.5,
-  restaurant: 0.5,
-  coffee_shop: 0.5,
 };
 
 export function generateCity(input: AtlasParams): CityBlueprint {
@@ -210,13 +200,21 @@ export function generateCity(input: AtlasParams): CityBlueprint {
   }));
   const zoned = Zoning.assign(lotInputs, planned, cityCenter, Rng.from(seed, 'zoning'));
 
-  // buildability: a footprint that cannot host the walkup core is no parcel
+  // buildability: the footprint hosts its type's band and core, else the
+  // district's light type's, else the lot is no parcel
   const buildable = Buildability.enforce(
-    rawLots.map((l, i) => ({ polygon: l.polygon, blockIndex: l.blockIndex, setback: SETBACK[zoned[i].type] ?? 1 })),
+    rawLots.map((l, i) => ({
+      polygon: l.polygon,
+      blockIndex: l.blockIndex,
+      profiles: hostingProfiles(zoned[i].type, Zoning.fallbackType(planned[l.districtIndex].kind)),
+    })),
   );
   for (const [blockIndex, polygons] of buildable.openAreas) blockOpenAreas[blockIndex].push(...polygons);
   if (buildable.lots.length === 0) throw unsatisfiable('no buildable parcels produced; enlarge size');
-  const zonedParcels = buildable.lots.map((l) => zoned[l.index]);
+  const retypeRng = Rng.from(seed, 'retype');
+  const zonedParcels = buildable.lots.map((l) =>
+    l.profile === 0 ? zoned[l.index] : Zoning.retype(zoned[l.index], planned[rawLots[l.index].districtIndex], retypeRng.fork(l.index)),
+  );
 
   const parcels: Parcel[] = buildable.lots.map((lot, i) => {
     const z = zonedParcels[i];

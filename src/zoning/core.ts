@@ -40,7 +40,8 @@ export function fitsWalkupCore(footprint: Polygon): boolean {
   return fitsRect(footprint, WALKUP_CORE_WIDTH, WALKUP_CORE_DEPTH);
 }
 
-function fitsRect(footprint: Polygon, width: number, depth: number): boolean {
+/** A width by depth rectangle fits somewhere inside the footprint. */
+export function fitsRect(footprint: Polygon, width: number, depth: number): boolean {
   const eroded = offset([footprint], -depth / 2);
   for (const piece of eroded) {
     const obb = orientedBoundingBox(piece);

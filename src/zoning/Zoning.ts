@@ -1,7 +1,8 @@
 /**
- * Assigns parcel types, tiers and envelopes: base type from district kind,
- * then facility quotas (ceil of population / residents-per-facility) replace
- * scored parcels so hospitals, police, commerce land where they make sense.
+ * Assigns parcel types, tiers and envelopes: base type from the district
+ * kind among the types the lot's band can host, then facility quotas (ceil
+ * of population / residents-per-facility) replace scored parcels so
+ * hospitals, police, commerce land where they make sense.
  */
 import type { Envelope, ParcelType, Vec2 } from '../../schema/blueprint';
 import type { DistrictKind, WealthTier } from '../../schema/params';
@@ -9,7 +10,9 @@ import type { Rng } from '../core/rng';
 import type { PlannedDistrict } from '../districts/DistrictPlanner';
 import { area, centroid } from '../geom/polygon';
 import { dist } from '../geom/vec';
+import { isHeavy } from './bands';
 import { makeEnvelope } from './envelopes';
+import { lotBand, lotHosts } from './profiles';
 import {
   ANCHOR_FACILITIES,
   FLOOR_AREA_PER_RESIDENT,
@@ -68,11 +71,13 @@ const BASE_MIX: Record<DistrictKind, [ParcelType, number][]> = {
 
 export class Zoning {
   static assign(lots: LotInput[], districts: PlannedDistrict[], cityCenter: Vec2, rng: Rng): ZonedParcel[] {
-    // --- base types from the district mix --------------------------------
+    // --- base types from the district mix, limited to what the lot hosts ---
+    const hosts = hostingMemo(lots);
     const parcels: ZonedParcel[] = lots.map((lot, lotIndex) => {
       const district = districts[lot.districtIndex];
-      const mix = BASE_MIX[district.kind];
-      const type = mix[rng.weighted(mix.map((m) => m[1]))][0];
+      const mix = BASE_MIX[district.kind].filter(([t]) => hosts(lotIndex, t));
+      const pool: [ParcelType, number][] = mix.length > 0 ? mix : [[Zoning.fallbackType(district.kind), 1]];
+      const type = pool[rng.weighted(pool.map((m) => m[1]))][0];
       const tier = parcelTier(district.tier, district.kind, rng);
       return { lotIndex, type, tier, envelope: makeEnvelope(type, tier, district.maxFloors, rng), residents: 0 };
     });
@@ -98,7 +103,7 @@ export class Zoning {
         .map((p, i) => ({ p, i }))
         .filter(({ p, i }) => {
           if (taken.has(i)) return false;
-          if (areas[i] < minArea) return false;
+          if (areas[i] < minArea || !hosts(i, facility)) return false;
           const kind = districts[lots[i].districtIndex].kind;
           if (facility === 'factory') return kind === 'industrial';
           if (anchor && kind === 'industrial' && facility !== 'military') return false;
@@ -144,11 +149,34 @@ export class Zoning {
     return parcels;
   }
 
+  /** Light type a heavy parcel falls to when its footprint cannot host the heavy band: the district's main light use. */
+  static fallbackType(kind: DistrictKind): ParcelType {
+    const light = BASE_MIX[kind].filter(([t]) => !isHeavy(t));
+    return light.reduce((best, entry) => (entry[1] > best[1] ? entry : best))[0];
+  }
+
+  /** The same lot rezoned to its district's fallback type, tier kept, envelope redrawn. */
+  static retype(parcel: ZonedParcel, district: PlannedDistrict, rng: Rng): ZonedParcel {
+    const type = Zoning.fallbackType(district.kind);
+    return { ...parcel, type, envelope: makeEnvelope(type, parcel.tier, district.maxFloors, rng), residents: 0 };
+  }
+
   /** Capacity model: lot coverage 0.55, average floors, usable share, m2 per resident. */
   static residentsFor(lotArea: number, envelope: Envelope): number {
     const avgFloors = (envelope.minFloors + envelope.maxFloors) / 2;
     return Math.round((lotArea * 0.55 * avgFloors * RESIDENTIAL_EFFICIENCY) / FLOOR_AREA_PER_RESIDENT);
   }
+}
+
+/** lotHosts per lot, computed once per band the lot is asked for. */
+function hostingMemo(lots: LotInput[]): (lotIndex: number, type: ParcelType) => boolean {
+  const memo = lots.map(() => new Map<number, boolean>());
+  return (lotIndex, type) => {
+    const m = memo[lotIndex];
+    const width = lotBand(type);
+    if (!m.has(width)) m.set(width, lotHosts(lots[lotIndex].polygon as Vec2[], type));
+    return m.get(width)!;
+  };
 }
 
 function parcelTier(districtTier: WealthTier, kind: DistrictKind, rng: Rng): WealthTier {

@@ -5,6 +5,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { AtlasError, generateCity } from '../src';
+import { bandWidth } from '../src/geom/band';
 import { orientedBoundingBox } from '../src/geom/obb';
 import { intersection, offset } from '../src/geom/clip';
 import { bounds } from '../src/geom/polygon';
@@ -21,6 +22,10 @@ const MIN_FLOOR_HEIGHT: Record<ParcelType, number> = {
   residential: 2.6, hotel: 2.8, offices: 3.4, corpo: 3.6, hospital: 3.8, clinic: 3.8,
   police: 3.0, military: 3.0, factory: 4.5, commerce: 3.0, mall: 3.0, restaurant: 3.0, coffee_shop: 3.0,
 };
+
+/** Band each type's footprint keeps end to end, meters (CONTRACT.md). */
+const HEAVY_TYPES = new Set<ParcelType>(['offices', 'corpo', 'hotel', 'hospital', 'mall', 'factory']);
+const minBand = (type: ParcelType): number => (HEAVY_TYPES.has(type) ? 11 : 7.5);
 
 /** Sharpest turn a street centerline may make, from CONTRACT.md. */
 const MAX_TURN_DEG = 120;
@@ -121,11 +126,13 @@ describe('blueprint output', () => {
       expect(p.envelope.minFloors).toBeLessThanOrEqual(p.envelope.maxFloors);
       // the envelope admits at least one floor of the type's family
       expect(p.envelope.maxHeight).toBeGreaterThanOrEqual(MIN_FLOOR_HEIGHT[p.type]);
+      // band guarantee: the footprint keeps its type's band end to end
+      expect(bandWidth(p.footprint), `${p.id} ${p.type} band`).toBeGreaterThanOrEqual(minBand(p.type) - 1e-6);
       // walkup core guarantee: footprint OBB must at least span 7.9 x 5.5
       const obb = orientedBoundingBox(p.footprint);
       expect(obb.length).toBeGreaterThanOrEqual(7.9);
       expect(obb.width).toBeGreaterThanOrEqual(5.5);
-      if (p.envelope.maxFloors > 6) {
+      if (p.envelope.maxFloors > 6 || HEAVY_TYPES.has(p.type)) {
         // elevator core guarantee: footprint OBB must at least span 10.4 x 8
         expect(obb.length).toBeGreaterThanOrEqual(10.4);
         expect(obb.width).toBeGreaterThanOrEqual(8.0);

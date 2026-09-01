@@ -1,21 +1,22 @@
 /**
- * Buildability: a lot becomes a parcel only when its footprint can host the
- * walkup core. A lot below that merges into the neighbour it shares the most
- * boundary with (the neighbour keeps its type, tier and envelope), and turns
- * into open area when it has no neighbour. Merging cascades: the grown lot is
- * retested, so a pair that still cannot build ends as open area. Lot area is
- * never lost, it only changes owner, which keeps block coverage exact.
+ * Buildability: a lot becomes a parcel only when it hosts one of its
+ * profiles (its type's, then a lighter fallback). A lot hosting none merges
+ * into the neighbour it shares the most boundary with (the neighbour keeps
+ * its profiles) and turns into open area when it has no neighbour. Merging
+ * cascades: the grown lot is retested, so a pair that still hosts nothing
+ * ends as open area. Lot area is never lost, it only changes owner, which
+ * keeps block coverage exact.
  */
 import type { Polygon } from '../../schema/blueprint';
 import { intersection, offset, union } from '../geom/clip';
 import { area, bounds } from '../geom/polygon';
-import { fitsWalkupCore } from '../zoning/core';
+import { hostFootprint, HostingProfile } from './Hosting';
 
 export interface LotCandidate {
   polygon: Polygon;
   blockIndex: number;
-  /** Distance from the lot boundary to the buildable footprint, meters. */
-  setback: number;
+  /** Profiles to try in order; the first hosted one shapes the footprint. */
+  profiles: HostingProfile[];
 }
 
 export interface BuildableLot {
@@ -24,6 +25,8 @@ export interface BuildableLot {
   /** Lot polygon, grown when it absorbed a neighbour. */
   polygon: Polygon;
   footprint: Polygon;
+  /** Index of the hosted profile in the lot's list. */
+  profile: number;
 }
 
 export interface BuildabilityResult {
@@ -32,10 +35,9 @@ export interface BuildabilityResult {
   openAreas: Map<number, Polygon[]>;
 }
 
-/** Buildable area of a lot: the lot inset by its setback, largest piece. */
-function footprintOf(lot: Polygon, setback: number): Polygon {
-  const inset = offset([lot], -setback).sort((a, b) => area(b) - area(a));
-  return inset[0] ?? lot;
+interface Hosted {
+  footprint: Polygon;
+  profile: number;
 }
 
 /** Probe width used to measure a shared boundary, meters. */
@@ -46,7 +48,7 @@ const MIN_SHARED = 2;
 export class Buildability {
   static enforce(lots: LotCandidate[]): BuildabilityResult {
     const polygons = lots.map((l) => l.polygon);
-    const footprints = lots.map((l) => footprintOf(l.polygon, l.setback));
+    const hosted = lots.map((l) => host(l.polygon, l.profiles));
     const alive = lots.map(() => true);
     const openAreas = new Map<number, Polygon[]>();
     const lotsOfBlock = new Map<number, number[]>();
@@ -63,28 +65,38 @@ export class Buildability {
       openAreas.set(lots[i].blockIndex, list);
     };
 
-    const queue = lots.map((_, i) => i).filter((i) => !fitsWalkupCore(footprints[i]));
+    const queue = lots.map((_, i) => i).filter((i) => hosted[i] === null);
     for (let head = 0; head < queue.length; head++) {
       const i = queue[head];
-      if (!alive[i] || fitsWalkupCore(footprints[i])) continue;
-      const host = bestNeighbour(i, polygons, alive, lotsOfBlock.get(lots[i].blockIndex)!);
-      const merged = host === null ? [] : union([polygons[host], polygons[i]]);
-      if (host === null || merged.length !== 1) {
+      if (!alive[i] || hosted[i] !== null) continue;
+      const neighbour = bestNeighbour(i, polygons, alive, lotsOfBlock.get(lots[i].blockIndex)!);
+      const merged = neighbour === null ? [] : union([polygons[neighbour], polygons[i]]);
+      if (neighbour === null || merged.length !== 1) {
         demote(i);
         continue;
       }
       alive[i] = false;
-      polygons[host] = merged[0];
-      footprints[host] = footprintOf(merged[0], lots[host].setback);
-      if (!fitsWalkupCore(footprints[host])) queue.push(host);
+      polygons[neighbour] = merged[0];
+      hosted[neighbour] = host(merged[0], lots[neighbour].profiles);
+      if (hosted[neighbour] === null) queue.push(neighbour);
     }
 
     const survivors: BuildableLot[] = [];
     for (let i = 0; i < lots.length; i++) {
-      if (alive[i]) survivors.push({ index: i, polygon: polygons[i], footprint: footprints[i] });
+      const h = hosted[i];
+      if (alive[i] && h) survivors.push({ index: i, polygon: polygons[i], footprint: h.footprint, profile: h.profile });
     }
     return { lots: survivors, openAreas };
   }
+}
+
+/** First profile the lot hosts, with the footprint it yields. */
+function host(lot: Polygon, profiles: HostingProfile[]): Hosted | null {
+  for (let k = 0; k < profiles.length; k++) {
+    const footprint = hostFootprint(lot, profiles[k]);
+    if (footprint) return { footprint, profile: k };
+  }
+  return null;
 }
 
 /** Alive lot of the same block sharing the longest boundary, lowest index on a tie. */

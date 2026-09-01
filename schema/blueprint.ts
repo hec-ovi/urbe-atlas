@@ -124,7 +124,7 @@ export interface Parcel {
   tier: WealthTier;
   /** Full lot polygon; lots + open areas + sidewalk tile their block. */
   lot: Polygon;
-  /** Buildable footprint inside the lot, setbacks applied. */
+  /** Buildable footprint: the lot inset by the type's setback, trimmed to the band the type needs end to end. */
   footprint: Polygon;
   /** Street access: the entrance connects to this edge's sidewalk at this point. */
   access: { edgeId: string; point: Vec2 };
@@ -133,9 +133,11 @@ export interface Parcel {
 
 /**
  * 3D envelope for downstream building generation.
- * Every parcel footprint contains a 7.9 x 5.5 m rectangle for the walkup
- * stair core, and above 6 floors a 10.4 x 8.0 m one for the elevator core.
- * maxHeight always fits at least one floor of the type's family.
+ * Every parcel footprint keeps its type's band end to end (11 m for offices,
+ * corpo, hotel, hospital, mall and factory, 7.5 m for the rest), contains a
+ * 7.9 x 5.5 m rectangle for the walkup stair core, and a 10.4 x 8.0 m one
+ * for the elevator core when the type is one of those six or the envelope
+ * exceeds 6 floors. maxHeight always fits at least one floor of the type's family.
  */
 export interface Envelope {
   minFloors: number;

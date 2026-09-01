@@ -5,6 +5,10 @@
   border-radius: 0 !important;
 }
 
+[hidden] {
+  display: none !important;
+}
+
 :root {
   --bg-app: #080a0e;
   --bg-sidebar: #0e1117;

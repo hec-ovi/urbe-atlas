@@ -10,8 +10,10 @@ import {
   fitsCore,
   fitsWalkupCore,
 } from '../zoning/core';
+import { isHeavy, minBand } from '../zoning/bands';
 import { minFloorHeight } from '../zoning/floorMinimums';
 import { ALLEY_WIDTH } from '../streets/widths';
+import { bandWidth, hostsBand } from '../geom/band';
 import { area, distanceToOutline, isSimpleRing, pointInPolygon } from '../geom/polygon';
 import { distanceTo } from '../geom/polyline';
 import { checkGroundCover } from './groundCover';
@@ -65,8 +67,16 @@ export class Invariants {
       }
     }
 
-    // envelopes: core feasibility and one floor of the type's family
+    // footprints: the type's band end to end, core feasibility, one floor of the type's family
     for (const p of bp.parcels) {
+      if (!hostsBand(p.footprint, minBand(p.type))) {
+        throw invariantFailure(
+          `parcel ${p.id} (${p.type}) keeps a ${bandWidth(p.footprint).toFixed(2)} m band, below the ${minBand(p.type)} m its type needs`,
+        );
+      }
+      if (isHeavy(p.type) && !fitsCore(p.footprint)) {
+        throw invariantFailure(`parcel ${p.id} (${p.type}) footprint cannot host the ${CORE_WIDTH}x${CORE_DEPTH} m core`);
+      }
       if (!fitsWalkupCore(p.footprint)) {
         throw invariantFailure(
           `parcel ${p.id} footprint cannot host the ${WALKUP_CORE_WIDTH}x${WALKUP_CORE_DEPTH} m walkup core`,
