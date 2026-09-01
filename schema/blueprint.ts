@@ -118,7 +118,9 @@ export interface Parcel {
   districtId: string;
   type: ParcelType;
   tier: WealthTier;
-  /** Buildable footprint, setbacks applied. */
+  /** Full lot polygon; lots + open areas + sidewalk tile their block. */
+  lot: Polygon;
+  /** Buildable footprint inside the lot, setbacks applied. */
   footprint: Polygon;
   /** Street access: the entrance connects to this edge's sidewalk at this point. */
   access: { edgeId: string; point: Vec2 };
