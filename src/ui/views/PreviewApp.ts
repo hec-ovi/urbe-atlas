@@ -50,7 +50,13 @@ export class PreviewApp {
       () => requestAnimationFrame(() => this.resize()),
     );
     const sidebar = el('div', { class: 'sidebar' });
-    sidebar.append(tabs.root);
+    sidebar.append(
+      el('header', { class: 'app-heading' }, [
+        el('span', { class: 'app-mark', 'aria-hidden': 'true', text: 'A' }),
+        el('div', {}, [el('strong', { text: 'Atlas' }), el('span', { text: 'City blueprint generator' })]),
+      ]),
+      tabs.root,
+    );
     this.mapWrap = el('div', { class: 'map-wrap' });
     this.map3d.canvas.hidden = true;
     this.mapWrap.append(this.map.canvas, this.map3d.canvas, this.progress.root, this.notifications.root);
@@ -64,12 +70,16 @@ export class PreviewApp {
     this.busy = true;
     this.panel.setBusy(true);
     this.panel.setStatus('');
-    this.progress.show(`generating ${String(params.seed)}...`);
+    this.progress.show('preparing', `Seed ${String(params.seed)}`);
     await nextFrame(); // paint the blocked state before generation holds the thread
     try {
+      this.progress.update('generating', 'Laying out districts, streets, parcels and transit');
+      await nextFrame();
       const started = performance.now();
       const blueprint = generateCity(params);
       this.blueprint = blueprint;
+      this.progress.update('rendering', 'Drawing the blueprint preview');
+      await nextFrame();
       this.map.setBlueprint(blueprint);
       if (this.mode === '3d') this.map3d.setBlueprint(blueprint);
       else this.pending3d = blueprint;
@@ -77,8 +87,11 @@ export class PreviewApp {
         `${Math.round(performance.now() - started)} ms, pop ${blueprint.stats.population.toLocaleString()}, ` +
           `${blueprint.parcels.length} parcels, ${blueprint.districts.length} districts`,
       );
+      this.progress.update('ready', `${blueprint.parcels.length} parcels ready to inspect`);
+      await nextFrame();
     } catch (e) {
       this.panel.setStatus('generation failed');
+      this.progress.update('error', e instanceof Error ? e.message : String(e));
       this.notifications.error(e instanceof AtlasError ? `${e.code}: ${e.message}` : String(e));
     } finally {
       this.progress.hide();

@@ -72,7 +72,7 @@ describe('ParamsPanel', () => {
     onImport: vi.fn(),
   });
 
-  it('emits the full parameter set on Generate', async () => {
+  it('emits every contract parameter on Generate', async () => {
     const handlers = events();
     const panel = new ParamsPanel(handlers);
     document.body.append(panel.root);
@@ -80,11 +80,13 @@ describe('ParamsPanel', () => {
     await userEvent.clear(seed);
     await userEvent.type(seed, 'test-9');
     await userEvent.click(getByLabelText(panel.root, 'Subways'));
-    await userEvent.click(getByText(panel.root, 'Generate'));
+    await userEvent.click(getByText(panel.root, 'Generate city'));
     expect(handlers.onGenerate).toHaveBeenCalledTimes(1);
     const params = handlers.onGenerate.mock.calls[0][0];
     expect(params.seed).toBe('test-9');
     expect(params.size).toEqual({ width: 1000, depth: 1000 });
+    expect(params.districtCount).toEqual([1, 3]);
+    expect(params.tierWeights).toEqual({ poor: 0.3, mid: 0.45, rich: 0.2, high_rich: 0.05 });
     expect(params.features).toEqual({
       highways: true,
       trains: true,
@@ -95,7 +97,7 @@ describe('ParamsPanel', () => {
     });
   });
 
-  it('exports what an imported set put in the form, carried fields included', async () => {
+  it('exposes imported district caps and weights in the editable form and export', async () => {
     const handlers = events();
     const panel = new ParamsPanel(handlers);
     document.body.append(panel.root);
@@ -104,18 +106,49 @@ describe('ParamsPanel', () => {
       size: { width: 900, depth: 700 },
       maxFloors: 12,
       districtCount: [2, 3],
+      maxFloorsByDistrict: { downtown: 9 },
       tierWeights: { poor: 1 },
       features: { alleys: false },
     });
-    await userEvent.click(getByText(panel.root, 'Export params'));
+    await userEvent.click(getByText(panel.root, 'Save parameters'));
     const params = handlers.onExport.mock.calls[0][0];
     expect(params.seed).toBe('from-file');
     expect(params.size).toEqual({ width: 900, depth: 700 });
     expect(params.maxFloors).toBe(12);
     expect(params.districtCount).toEqual([2, 3]);
-    expect(params.tierWeights).toEqual({ poor: 1 });
+    expect(params.maxFloorsByDistrict).toEqual({ downtown: 9 });
+    expect(params.tierWeights).toEqual({ poor: 1, mid: 0.45, rich: 0.2, high_rich: 0.05 });
     expect(params.features.alleys).toBe(false);
     expect(params.features.trains).toBe(true);
+  });
+
+  it('keeps slider and exact value synchronized and blocks invalid input', async () => {
+    const handlers = events();
+    const panel = new ParamsPanel(handlers);
+    document.body.append(panel.root);
+    const width = getByLabelText(panel.root, 'Width (m)') as HTMLInputElement;
+    const slider = getByLabelText(panel.root, 'Width (m) slider') as HTMLInputElement;
+    await userEvent.clear(width);
+    await userEvent.type(width, '200');
+    expect(getByRole(panel.root, 'alert').textContent).toContain('between 300 and 5000');
+    expect((getByRole(panel.root, 'button', { name: 'Generate city' }) as HTMLButtonElement).disabled).toBe(true);
+    await userEvent.clear(width);
+    await userEvent.type(width, '1200');
+    expect(slider.value).toBe('1200');
+    expect((getByRole(panel.root, 'button', { name: 'Generate city' }) as HTMLButtonElement).disabled).toBe(false);
+  });
+
+  it('creates a new seed and applies a preset without changing it', async () => {
+    const panel = new ParamsPanel(events());
+    document.body.append(panel.root);
+    const seed = getByLabelText(panel.root, 'Seed') as HTMLInputElement;
+    await userEvent.click(getByRole(panel.root, 'button', { name: 'Random seed' }));
+    expect(seed.value).toMatch(/^city-/);
+    const generatedSeed = seed.value;
+    await userEvent.click(getByRole(panel.root, 'button', { name: 'Compact' }));
+    expect(seed.value).toBe(generatedSeed);
+    expect((getByLabelText(panel.root, 'Width (m)') as HTMLInputElement).value).toBe('600');
+    expect((getByLabelText(panel.root, 'Highways') as HTMLInputElement).checked).toBe(false);
   });
 
   it('shows generation status and locks the form while busy', () => {

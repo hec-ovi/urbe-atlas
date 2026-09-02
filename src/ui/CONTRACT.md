@@ -1,23 +1,23 @@
 # CONTRACT: atlas/ui
 
-Purpose: browser preview of a CityBlueprint, flat on a 2D pan/zoom plane or as the city in 3D, with the parameter form that builds it, a color legend and per-thing filters. Presentation only, no generation logic.
+Purpose: dark browser workspace for creating and inspecting a CityBlueprint in a flat map or a 3D city view. Presentation only, no generation logic.
 
 ## In
 A `CityBlueprint` (see ../../CONTRACT.md). The app generates one locally through `generateCity` from the params panel.
 
 ## Components
-- views/PreviewApp: the preview itself, sidebar plus map. Methods: `generate(params)` (resolves once the flat city is on screen, or its failure reported), `resize()`. While a city builds, the form is locked behind a progress cover; failures, file results and parcel clicks land in the notification stack. Hidden 3D geometry is deferred until 3D is selected.
+- views/PreviewApp: the preview itself, sidebar plus map. Methods: `generate(params)` (resolves once the flat city is on screen, or its failure reported), `resize()`. While a city builds, the form is locked behind a progress cover that reports preparing, generating, rendering and ready stages. Failures, file results and parcel clicks land in the notification stack. Hidden 3D geometry is deferred until 3D is selected.
 - views/Map3DView: WebGL2 renderer of the city in three dimensions. `new Map3DView(onParcelClick?)`. Methods: `shown()`, `setBlueprint(bp)`, `setFilters(filters)`, `resize(w, h)`, `resetView()`. Each parcel is one envelope prism with its floor elevations drawn across the facade, avoiding hidden floor caps inside the building. Ground cover lies in plates, streets run as ribbons under the ground plate and highways use the deck, ramp and support arithmetic published in `streets.highwayStructures`, rail runs at its published level and corridor width, and stations show their headhouse, shaft, passage and platform. Geometry is normalized and merged per material. Drag orbits, wheel zooms, a right click over a building opens its popup.
 - views/filters: `defaultFilters()` and the `FilterKey` set, one switch per ground surface, parcel type, street class, transit mode and the district outlines.
 - widgets/ViewModeSwitch: flat map or city in 3D. Event: `onChange(mode)`.
 - widgets/ViewTabs: creation and visualization tabs, each hideable.
 - views/MapView: canvas renderer. `new MapView(onParcelClick?)`. Methods: `setBlueprint(bp)`, `setLayers(layers)`, `resize(w, h)`, `resetView()`. Pan: drag. Zoom: wheel, cursor-anchored. A click that is not a drag emits the parcel under the pointer.
-- widgets/ParamsPanel: the full parameter form (seed, width, depth, irregularity, max floors, one checkbox per feature toggle). Events: `onGenerate(params)`, `onExport(params)`, `onImport(file)`. Methods: `read()`, `setParams(params)`, `setStatus(text)`, `setBusy(busy)`. Parameters with no control of their own (district count, per-district floor caps, tier weights) ride along from an imported file into the next export.
+- widgets/ParamsPanel: complete AtlasParams editor. It exposes seed, width, depth, irregularity, district range, global and per-district floor caps, wealth weights and every feature toggle. Range values have an exact numeric input. Compact, city and metro presets retain the current seed; Reset restores defaults; Random seed changes only the seed. Invalid values disable Generate city and show the reason. Events: `onGenerate(params)`, `onExport(params)`, `onImport(file)`. Methods: `read()`, `setParams(params)`, `setStatus(text)`, `setBusy(busy)`.
 - widgets/LayerToggles: checkboxes for ground, zones, streets, transit, districts. Event: `onChange(layers)`.
 - widgets/LegendWidget: color swatches per parcel type and tier, street classes, transit modes. Read-only.
 - widgets/ParcelLink: URL template a parcel click opens, empty (the default) meaning off. `linkFor(parcel, seed)` returns the URL or null. Tokens: `{seed} {parcelId} {blockId} {districtId} {type} {tier} {x} {z}`.
 - widgets/Notifications: dismissible message stack. `error(message)`, `info(message, link?)`.
-- widgets/ProgressOverlay: blocking cover over the map. `show(text)`, `hide()`.
+- widgets/ProgressOverlay: blocking stage display over the map. `show(stage, detail)`, `update(stage, detail)`, `hide()`. Stages are preparing, generating, rendering, ready and error.
 - components/paramsFile: `parseParams(text)` (drops unknown top-level fields, resolves defaults and applies the generator's nested runtime validation, then throws with the reason on failure), `paramsFileName(seed)`, `downloadParams(params, filename)`.
 - components/colors: `parcelColor(type, tier)`, `streetColor(class)`, transit and ground palette constants.
 - components/dom: `el(tag, attrs, children)` helper.
