@@ -83,7 +83,7 @@ describe('ParamsPanel', () => {
     expect(handlers.onGenerate).toHaveBeenCalledTimes(1);
     const params = handlers.onGenerate.mock.calls[0][0];
     expect(params.seed).toBe('test-9');
-    expect(params.size).toEqual({ width: 3000, depth: 3000 });
+    expect(params.size).toEqual({ width: 1000, depth: 1000 });
     expect(params.features).toEqual({
       highways: true,
       trains: true,

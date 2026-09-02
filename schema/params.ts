@@ -12,7 +12,7 @@ export type WealthTier = 'poor' | 'mid' | 'rich' | 'high_rich';
 
 export interface AtlasParams {
   seed: Seed;
-  /** City extent bounding box in meters. The city shape is irregular inside it. Default { width: 3000, depth: 3000 }. */
+  /** City extent bounding box in meters. The city shape is irregular inside it. Default { width: 1000, depth: 1000 }. */
   size?: { width: number; depth: number };
   /** 0..1: 0 leans rectangular grid, 1 heavily organic/curved. Default 0.6. */
   irregularity?: number;

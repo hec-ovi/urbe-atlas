@@ -40,6 +40,8 @@ Closed set, thrown as `AtlasError { code, message, details? }` ([schema/blueprin
 - `E_INVARIANT`: post-generation coherence check failed; atlas bug, report with seed and params.
 
 ## Invariants
+- Planar streets: when the traced network leaves two faces sharing ground, the streets grow again from the next seed in line (three tries), and a city that never planarizes refuses with `E_UNSATISFIABLE`.
+- Street pattern: every gridded district shares one city grid angle, so blocks stay square and monotonous across districts; a downtown turns radial only when `irregularity` is 0.4 or more, and the boundary bends streets only in proportion to `irregularity`. Default size is 1000 x 1000 m.
 - Levels are the one place height lives for networks: a consumer stacks highway decks, tracks and platforms from `level`, never from class.
 - IDs are globally unique across the whole blueprint (disjoint prefixes per collection).
 - Street graph is connected; every parcel's access point lies on a sidewalk of its access edge.

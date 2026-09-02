@@ -11,25 +11,34 @@ import { hash32 } from '../core/rng';
 import { bounds, pointInPolygon } from '../geom/polygon';
 import { StreamlineTracer, TracedLine } from './StreamlineTracer';
 
+/** Irregularity from which a downtown turns radial instead of staying on the city grid. */
+const RADIAL_DOWNTOWN_FROM = 0.4;
+
 export class StreetGrowth {
   static buildField(rng: Rng, boundary: Polygon, params: ResolvedParams, districts: PlannedDistrict[]): TensorField {
+    // One city grid: every gridded district shares the same angle, so blocks stay square and
+    // monotonous from district to district. Only a downtown turns radial, and only when the
+    // city is asked to be irregular; a regular city keeps its downtown on the grid too.
+    const cityTheta = rng.range(0, Math.PI);
+    const radialDowntown = params.irregularity >= RADIAL_DOWNTOWN_FROM;
     const bases: FieldBasis[] = districts.map((d) => {
-      if (d.kind === 'downtown') {
+      if (d.kind === 'downtown' && radialDowntown) {
         return { kind: 'radial', center: d.center, weight: 2, sigma: d.radius * 1.2 };
       }
       return {
         kind: 'grid',
         center: d.center,
-        theta: rng.range(0, Math.PI),
-        weight: d.kind === 'industrial' ? 1.4 : 1,
-        sigma: d.radius * rng.range(0.9, 1.3),
+        theta: cityTheta,
+        weight: d.kind === 'industrial' || d.kind === 'downtown' ? 1.4 : 1,
+        sigma: d.radius * 1.2,
       };
     });
     const size = Math.min(params.size.width, params.size.depth);
     return new TensorField({
       bases,
       boundary,
-      boundaryWeight: 1.2,
+      // the boundary bends streets along the edge only as far as the city is irregular
+      boundaryWeight: 1.2 * params.irregularity,
       boundarySigma: size * 0.07,
       noiseSeed: hash32(`${String(params.seed)} field.noise`),
       noiseAmplitude: params.irregularity * 0.3,

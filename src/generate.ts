@@ -31,7 +31,7 @@ import { Zoning, LotInput } from './zoning/Zoning';
 import { hostingProfiles } from './zoning/profiles';
 import { TransitPlanner } from './transit/TransitPlanner';
 import { Invariants } from './invariants/Invariants';
-import { bufferLine, difference, snapPoint } from './geom/clip';
+import { bufferLine, difference, intersection, snapPoint } from './geom/clip';
 import { area, bounds, centroid, pointInPolygon } from './geom/polygon';
 import { directionAt, length as lineLength, pointAt } from './geom/polyline';
 import { closestOnSegment, cross, dist, sub } from './geom/vec';
@@ -55,7 +55,7 @@ export function generateCity(input: AtlasParams): CityBlueprint {
   const boundary = CityBoundary.generate(Rng.from(seed, 'boundary'), params.size, params.irregularity);
   const planned = DistrictPlanner.plan(Rng.from(seed, 'districts'), boundary, params);
   const field = StreetGrowth.buildField(Rng.from(seed, 'field'), boundary, params, planned);
-  const lines = StreetGrowth.grow(field, boundary, Rng.from(seed, 'streets'), params, planned);
+  let lines = StreetGrowth.grow(field, boundary, Rng.from(seed, 'streets'), params, planned);
 
   const cityCenter = centroid(boundary);
   const extent = Math.max(params.size.width, params.size.depth) * 3;
@@ -94,6 +94,16 @@ export function generateCity(input: AtlasParams): CityBlueprint {
   let graph = buildGraph(lines);
   if (graph.edges.length < 8) throw unsatisfiable('street network too small; enlarge size', { edges: graph.edges.length });
   let faces = facesOf(graph.edges);
+  // Two faces sharing ground means the tracer left a crossing the graph could not resolve;
+  // the streets are grown again from the next seed in line, a few times, then the city refuses.
+  for (let attempt = 1; !facesPlanar(faces) && attempt <= PLANAR_ATTEMPTS; attempt++) {
+    lines = StreetGrowth.grow(field, boundary, Rng.from(seed, `streets:${attempt}`), params, planned);
+    graph = buildGraph(lines);
+    faces = graph.edges.length < 8 ? [] : facesOf(graph.edges);
+  }
+  if (graph.edges.length < 8 || !facesPlanar(faces)) {
+    throw unsatisfiable('street network never planar for this seed and size; change either', { edges: graph.edges.length });
+  }
   if (params.features.alleys) {
     const land = BlockBuilder.pieces(faces, roadwayOf(graph.edges));
     const alleys = AlleyPlanner.plan(
@@ -323,7 +333,8 @@ export function generateCity(input: AtlasParams): CityBlueprint {
   for (const b of builtBlocks) for (const poly of b.sidewalk) ground.push({ surface: 'sidewalk', polygon: poly });
   for (const p of parcels) ground.push({ surface: 'block', polygon: p.lot });
   for (const open of blockOpenAreas) for (const poly of open) ground.push({ surface: 'open', polygon: poly });
-  const fringe = difference([boundary], faces.map((f) => f.polygon));
+  // the fringe is whatever the placed cover leaves of the boundary, so the partition is exact by construction
+  const fringe = difference([boundary], ground.map((g) => g.polygon));
   for (const poly of fringe) ground.push({ surface: 'open', polygon: poly });
 
   const heightRng = Rng.from(seed, 'volumetric');
@@ -426,3 +437,24 @@ function pruneUnusedStops(stops: BusStop[], usedIds: string[]): void {
     if (!used.has(stops[i].id)) stops.splice(i, 1);
   }
 }
+
+/** How many fresh street seeds a city tries before refusing a non-planar network. */
+const PLANAR_ATTEMPTS = 3;
+
+/** Whether no two faces share ground beyond a sliver. */
+function facesPlanar(faces: Face[]): boolean {
+  const boxes = faces.map((f) => bounds(f.polygon));
+  for (let i = 0; i < faces.length; i++) {
+    for (let j = i + 1; j < faces.length; j++) {
+      const a = boxes[i]!;
+      const b = boxes[j]!;
+      if (a.max[0] <= b.min[0] || b.max[0] <= a.min[0] || a.max[1] <= b.min[1] || b.max[1] <= a.min[1]) continue;
+      const shared = intersection([faces[i]!.polygon], [faces[j]!.polygon]).reduce((sum, p) => sum + area(p), 0);
+      if (shared > PLANAR_SLIVER) return false;
+    }
+  }
+  return true;
+}
+
+/** Square meters two faces may share through clipping noise. */
+const PLANAR_SLIVER = 0.5;

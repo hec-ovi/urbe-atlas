@@ -1,6 +1,6 @@
 /**
  * Generate a blueprint from the command line.
- * npm run generate -- --seed urbe --out samples/city-urbe.json [--size 3000]
+ * npm run generate -- --seed urbe --out samples/city-urbe.json [--size 1000]
  * [--irregularity 0.6] [--max-floors 40] [--no-highways] [--no-trains] [--no-subways] [--no-alleys]
  */
 import { writeFileSync } from 'node:fs';

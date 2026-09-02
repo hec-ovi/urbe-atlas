@@ -35,7 +35,7 @@ export function resolveParams(input: AtlasParams): ResolvedParams {
     throw invalidParams('seed is required and must be a string or number', { field: 'seed' });
   }
 
-  const size = input.size ?? { width: 3000, depth: 3000 };
+  const size = input.size ?? { width: 1000, depth: 1000 };
   if (!(size.width > 0) || !(size.depth > 0)) {
     throw invalidParams('size.width and size.depth must be positive meters', { field: 'size' });
   }
