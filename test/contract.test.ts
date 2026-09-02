@@ -8,7 +8,7 @@ import { AtlasError, generateCity } from '../src';
 import { bandWidth } from '../src/geom/band';
 import { orientedBoundingBox } from '../src/geom/obb';
 import { intersection, offset } from '../src/geom/clip';
-import { area as polygonArea, bounds, pointInPolygon } from '../src/geom/polygon';
+import { area as polygonArea, bounds, distanceToOutline, pointInPolygon } from '../src/geom/polygon';
 import { CURB_WIDTH } from '../src/streets/widths';
 import { PLANTING_CLEARANCE, PLANTING_SPACING } from '../src/streets/Planting';
 import type { CityBlueprint, ParcelType, Polyline, Vec2 } from '../schema/blueprint';
@@ -362,6 +362,29 @@ describe('street furniture', () => {
       }
     }
     expect(worst.gap, worst.at).toBeGreaterThanOrEqual(PLANTING_CLEARANCE);
+  });
+});
+
+describe('street alignment', () => {
+  it('keeps the default interior network on the city axes without seeded wobble', () => {
+    const bp = generateCity({ seed: 'alignment' });
+    let checked = 0;
+    for (const edge of bp.streets.edges) {
+      if (edge.class === 'alley') continue;
+      for (let i = 1; i < edge.path.length; i++) {
+        const a = edge.path[i - 1];
+        const b = edge.path[i];
+        const mid: Vec2 = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
+        // Three boundary-field sigmas into the city, the grid is the only
+        // computed basis at the default irregularity (downtown radial starts at 0.4).
+        if (distanceToOutline(mid, bp.meta.boundary) <= 210) continue;
+        const off = Math.atan2(b[1] - a[1], b[0] - a[0]) - bp.meta.gridAngle;
+        const deviation = Math.abs(Math.atan2(Math.sin(4 * off), Math.cos(4 * off)) / 4) * 180 / Math.PI;
+        expect(deviation, `${edge.id} segment ${i}`).toBeLessThan(0.5);
+        checked++;
+      }
+    }
+    expect(checked).toBeGreaterThan(10);
   });
 });
 

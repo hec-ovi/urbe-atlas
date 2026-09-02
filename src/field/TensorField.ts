@@ -6,7 +6,6 @@
  */
 import type { Polygon, Vec2 } from '../../schema/blueprint';
 import { closestOnSegment, distSq, fromAngle, sub, angleOf } from '../geom/vec';
-import { valueNoise } from './noise';
 
 export interface GridBasis {
   kind: 'grid';
@@ -39,26 +38,16 @@ export class TensorField {
   private readonly boundarySegments: { a: Vec2; b: Vec2; theta: number }[];
   private readonly boundaryWeight: number;
   private readonly boundarySigma: number;
-  private readonly noiseSeed: number;
-  private readonly noiseAmplitude: number;
-  private readonly noiseScale: number;
 
   constructor(options: {
     bases: FieldBasis[];
     boundary: Polygon;
     boundaryWeight: number;
     boundarySigma: number;
-    noiseSeed: number;
-    /** Max rotation from noise, radians. */
-    noiseAmplitude: number;
-    noiseScale: number;
   }) {
     this.bases = options.bases;
     this.boundaryWeight = options.boundaryWeight;
     this.boundarySigma = options.boundarySigma;
-    this.noiseSeed = options.noiseSeed;
-    this.noiseAmplitude = options.noiseAmplitude;
-    this.noiseScale = options.noiseScale;
     this.boundarySegments = [];
     const poly = options.boundary;
     for (let i = 0; i < poly.length; i++) {
@@ -95,15 +84,6 @@ export class TensorField {
         a += w * Math.cos(2 * bestTheta);
         b += w * Math.sin(2 * bestTheta);
       }
-    }
-    if (this.noiseAmplitude > 0) {
-      const rot = 2 * this.noiseAmplitude * (valueNoise(p[0], p[1], this.noiseScale, this.noiseSeed) - 0.5);
-      const cr = Math.cos(2 * rot);
-      const sr = Math.sin(2 * rot);
-      const ra = a * cr - b * sr;
-      const rb = a * sr + b * cr;
-      a = ra;
-      b = rb;
     }
     return { a, b };
   }

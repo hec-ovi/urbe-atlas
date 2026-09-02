@@ -1,6 +1,6 @@
 # urbe-atlas
 
-Deterministic 2D city map generator. A seed plus a few parameters produce a complete typed city blueprint: districts, a street hierarchy with real widths and sidewalks, buildable parcels with quality tiers and 3D envelopes, transit networks, and a low poly volumetric city for previews. Same input, byte-identical JSON: a 3 km city takes about a second, a village a tenth of that.
+Deterministic 2D city map generator. A seed plus a few parameters produce a complete typed city blueprint: districts, a street hierarchy with real widths and sidewalks, buildable parcels with quality tiers and 3D envelopes, transit networks, and a low poly volumetric city for previews. Same input, byte-identical JSON: on the current development machine a 3 km city takes about 3 seconds and an 800 m village about 0.2 seconds.
 
 ## Run
 
@@ -24,7 +24,7 @@ Generator flags: `--size N`, `--irregularity X`, `--max-floors N`, `--no-highway
 One JSON blueprint (`schema/blueprint.ts`):
 
 - **districts** with kind (downtown, commercial, residential, industrial, mixed), wealth tier and floor cap, each a rectangle on the one city grid, clipped to the city outline
-- **streets** as a planar graph: street, road and highway classes with carriageway and sidewalk widths, curved centerlines, pedestrian crossings at intersections, traffic signals with their mast arms, street furniture (trees, light poles, bins) in the kerb-side strip, deterministic highway decks, ramps and support columns, plus pedestrian-only alleys (no carriageway, 3 to 5 m of sidewalk) cut through long blocks in poor and commercial districts
+- **streets** as a planar graph: street, road and highway classes with carriageway and sidewalk widths, grid-aligned interior centerlines, boundary-following and radial curves where the parameters select them, pedestrian crossings at intersections, traffic signals with their mast arms, street furniture (trees, light poles, bins) in the kerb-side strip, deterministic highway decks, ramps and support columns, plus pedestrian-only alleys (no carriageway, 3 to 5 m of sidewalk) cut through long blocks in poor and commercial districts
 - **blocks** with continuous sidewalk rings, a 0.15 m curb strip of their own between roadway and sidewalk, and rounded curb corners at intersections, and **parcels** typed residential through coffee shop, tiered poor to high rich, each with a lot, a footprint that hosts the core rectangle its type needs, derived from interior's core feasibility (12.14 x 13.74 m for elevator types such as offices and hotels, 11.14 x 9.74 m for the rest), a street access point and a 3D envelope whose floors stay within what that core allows
 - **transit**: bus stops and routes over street edges, train and subway lines with their corridor widths, and stations with their platform box, street-level entrances and, underground, a shaft per entrance down to the platform. At-grade track and platforms reserve their right-of-way before parcels are cut. Train platforms stay outside highway decks; subway entrances choose sidewalk space clear of buildings.
 - **volumetric**: one prism per parcel plus ground cover polygons, for map rendering
@@ -36,7 +36,7 @@ Three samples are committed and tested to regenerate byte-identical: `samples/ci
 
 ## How it works
 
-Streets grow as streamlines through a composite tensor field (grid, radial and boundary basis fields), which is what mixes curved, radial and rectangular patterns in one city. Every gridded district and every district cut sits on one city grid angle, so blocks stay square; `irregularity` is what lets a cut lean off it. Blocks are the faces of the resulting planar graph, parcels come from recursive oriented-box subdivision, and zoning applies researched urban ratios: hospitals, police and commerce per population, floor bands per type and tier. Sources and numbers live in `docs/RESEARCH.md`.
+Streets grow as streamlines through a composite tensor field (grid, radial and boundary basis fields). The field contains no noise rotation: interior centerlines stay on the city axes, while `irregularity` controls the computed boundary bend and enables a radial downtown from 0.4. Every gridded district and every district cut uses the same axes. Blocks are the faces of the resulting planar graph, parcels come from recursive oriented-box subdivision, and zoning applies researched urban ratios: hospitals, police and commerce per population, floor bands per type and tier. Sources and numbers live in `docs/RESEARCH.md`.
 
 ## In the urbe family
 

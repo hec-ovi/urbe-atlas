@@ -7,7 +7,6 @@ import type { Rng } from '../core/rng';
 import type { ResolvedParams } from '../params/defaults';
 import type { PlannedDistrict } from '../districts/DistrictPlanner';
 import { FieldBasis, TensorField } from '../field/TensorField';
-import { hash32 } from '../core/rng';
 import { bounds, pointInPolygon } from '../geom/polygon';
 import { StreamlineTracer, TracedLine } from './StreamlineTracer';
 
@@ -44,9 +43,6 @@ export class StreetGrowth {
       // the boundary bends streets along the edge only as far as the city is irregular
       boundaryWeight: 1.2 * params.irregularity,
       boundarySigma: size * 0.07,
-      noiseSeed: hash32(`${String(params.seed)} field.noise`),
-      noiseAmplitude: params.irregularity * 0.3,
-      noiseScale: 420,
     });
   }
 
