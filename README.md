@@ -23,10 +23,10 @@ Generator flags: `--size N`, `--irregularity X`, `--max-floors N`, `--no-highway
 
 One JSON blueprint (`schema/blueprint.ts`):
 
-- **districts** with kind (downtown, commercial, residential, industrial, mixed), wealth tier and floor cap
+- **districts** with kind (downtown, commercial, residential, industrial, mixed), wealth tier and floor cap, each a rectangle on the one city grid, clipped to the city outline
 - **streets** as a planar graph: street, road and highway classes with carriageway and sidewalk widths, curved centerlines, pedestrian crossings at intersections, plus pedestrian-only alleys (no carriageway, 3 to 5 m of sidewalk) cut through long blocks in poor and commercial districts
-- **blocks** with continuous sidewalk rings and rounded curb corners at intersections, and **parcels** typed residential through coffee shop, tiered poor to high rich, each with a lot, a footprint that hosts the core rectangle its type needs, derived from interior's core feasibility (12.14 x 13.74 m for elevator types such as offices and hotels, 11.14 x 9.74 m for the rest), a street access point and a 3D envelope whose floors stay within what that core allows
-- **transit**: bus stops and routes over street edges, train and subway stations with street level entrances, and their lines
+- **blocks** with continuous sidewalk rings, a 0.15 m curb strip of their own between roadway and sidewalk, and rounded curb corners at intersections, and **parcels** typed residential through coffee shop, tiered poor to high rich, each with a lot, a footprint that hosts the core rectangle its type needs, derived from interior's core feasibility (12.14 x 13.74 m for elevator types such as offices and hotels, 11.14 x 9.74 m for the rest), a street access point and a 3D envelope whose floors stay within what that core allows
+- **transit**: bus stops and routes over street edges, train and subway stations with their platform box, street level entrances and, underground, a shaft per entrance down to the platform, plus their lines
 - **volumetric**: one prism per parcel plus ground cover polygons, for map rendering
 - **stats**: population estimate and parcel counts per type and per district
 
@@ -36,7 +36,7 @@ Three samples are committed and tested to regenerate byte-identical: `samples/ci
 
 ## How it works
 
-Streets grow as streamlines through a composite tensor field (grid, radial and boundary basis fields), which is what mixes curved, radial and rectangular patterns in one city. Blocks are the faces of the resulting planar graph, parcels come from recursive oriented-box subdivision, and zoning applies researched urban ratios: hospitals, police and commerce per population, floor bands per type and tier. Sources and numbers live in `docs/RESEARCH.md`.
+Streets grow as streamlines through a composite tensor field (grid, radial and boundary basis fields), which is what mixes curved, radial and rectangular patterns in one city. Every gridded district and every district cut sits on one city grid angle, so blocks stay square; `irregularity` is what lets a cut lean off it. Blocks are the faces of the resulting planar graph, parcels come from recursive oriented-box subdivision, and zoning applies researched urban ratios: hospitals, police and commerce per population, floor bands per type and tier. Sources and numbers live in `docs/RESEARCH.md`.
 
 ## In the urbe family
 
