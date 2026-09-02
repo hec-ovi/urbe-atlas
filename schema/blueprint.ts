@@ -180,10 +180,26 @@ export interface Station {
   id: string;
   position: Vec2;
   districtId: string;
+  /** Platform footprint in plan, a straight box along the track through `position`, at `level`. */
+  platform: Polygon;
   /** Street-level entrance points, each on a sidewalk. */
   entrances: Vec2[];
+  /** One shaft per entrance, in the same order: the way down to the platform. Empty for a station at grade, whose entrances open onto the platform itself. */
+  shafts: Shaft[];
   /** Platform height above the ground plane: the line's level (src/levels.ts); entrances stay at grade. */
   level: number;
+}
+
+/** The way underground from one street entrance: a vertical shaft, then a corridor to the platform. */
+export interface Shaft {
+  /** Shaft footprint in plan, on the sidewalk around its entrance. */
+  footprint: Polygon;
+  /** Height of the shaft head above the ground plane: grade. */
+  top: number;
+  /** Height of its foot: the station's level. */
+  bottom: number;
+  /** Corridor footprint at the station's level, from the shaft foot to inside the platform. Empty when the shaft lands on the platform. */
+  passage: Polygon;
 }
 
 export interface RailLine {

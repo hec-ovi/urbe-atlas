@@ -19,8 +19,9 @@ import type {
 import type { Rng } from '../core/rng';
 import type { PlannedDistrict } from '../districts/DistrictPlanner';
 import type { BuiltEdge, BuiltNode } from '../streets/Graph';
-import { dist, normalize, sub, add, scale } from '../geom/vec';
-import { distanceTo, length as lineLength, offsetAt, pointAt } from '../geom/polyline';
+import { closestOnSegment, dist, normalize, sub, add, scale } from '../geom/vec';
+import { directionAt, distanceTo, length as lineLength, offsetAt, pointAt } from '../geom/polyline';
+import { type EntrancePlace, platformOf, shaftsOf } from './stations';
 import { carriagewayWidth } from '../streets/widths';
 import { LEVELS } from '../levels';
 import { bounds } from '../geom/polygon';
@@ -236,7 +237,8 @@ export class TransitPlanner {
       path.push(exit);
       const stationIds: string[] = [];
       for (const pos of stations) {
-        const st = this.makeStation(`ts${transit.trainStations.length}`, pos, options.districtOfNode, LEVELS.train);
+        const along = distanceAlong(path, pos);
+        const st = this.makeStation(`ts${transit.trainStations.length}`, pos, directionAt(path, along), options.districtOfNode, LEVELS.train);
         transit.trainStations.push(st);
         stationIds.push(st.id);
       }
@@ -320,55 +322,79 @@ export class TransitPlanner {
     const count = Math.max(2, Math.round(total / spacing) + 1);
     const ids: string[] = [];
     for (let i = 0; i < count; i++) {
-      const pos = pointAt(geometry, (total * i) / (count - 1));
+      const along = (total * i) / (count - 1);
+      const pos = pointAt(geometry, along);
       const existing = all.find((s) => dist(s.position, pos) < mergeRadius);
       if (existing) {
         if (ids[ids.length - 1] !== existing.id) ids.push(existing.id);
         continue;
       }
-      const st = this.makeStation(`${prefix}${all.length}`, pos, districtOfNode, level);
+      const st = this.makeStation(`${prefix}${all.length}`, pos, directionAt(geometry, along), districtOfNode, level);
       all.push(st);
       ids.push(st.id);
     }
     return ids;
   }
 
-  private makeStation(id: string, position: Vec2, districtOfNode: (nodeId: string) => number, level: number): Station {
-    // entrances go mid-sidewalk, so anchor to the nearest node that offers one
-    const node = this.nearestNode(position, (n) => this.entrancesAt(n).length > 0);
-    const entrances = this.entrancesAt(node);
+  /**
+   * A station is a platform box along its track, entered from the sidewalk:
+   * underground, each entrance gets a shaft down to the platform.
+   */
+  private makeStation(
+    id: string,
+    position: Vec2,
+    direction: Vec2,
+    districtOfNode: (nodeId: string) => number,
+    level: number,
+  ): Station {
+    // an entrance stands on the sidewalk beside the platform, so the walk down is short
+    const node = this.nearestNode(position);
+    const places = this.entrancesNear(position);
+    const fallback: EntrancePlace[] = [{ point: position, direction, sidewalk: 0 }];
+    const entrances = places.length > 0 ? places : fallback;
+    const platform = platformOf(position, direction, level < 0 ? 'subway' : 'train');
     return {
       id,
       position,
       districtId: `d${districtOfNode(node.id)}`,
-      entrances: entrances.length > 0 ? entrances : [position],
+      platform,
+      entrances: entrances.map((e) => e.point),
+      shafts: shaftsOf(entrances, platform, level),
       level,
     };
   }
 
   /**
-   * Sidewalk points beside the node's first edge that serves them, both sides
-   * when both land in the band: a tight bend can push an offset point back
-   * into the roadway, so every candidate is verified against its own edge.
+   * Sidewalk points beside the street that runs closest to `position`, both
+   * sides when both land in the band: a tight bend can push an offset point
+   * back into the roadway, so every candidate is verified against its edge.
    */
-  private entrancesAt(node: BuiltNode): Vec2[] {
-    for (const a of this.adjacency.get(node.id) ?? []) {
-      const sidewalk = this.sidewalkOf(a.edge.id);
-      if (sidewalk <= 0) continue;
-      const half = carriagewayWidth(a.edge.class) / 2;
-      const l = lineLength(a.edge.path);
-      const arc = Math.min(Math.max(30, l * 0.25), Math.max(l - 30, 0));
-      const points: Vec2[] = [];
+  private entrancesNear(position: Vec2): EntrancePlace[] {
+    const nearby = [...this.edgeById.values()]
+      .filter((e) => this.sidewalkOf(e.id) > 0)
+      .map((edge) => ({ edge, away: distanceTo(edge.path, position) }))
+      .sort((a, b) => a.away - b.away)
+      .slice(0, NEAR_EDGES);
+    for (const { edge } of nearby) {
+      const sidewalk = this.sidewalkOf(edge.id);
+      const half = carriagewayWidth(edge.class) / 2;
+      const arc = distanceAlong(edge.path, position);
+      const places: EntrancePlace[] = [];
       for (const side of [half + sidewalk / 2, -(half + sidewalk / 2)]) {
-        const p = offsetAt(a.edge.path, arc, side);
-        const d = distanceTo(a.edge.path, p);
-        if (d >= half - 0.4 && d <= half + sidewalk + 0.4) points.push(p);
+        const p = offsetAt(edge.path, arc, side);
+        const d = distanceTo(edge.path, p);
+        if (d >= half - 0.4 && d <= half + sidewalk + 0.4) {
+          places.push({ point: p, direction: directionAt(edge.path, arc), sidewalk });
+        }
       }
-      if (points.length > 0) return points;
+      if (places.length > 0) return places;
     }
     return [];
   }
 }
+
+/** How many of the nearest sidewalked streets a station tries before giving up on an entrance. */
+const NEAR_EDGES = 8;
 
 function boundaryPointAt(boundary: Polygon, angle: number, center: Vec2): Vec2 {
   const dir: Vec2 = [Math.cos(angle), Math.sin(angle)];
@@ -383,6 +409,24 @@ function boundaryPointAt(boundary: Polygon, angle: number, center: Vec2): Vec2 {
       bestDot = score;
       best = p;
     }
+  }
+  return best;
+}
+
+/** How far along the line a point sits: the track direction there orients its platform. */
+function distanceAlong(path: Polyline, point: Vec2): number {
+  let best = 0;
+  let bestDistance = Infinity;
+  let travelled = 0;
+  for (let i = 1; i < path.length; i++) {
+    const { point: on, t } = closestOnSegment(point, path[i - 1], path[i]);
+    const segment = dist(path[i - 1], path[i]);
+    const d = dist(point, on);
+    if (d < bestDistance) {
+      bestDistance = d;
+      best = travelled + segment * t;
+    }
+    travelled += segment;
   }
   return best;
 }

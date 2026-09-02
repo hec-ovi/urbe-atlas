@@ -8,7 +8,7 @@ import { AtlasError, generateCity } from '../src';
 import { bandWidth } from '../src/geom/band';
 import { orientedBoundingBox } from '../src/geom/obb';
 import { intersection, offset } from '../src/geom/clip';
-import { bounds } from '../src/geom/polygon';
+import { bounds, pointInPolygon } from '../src/geom/polygon';
 import type { CityBlueprint, ParcelType, Polyline, Vec2 } from '../schema/blueprint';
 
 const PARCEL_TYPES: ParcelType[] = [
@@ -232,6 +232,25 @@ describe('blueprint output', () => {
     for (const r of bp.transit.busRoutes) expect(r.stopIds.length).toBeGreaterThanOrEqual(2);
     for (const l of [...bp.transit.subwayLines, ...bp.transit.trainLines]) {
       expect(l.stationIds.length).toBeGreaterThanOrEqual(2);
+    }
+  });
+
+  it('gives every station a platform, and every underground one a shaft per entrance', () => {
+    const bp = defaultCity();
+    expect(bp.transit.subwayStations.length).toBeGreaterThan(0);
+    for (const st of [...bp.transit.subwayStations, ...bp.transit.trainStations]) {
+      expect(st.platform.length, `${st.id} platform`).toBeGreaterThanOrEqual(3);
+      expect(pointInPolygon(st.position, st.platform), `${st.id} platform covers its position`).toBe(true);
+      if (st.level >= 0) {
+        expect(st.shafts, `${st.id} is at grade`).toEqual([]);
+        continue;
+      }
+      expect(st.shafts.length, `${st.id} shafts`).toBe(st.entrances.length);
+      st.shafts.forEach((shaft, i) => {
+        expect(shaft.top).toBe(0);
+        expect(shaft.bottom).toBe(st.level);
+        expect(pointInPolygon(st.entrances[i], shaft.footprint), `${st.id} shaft ${i} on its entrance`).toBe(true);
+      });
     }
   });
 });

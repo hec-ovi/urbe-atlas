@@ -11,7 +11,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import type { CityBlueprint, Parcel, Polygon, Polyline, StreetEdge, Vec2 } from '../../../schema/blueprint';
+import type { CityBlueprint, Parcel, Polygon, Polyline, Station, StreetEdge, Vec2 } from '../../../schema/blueprint';
 import { GROUND_COLORS, TRANSIT_COLORS, parcelHsl, streetColor } from '../components/colors';
 import { defaultFilters, type FilterKey, type Filters } from './filters';
 import { highwayRuns } from '../../streets/Highways';
@@ -24,8 +24,8 @@ const DECK_THICKNESS = 1.0;
 const RAMP_LENGTH = 60;
 const PIER_PITCH = 30;
 const TUNNEL_RADIUS = 3;
-const PLATFORM = { length: 24, width: 6, height: 1 };
-const ENTRANCE = { size: 2, height: 3 };
+const PLATFORM_THICKNESS = 1;
+const HEADHOUSE_HEIGHT = 3.2;
 const GROUND_SEE_THROUGH = 0.7;
 const EARTH_DEPTH = 30;
 
@@ -226,22 +226,8 @@ export class Map3DView {
     for (const line of t.trainLines) rail('transit.train', line.path, line.level, TRANSIT_COLORS.train);
     for (const line of t.subwayLines) rail('transit.subway', line.path, line.level, TRANSIT_COLORS.subway);
 
-    const station = (key: FilterKey, position: Vec2, level: number, entrances: Vec2[], color: string) => {
-      const platform = new THREE.Mesh(
-        new THREE.BoxGeometry(PLATFORM.length, PLATFORM.height, PLATFORM.width),
-        new THREE.MeshLambertMaterial({ color }),
-      );
-      platform.position.set(position[0], level + PLATFORM.height / 2, position[1]);
-      this.layer(key).add(platform);
-      // entrances stand on the sidewalk at grade, whatever the platform's level
-      for (const [x, z] of entrances) {
-        const post = new THREE.Mesh(new THREE.BoxGeometry(ENTRANCE.size, ENTRANCE.height, ENTRANCE.size), new THREE.MeshLambertMaterial({ color }));
-        post.position.set(x, ENTRANCE.height / 2, z);
-        this.layer(key).add(post);
-      }
-    };
-    for (const s of t.trainStations) station('transit.train', s.position, s.level, s.entrances, TRANSIT_COLORS.trainStation);
-    for (const s of t.subwayStations) station('transit.subway', s.position, s.level, s.entrances, TRANSIT_COLORS.subwayStation);
+    this.merged('transit.train', t.trainStations.flatMap(stationParts), new THREE.MeshLambertMaterial({ color: TRANSIT_COLORS.trainStation }));
+    this.merged('transit.subway', t.subwayStations.flatMap(stationParts), new THREE.MeshLambertMaterial({ color: TRANSIT_COLORS.subwayStation }));
     const stops: THREE.BufferGeometry[] = [];
     for (const stop of t.busStops) stops.push(new THREE.BoxGeometry(2, 2.5, 2).translate(stop.position[0], 1.25, stop.position[1]));
     this.merged('transit.bus', stops, new THREE.MeshLambertMaterial({ color: TRANSIT_COLORS.busStop }));
@@ -302,6 +288,33 @@ function popupFor(parcel: Parcel, x: number, y: number, open: () => void): HTMLE
 
 function shapeOf(polygon: Polygon): THREE.Shape {
   return new THREE.Shape(polygon.map(([x, z]) => new THREE.Vector2(x, -z)));
+}
+
+/**
+ * A station from the street down: a headhouse on the sidewalk over the shaft
+ * through the earth, the passage and the platform at the line's level. A
+ * station at grade has no shaft, so its entrances are posts on the sidewalk.
+ */
+function stationParts(s: Station): THREE.BufferGeometry[] {
+  const parts = [prism(s.platform, s.level, PLATFORM_THICKNESS)];
+  for (const shaft of s.shafts) {
+    if (shaft.passage.length >= 3) parts.push(prism(shaft.passage, s.level, PLATFORM_THICKNESS));
+    parts.push(prism(shaft.footprint, shaft.bottom, shaft.top - shaft.bottom));
+    parts.push(prism(shaft.footprint, shaft.top, HEADHOUSE_HEIGHT));
+  }
+  if (s.shafts.length === 0) {
+    for (const [x, z] of s.entrances) {
+      parts.push(new THREE.BoxGeometry(2, HEADHOUSE_HEIGHT, 2).translate(x, HEADHOUSE_HEIGHT / 2, z));
+    }
+  }
+  return parts;
+}
+
+/** A polygon extruded upward from `base`. */
+function prism(polygon: Polygon, base: number, height: number): THREE.BufferGeometry {
+  return new THREE.ExtrudeGeometry(shapeOf(polygon), { depth: Math.max(0.05, height), bevelEnabled: false })
+    .rotateX(-Math.PI / 2)
+    .translate(0, base, 0);
 }
 
 /** A flat polygon at height y, facing up. */

@@ -11,6 +11,7 @@ import { area, distanceToOutline, isSimpleRing, pointInPolygon } from '../geom/p
 import { distanceTo } from '../geom/polyline';
 import { checkGroundCover } from './groundCover';
 import { checkStreetEdges } from './streetEdges';
+import { checkStations } from './stations';
 
 export class Invariants {
   static check(bp: CityBlueprint): void {
@@ -166,6 +167,7 @@ export class Invariants {
     }
     checkRailNetwork(bp.transit.subwayStations, bp.transit.subwayLines, 'subway');
     checkRailNetwork(bp.transit.trainStations, bp.transit.trainLines, 'train');
+    checkStations(bp);
 
     // feature toggles respected
     const f = bp.meta.params.features;

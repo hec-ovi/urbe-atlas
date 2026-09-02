@@ -1,12 +1,16 @@
 # CONTRACT: atlas/ui
 
-Purpose: browser preview of a CityBlueprint on a 2D pan/zoom plane, with the parameter form that builds it, a color legend and layer toggles. Presentation only, no generation logic.
+Purpose: browser preview of a CityBlueprint, flat on a 2D pan/zoom plane or as the city in 3D, with the parameter form that builds it, a color legend and per-thing filters. Presentation only, no generation logic.
 
 ## In
 A `CityBlueprint` (see ../../CONTRACT.md). The app generates one locally through `generateCity` from the params panel.
 
 ## Components
 - views/PreviewApp: the preview itself, sidebar plus map. Methods: `generate(params)` (resolves once the city is on screen, or its failure reported), `resize()`. While a city builds, the form is locked behind a progress cover; failures, file results and parcel clicks land in the notification stack.
+- views/Map3DView: WebGL2 renderer of the city in three dimensions. `new Map3DView(onParcelClick?)`. Methods: `shown()`, `setBlueprint(bp)`, `setFilters(filters)`, `resize(w, h)`, `resetView()`. Parcels stack floor by floor in their type colour, ground cover lies in plates, streets run as ribbons under the ground plate and highways as one deck per route with piers, rail as tracks at grade and tunnels below, stations as a headhouse over a shaft down to their platform. Drag orbits, wheel zooms, a right click over a building opens its popup.
+- views/filters: `defaultFilters()` and the `FilterKey` set, one switch per ground surface, parcel type, street class, transit mode and the district outlines.
+- widgets/ViewModeSwitch: flat map or city in 3D. Event: `onChange(mode)`.
+- widgets/ViewTabs: creation and visualization tabs, each hideable.
 - views/MapView: canvas renderer. `new MapView(onParcelClick?)`. Methods: `setBlueprint(bp)`, `setLayers(layers)`, `resize(w, h)`, `resetView()`. Pan: drag. Zoom: wheel, cursor-anchored. A click that is not a drag emits the parcel under the pointer.
 - widgets/ParamsPanel: the full parameter form (seed, width, depth, irregularity, max floors, one checkbox per feature toggle). Events: `onGenerate(params)`, `onExport(params)`, `onImport(file)`. Methods: `read()`, `setParams(params)`, `setStatus(text)`, `setBusy(busy)`. Parameters with no control of their own (district count, per-district floor caps, tier weights) ride along from an imported file into the next export.
 - widgets/LayerToggles: checkboxes for ground, zones, streets, transit, districts. Event: `onChange(layers)`.
