@@ -1,5 +1,6 @@
 /** Parameter files: the full AtlasParams set as JSON, in and out of the browser. */
 import type { AtlasParams } from '../../../schema/params';
+import { resolveParams } from '../../params/defaults';
 
 /** Every field a parameter file may carry; anything else is dropped on import. */
 const FIELDS = [
@@ -32,7 +33,7 @@ export function parseParams(text: string): AtlasParams {
   for (const field of FIELDS) {
     if (source[field] !== undefined) params[field] = source[field];
   }
-  return params as unknown as AtlasParams;
+  return resolveParams(params as unknown as AtlasParams);
 }
 
 /** File name a parameter set is saved under. */

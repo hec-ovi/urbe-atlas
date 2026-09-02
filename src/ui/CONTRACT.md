@@ -18,7 +18,7 @@ A `CityBlueprint` (see ../../CONTRACT.md). The app generates one locally through
 - widgets/ParcelLink: URL template a parcel click opens, empty (the default) meaning off. `linkFor(parcel, seed)` returns the URL or null. Tokens: `{seed} {parcelId} {blockId} {districtId} {type} {tier} {x} {z}`.
 - widgets/Notifications: dismissible message stack. `error(message)`, `info(message, link?)`.
 - widgets/ProgressOverlay: blocking cover over the map. `show(text)`, `hide()`.
-- components/paramsFile: `parseParams(text)` (throws Error with the reason), `paramsFileName(seed)`, `downloadParams(params, filename)`.
+- components/paramsFile: `parseParams(text)` (drops unknown top-level fields, resolves defaults and applies the generator's nested runtime validation, then throws with the reason on failure), `paramsFileName(seed)`, `downloadParams(params, filename)`.
 - components/colors: `parcelColor(type, tier)`, `streetColor(class)`, transit and ground palette constants.
 - components/dom: `el(tag, attrs, children)` helper.
 

@@ -1,5 +1,7 @@
 # Changelog
 
+0.2.15: nested generator parameters now fail closed at runtime. Malformed size and district ranges, null maps, unknown district or wealth keys, unknown feature names, non-boolean toggles and non-finite numeric values return `E_INVALID_PARAMS` instead of leaking a TypeError or being silently accepted. Browser parameter import runs that same resolver before changing the form.
+
 0.2.14: interior streets no longer receive a seeded noise rotation. They follow the shared city axes; curves now come from the boundary field or the radial downtown selected at irregularity 0.4 and above. A real-entry test measures every default interior segment against those axes. Block construction removes sub-0.5 m boolean source edges before reading their direction, and moves a sub-0.5 m curb fragment into the sidewalk surface, closing the direction flip and sliver cases exposed by the straighter topology. Samples regenerated.
 
 0.2.13: the flat preview no longer builds the hidden 3D city during generation. It prepares the meshes when 3D is first selected, keeping the default interaction proportional to 2D map work. Mixed indexed and non-indexed station geometry is normalized before merging, so regional platforms and their entrance posts render in one mesh without Three.js dropping the geometry.

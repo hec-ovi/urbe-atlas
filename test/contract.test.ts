@@ -524,6 +524,23 @@ describe('errors', () => {
     }
   });
 
+  it('rejects malformed nested parameter payloads with E_INVALID_PARAMS', () => {
+    for (const input of [
+      { seed: 'bad', districtCount: {} },
+      { seed: 'bad', maxFloorsByDistrict: null },
+      { seed: 'bad', tierWeights: { unknown: 1 } },
+      { seed: 'bad', features: { highways: 'false' } },
+    ]) {
+      try {
+        generateCity(input as never);
+        expect.fail('expected malformed input to fail');
+      } catch (error) {
+        expect(error).toBeInstanceOf(AtlasError);
+        expect((error as AtlasError).code).toBe('E_INVALID_PARAMS');
+      }
+    }
+  });
+
   it('rejects an impossible size/district combination with E_UNSATISFIABLE', () => {
     try {
       generateCity({ seed: 1, size: { width: 400, depth: 400 }, districtCount: [12, 14] });

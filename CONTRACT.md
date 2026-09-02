@@ -14,6 +14,7 @@ Status: draft v0.11. Shapes are stable enough to build against; additive fields 
 `generateCity(params: AtlasParams): CityBlueprint`
 
 Params: [schema/params.ts](schema/params.ts). Only `seed` is required; every other field has a documented default (size, irregularity, district count range, max floors global and per district kind, wealth tier weights, feature toggles for highways, trains, subways, alleys, air and underground tunnels).
+Nested parameter objects and arrays are validated at runtime. Unknown district kinds, wealth tiers and feature names, non-boolean toggles, malformed ranges and non-finite numbers fail with `E_INVALID_PARAMS`. Browser parameter imports apply the same validation before changing the form.
 
 CLI: `npm run generate -- --seed <seed> --out <file.json> [--size N] [--irregularity X] [--max-floors N] [--no-highways] [--no-trains] [--no-subways] [--no-alleys]` writes the blueprint JSON. Exit 1 on AtlasError (code printed), 2 on usage error.
 

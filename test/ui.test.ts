@@ -210,6 +210,13 @@ describe('PreviewApp', () => {
     await waitFor(() => {
       expect(getByRole(app.root, 'log').textContent).toContain('broken.json: not valid JSON');
     });
+
+    await userEvent.upload(input, new File([
+      JSON.stringify({ seed: 'invalid', size: { width: -1, depth: 700 } }),
+    ], 'invalid.json', { type: 'application/json' }));
+    await waitFor(() => {
+      expect(getByRole(app.root, 'log').textContent).toContain('invalid.json: size.width and size.depth must be positive');
+    });
   });
 
   it('opens the configured link when a parcel is clicked', async () => {
