@@ -16,6 +16,7 @@ import { checkFurniture } from './furniture';
 import { checkHighwayStructures } from './highways';
 import { checkTransitClearance } from './transitClearance';
 import { checkStreetElevations } from './elevations';
+import { checkBusRouteTopology } from './routes';
 
 /** Shortest run of kerb the generator ever publishes as its own piece, meters. */
 const MIN_CURB_RUN = 0.5;
@@ -174,6 +175,7 @@ export class Invariants {
         if (!edgeById.has(id)) throw invariantFailure(`bus route ${r.id} references missing edge ${id}`);
       }
     }
+    checkBusRouteTopology(bp);
     checkRailNetwork(bp.transit.subwayStations, bp.transit.subwayLines, 'subway');
     checkRailNetwork(bp.transit.trainStations, bp.transit.trainLines, 'train');
     checkStations(bp);

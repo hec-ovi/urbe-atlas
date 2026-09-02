@@ -2,7 +2,7 @@
 
 Purpose: deterministically generates the 2D city blueprint (districts, streets with sidewalks, typed parcels with 3D envelopes, transit) from a seed and parameters.
 
-Status: draft v0.13.1. Shapes are stable enough to build against; additive fields may come, breaking changes go through the orchestrator.
+Status: draft v0.13.2. Shapes are stable enough to build against; additive fields may come, breaking changes go through the orchestrator.
 
 ## Conventions
 - Units: meters. Ground plane XZ, +Y up. 2D points are `[x, z]`; heights along +Y.
@@ -41,7 +41,7 @@ Closed set, thrown as `AtlasError { code, message, details? }` ([schema/blueprin
 - `E_INVARIANT`: post-generation coherence check failed; atlas bug, report with seed and params.
 
 ## Invariants
-- Bus stops keep the researched spacing in a city 1.6 km across or larger and close in proportionally below that, so a small city still runs routes.
+- Bus stops keep the researched spacing in a city 1.6 km across or larger and close in proportionally below that, so a small city still runs routes. Route search uses node and endpoint level as one state. Every consecutive edge pair shares a node and belongs to the same `connections` group at that node, so a bus cannot transfer between a grade road and the highway deck above it.
 - Planar streets: when the traced network leaves two faces sharing ground, the streets grow again from the next seed in line (three tries), and a city that never planarizes refuses with `E_UNSATISFIABLE`. Alleys are cut into that network only while they keep it planar; a set of alleys that would leave two faces sharing ground is dropped and the city keeps its blocks whole.
 - Street pattern: every gridded district shares one city grid angle, so blocks stay square and monotonous across districts. The tensor field applies no random noise rotation. A downtown turns radial only when `irregularity` is 0.4 or more, and the boundary bends streets only in proportion to `irregularity`. Default size is 1000 x 1000 m and default irregularity is 0.35; 0.4 and up rings the downtown.
 - District shape follows that same grid: the planned centers are halved by cuts perpendicular to a grid axis, so a district is a rectangle in grid space clipped to the city outline. `irregularity` is the only thing that leaves the grid: it slides a cut off the midpoint by up to a quarter of the gap it splits and leans it by up to 15 degrees, both in proportion. At irregularity 0 every cut is exactly on the grid.

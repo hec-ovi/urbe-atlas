@@ -488,7 +488,7 @@ describe('small cities', () => {
           bp = generateCity({ seed, size: { width: size, depth: size }, maxFloors: 6 });
         } catch (e) {
           // too small to lay a city: refused, never returned incoherent
-          expect((e as AtlasError).code).toBe('E_UNSATISFIABLE');
+          expect((e as AtlasError).code, `${seed} at ${size} m: ${(e as Error).message}`).toBe('E_UNSATISFIABLE');
           continue;
         }
         const lines = [...bp.transit.subwayLines, ...bp.transit.trainLines];

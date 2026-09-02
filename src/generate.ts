@@ -43,7 +43,7 @@ import { LEVELS } from './levels';
 import { cityGridAngle } from './grid';
 import { RAIL, STATION } from './transit/stations';
 
-export const BLUEPRINT_VERSION = '0.13.1';
+export const BLUEPRINT_VERSION = '0.13.2';
 
 const SUBDIVISION: Record<DistrictKind, SubdivisionConfig> = {
   downtown: { minLotArea: 500, maxLotArea: 2600, chanceNoDivide: 0.12 },
@@ -184,7 +184,7 @@ export function generateCity(input: AtlasParams): CityBlueprint {
   );
   // Transit runs on the driveable graph. The train is planned now because its
   // grade-level right-of-way must be removed before parcels are subdivided.
-  const vehicleEdges = graph.edges.filter((edge) => edge.class !== 'alley');
+  const vehicleEdges = streetEdges.filter((edge) => edge.class !== 'alley');
   const vehicleEdgeIds = new Set(vehicleEdges.map((edge) => edge.id));
   const vehicleNodes = graph.nodes.filter((node) => node.edgeIds.some((id) => vehicleEdgeIds.has(id)));
   const planner = new TransitPlanner(vehicleNodes, vehicleEdges, sidewalkOf);

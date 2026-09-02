@@ -1,5 +1,7 @@
 # Changelog
 
+0.2.21: blueprint 0.13.2 searches bus routes on node-and-elevation states and validates every consecutive edge pair against the node's published connection groups. A route cannot transfer between a grade street and an elevated highway crossing. Bus stop placement rejects offset points that fold outside their edge's sidewalk band.
+
 0.2.20: the browser preview has a dark creation and inspection workspace. The complete parameter contract is editable with presets, synchronized sliders and exact values, inline validation, seed randomization, and painted preparing, generating, rendering and error states. Visualization adds exact filters for ground, zones, streets, transit, furniture and diagnostic layers, layer isolation, a map legend and summary, fit and blueprint download actions, and hover plus right-click measurements for parcels, streets, highway ramps, supports and stations. The 3D highway deck reads every published elevation-profile breakpoint.
 
 0.2.19: blueprint 0.13.1 treats every curb and sidewalk polygon as a highway-column exclusion. A blocked column moves laterally under its deck or shifts backward while retaining a 30 m maximum span. Generation fails with `E_INVARIANT` when no valid support fits.

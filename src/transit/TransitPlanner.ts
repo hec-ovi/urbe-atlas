@@ -13,12 +13,13 @@ import type {
   RailLine,
   Station,
   StreetClass,
+  StreetEdge,
   Transit,
   Vec2,
 } from '../../schema/blueprint';
 import type { Rng } from '../core/rng';
 import type { PlannedDistrict } from '../districts/DistrictPlanner';
-import type { BuiltEdge, BuiltNode } from '../streets/Graph';
+import type { BuiltNode } from '../streets/Graph';
 import { closestOnSegment, dist, normalize, sub, add, scale } from '../geom/vec';
 import { directionAt, distanceTo, length as lineLength, offsetAt, pointAt } from '../geom/polyline';
 import { type EntrancePlace, RAIL, STATION, boxOf, platformOf, rectangle, stationAccessOf } from './stations';
@@ -28,7 +29,8 @@ import { area, bounds, pointInPolygon } from '../geom/polygon';
 import { intersection } from '../geom/clip';
 
 interface Adj {
-  edge: BuiltEdge;
+  edge: StreetEdge;
+  /** Logical node key, including its endpoint elevation. */
   other: string;
   length: number;
 }
@@ -43,22 +45,24 @@ export class TransitPlanner {
   private stopScale = 1;
   private readonly nodes: BuiltNode[];
   private readonly nodeById = new Map<string, BuiltNode>();
-  private readonly edgeById = new Map<string, BuiltEdge>();
+  private readonly edgeById = new Map<string, StreetEdge>();
   private readonly adjacency = new Map<string, Adj[]>();
   private readonly usage = new Map<string, number>();
   private readonly sidewalkOf: (edgeId: string) => number;
 
-  constructor(nodes: BuiltNode[], edges: BuiltEdge[], sidewalkOf: (edgeId: string) => number) {
+  constructor(nodes: BuiltNode[], edges: StreetEdge[], sidewalkOf: (edgeId: string) => number) {
     this.nodes = nodes;
     this.sidewalkOf = sidewalkOf;
     for (const n of nodes) this.nodeById.set(n.id, n);
     for (const e of edges) {
       this.edgeById.set(e.id, e);
       const l = lineLength(e.path);
-      const fwd: Adj = { edge: e, other: e.to, length: l };
-      const bwd: Adj = { edge: e, other: e.from, length: l };
-      (this.adjacency.get(e.from) ?? this.adjacency.set(e.from, []).get(e.from)!).push(fwd);
-      (this.adjacency.get(e.to) ?? this.adjacency.set(e.to, []).get(e.to)!).push(bwd);
+      const from = stateKey(e.from, e.elevationProfile[0].level);
+      const to = stateKey(e.to, e.elevationProfile[e.elevationProfile.length - 1].level);
+      const fwd: Adj = { edge: e, other: to, length: l };
+      const bwd: Adj = { edge: e, other: from, length: l };
+      (this.adjacency.get(from) ?? this.adjacency.set(from, []).get(from)!).push(fwd);
+      (this.adjacency.get(to) ?? this.adjacency.set(to, []).get(to)!).push(bwd);
     }
   }
 
@@ -78,11 +82,14 @@ export class TransitPlanner {
 
   /** Deterministic Dijkstra; returns ordered edge ids, or null. */
   shortestPath(fromId: string, toId: string, classCost: Record<StreetClass, number>): string[] | null {
+    const fromState = stateKey(fromId, LEVELS.ground);
+    const toState = stateKey(toId, LEVELS.ground);
+    if (!this.adjacency.has(fromState) || !this.adjacency.has(toState)) return null;
     const distMap = new Map<string, number>();
     const prevEdge = new Map<string, string>();
-    const prevNode = new Map<string, string>();
+    const prevState = new Map<string, string>();
     const visited = new Set<string>();
-    distMap.set(fromId, 0);
+    distMap.set(fromState, 0);
     while (true) {
       let cur: string | null = null;
       let curD = Infinity;
@@ -93,26 +100,27 @@ export class TransitPlanner {
         }
       }
       if (cur === null) return null;
-      if (cur === toId) break;
+      if (cur === toState) break;
       visited.add(cur);
       for (const a of this.adjacency.get(cur) ?? []) {
+        if (!Number.isFinite(classCost[a.edge.class])) continue;
         const worn = 1 + 0.6 * (this.usage.get(a.edge.id) ?? 0);
         const nd = curD + a.length * classCost[a.edge.class] * worn;
         const old = distMap.get(a.other);
         if (old === undefined || nd < old - 1e-9) {
           distMap.set(a.other, nd);
           prevEdge.set(a.other, a.edge.id);
-          prevNode.set(a.other, cur);
+          prevState.set(a.other, cur);
         }
       }
     }
     const out: string[] = [];
-    let cur = toId;
-    while (cur !== fromId) {
+    let cur = toState;
+    while (cur !== fromState) {
       const e = prevEdge.get(cur);
       if (!e) return null;
       out.push(e);
-      cur = prevNode.get(cur)!;
+      cur = prevState.get(cur)!;
     }
     return out.reverse();
   }
@@ -173,8 +181,8 @@ export class TransitPlanner {
       const [da, db] = pairs[r % pairs.length];
       const jitterA = busRng.range(-120, 120);
       const jitterB = busRng.range(-120, 120);
-      const from = this.nearestNode(add(da.center, [jitterA, -jitterB]));
-      const to = this.nearestNode(add(db.center, [jitterB, jitterA]));
+      const from = this.nearestNode(add(da.center, [jitterA, -jitterB]), (node) => this.hasGroundConnection(node.id));
+      const to = this.nearestNode(add(db.center, [jitterB, jitterA]), (node) => this.hasGroundConnection(node.id));
       if (from.id === to.id) continue;
       const edgeIds = this.shortestPath(from.id, to.id, CLASS_COST);
       if (!edgeIds || edgeIds.length === 0) continue;
@@ -187,13 +195,20 @@ export class TransitPlanner {
     // --- subway ----------------------------------------------------------
     if (options.features.subways) {
       const lineCount = Math.min(Math.max(Math.round(3.5 * Math.pow(population / 1_000_000, 0.6)), 1), 6);
-      const hubNode = this.nearestNode(cityCenter, (n) => (this.adjacency.get(n.id) ?? []).length >= 3);
+      const hubNode = this.nearestNode(cityCenter, (n) =>
+        (this.adjacency.get(stateKey(n.id, LEVELS.ground)) ?? []).length >= 3);
       const subRng = rng.fork('subway');
       const subCost: Record<StreetClass, number> = { highway: 1.2, road: 0.5, street: 1.1, alley: Infinity };
       for (let l = 0; l < lineCount; l++) {
         const [da, db] = pairs[(l * 2 + 1) % pairs.length];
-        const a = this.nearestNode(add(da.center, [subRng.range(-100, 100), subRng.range(-100, 100)]));
-        const b = this.nearestNode(add(db.center, [subRng.range(-100, 100), subRng.range(-100, 100)]));
+        const a = this.nearestNode(
+          add(da.center, [subRng.range(-100, 100), subRng.range(-100, 100)]),
+          (node) => this.hasGroundConnection(node.id),
+        );
+        const b = this.nearestNode(
+          add(db.center, [subRng.range(-100, 100), subRng.range(-100, 100)]),
+          (node) => this.hasGroundConnection(node.id),
+        );
         const leg1 = this.shortestPath(a.id, hubNode.id, subCost);
         const leg2 = this.shortestPath(hubNode.id, b.id, subCost);
         if (!leg1 || !leg2) continue;
@@ -261,7 +276,8 @@ export class TransitPlanner {
       options.cityCenter,
     );
     const stationIsClear = (node: BuiltNode): boolean =>
-      !(options.stationExclusion ?? []).some((polygon) => pointInPolygon(node.position, polygon));
+      this.hasGroundConnection(node.id)
+      && !(options.stationExclusion ?? []).some((polygon) => pointInPolygon(node.position, polygon));
     const mainNode = this.nearestNode(add(
       options.cityCenter,
       scale(normalize(sub(entry, options.cityCenter)), 250),
@@ -327,24 +343,29 @@ export class TransitPlanner {
       while (cursor < l - 26) {
         sinceLast += cursor === 26 ? 26 : 0;
         if (sinceLast >= spacing) {
-          const existing = (stopIndex.get(edge.id) ?? []).find((s) => dist(s.position, pointAt(path, cursor)) < 60);
-          if (existing) {
-            if (stopIds[stopIds.length - 1] !== existing.id) stopIds.push(existing.id);
-            sinceLast = 0;
-          } else {
-            const side = (carriagewayWidth(edge.class) / 2 + this.sidewalkOf(edge.id) / 2) * (forward ? -1 : 1);
-            const arc = forward ? cursor : l - cursor;
-            const position = offsetAt(edge.path, arc, side);
-            const stop: BusStop = {
-              id: `bs${allStops.length}`,
-              edgeId: edge.id,
-              position,
-              districtId: `d${districtOfNode(at)}`,
-            };
-            allStops.push(stop);
-            (stopIndex.get(edge.id) ?? stopIndex.set(edge.id, []).get(edge.id)!).push(stop);
-            stopIds.push(stop.id);
-            sinceLast = 0;
+          const sidewalk = this.sidewalkOf(edge.id);
+          const half = carriagewayWidth(edge.class) / 2;
+          const side = (half + sidewalk / 2) * (forward ? -1 : 1);
+          const arc = forward ? cursor : l - cursor;
+          const position = offsetAt(edge.path, arc, side);
+          const fromCenterline = distanceTo(edge.path, position);
+          if (fromCenterline >= half - 0.5 && fromCenterline <= half + sidewalk + 0.5) {
+            const existing = (stopIndex.get(edge.id) ?? []).find((s) => dist(s.position, position) < 60);
+            if (existing) {
+              if (stopIds[stopIds.length - 1] !== existing.id) stopIds.push(existing.id);
+              sinceLast = 0;
+            } else {
+              const stop: BusStop = {
+                id: `bs${allStops.length}`,
+                edgeId: edge.id,
+                position,
+                districtId: `d${districtOfNode(at)}`,
+              };
+              allStops.push(stop);
+              (stopIndex.get(edge.id) ?? stopIndex.set(edge.id, []).get(edge.id)!).push(stop);
+              stopIds.push(stop.id);
+              sinceLast = 0;
+            }
           }
         }
         const step = Math.min(80, l - 26 - cursor);
@@ -429,7 +450,7 @@ export class TransitPlanner {
     entranceObstacles: Polygon[] = [],
   ): Station {
     // an entrance stands on the sidewalk beside the platform, so the walk down is short
-    const node = this.nearestNode(position);
+    const node = this.nearestNode(position, (candidate) => this.hasGroundConnection(candidate.id));
     const places = this.entrancesNear(position, level < LEVELS.ground ? entranceObstacles : []);
     const fallback: EntrancePlace[] = [{ point: position, direction, sidewalk: 0 }];
     const entrances = places.length > 0 ? places : fallback;
@@ -483,6 +504,15 @@ export class TransitPlanner {
     }
     return [];
   }
+
+  private hasGroundConnection(nodeId: string): boolean {
+    return this.adjacency.has(stateKey(nodeId, LEVELS.ground));
+  }
+}
+
+/** Stable key for one physical node at one driveable elevation. */
+function stateKey(nodeId: string, level: number): string {
+  return `${nodeId}@${level.toFixed(9)}`;
 }
 
 /** How many of the nearest sidewalked streets a station tries before giving up on an entrance. */
