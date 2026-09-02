@@ -6,6 +6,7 @@ import userEvent from '@testing-library/user-event';
 import { generateCity } from '../src';
 import type { AtlasParams } from '../schema/params';
 import { LegendWidget } from '../src/ui/widgets/LegendWidget';
+import { defaultFilters } from '../src/ui/views/filters';
 import { LayerToggles } from '../src/ui/widgets/LayerToggles';
 import { ParamsPanel } from '../src/ui/widgets/ParamsPanel';
 import { MapView, DEFAULT_LAYERS } from '../src/ui/views/MapView';
@@ -54,8 +55,12 @@ describe('LayerToggles', () => {
     const onChange = vi.fn();
     const toggles = new LayerToggles(onChange);
     document.body.append(toggles.root);
+    // the group row switches every street class; one row switches one class
     await userEvent.click(getByLabelText(toggles.root, 'Streets'));
-    expect(onChange).toHaveBeenCalledWith({ ...DEFAULT_LAYERS, streets: false });
+    const allStreetsOff = { ...defaultFilters(), 'street.street': false, 'street.road': false, 'street.highway': false, 'street.alley': false };
+    expect(onChange).toHaveBeenLastCalledWith(allStreetsOff);
+    await userEvent.click(getByLabelText(toggles.root, 'highway'));
+    expect(onChange).toHaveBeenLastCalledWith({ ...allStreetsOff, 'street.highway': true });
   });
 });
 

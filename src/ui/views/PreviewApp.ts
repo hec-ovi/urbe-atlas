@@ -10,6 +10,7 @@ import { generateCity } from '../..';
 import { AtlasError } from '../../errors';
 import { MapView } from './MapView';
 import { Map3DView } from './Map3DView';
+import { coarseLayers } from './filters';
 import { ViewTabs } from '../widgets/ViewTabs';
 import { ViewModeSwitch, type ViewMode } from '../widgets/ViewModeSwitch';
 import { LayerToggles } from '../widgets/LayerToggles';
@@ -40,7 +41,7 @@ export class PreviewApp {
       onExport: (params) => this.exportParams(params),
       onImport: (file) => void this.importParams(file),
     });
-    const layers = new LayerToggles((next) => { this.map.setLayers(next); this.map3d.setLayers(next); });
+    const layers = new LayerToggles((next) => { this.map.setLayers(coarseLayers(next)); this.map3d.setFilters(next); });
     const viewMode = new ViewModeSwitch((mode) => this.setMode(mode));
     const tabs = new ViewTabs(
       [this.panel.root],

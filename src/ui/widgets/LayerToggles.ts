@@ -1,30 +1,48 @@
-/** Checkbox row switching map layers on and off. */
-import type { Layers } from '../views/MapView';
-import { DEFAULT_LAYERS } from '../views/MapView';
+/** Every visualization switch, grouped, each group with its own all-on/all-off row. */
+import { FILTER_GROUPS, defaultFilters, filterLabel, type FilterKey, type Filters } from '../views/filters';
 import { el } from '../components/dom';
-
-const LABELS: Record<keyof Layers, string> = {
-  ground: 'Ground',
-  zones: 'Zones',
-  streets: 'Streets',
-  transit: 'Transit',
-  districts: 'Districts',
-};
 
 export class LayerToggles {
   readonly root: HTMLElement;
-  private readonly layers: Layers = { ...DEFAULT_LAYERS };
+  private readonly filters: Filters = defaultFilters();
+  private readonly inputs = new Map<FilterKey, HTMLInputElement>();
 
-  constructor(onChange: (layers: Layers) => void) {
+  constructor(onChange: (filters: Filters) => void) {
     this.root = el('div', { class: 'layer-toggles' });
-    for (const key of Object.keys(LABELS) as (keyof Layers)[]) {
-      const input = el('input', { type: 'checkbox', id: `layer-${key}` });
-      input.checked = this.layers[key];
-      input.addEventListener('change', () => {
-        this.layers[key] = input.checked;
-        onChange({ ...this.layers });
+    for (const group of FILTER_GROUPS) {
+      const master = el('input', { type: 'checkbox', id: `layer-group-${group.title}` });
+      master.checked = group.keys.every((k) => this.filters[k]);
+      master.addEventListener('change', () => {
+        for (const key of group.keys) {
+          this.filters[key] = master.checked;
+          this.inputs.get(key)!.checked = master.checked;
+        }
+        onChange({ ...this.filters });
       });
-      this.root.append(el('label', { for: `layer-${key}` }, [input, LABELS[key]]));
+      const rows = el('div', { class: 'layer-group-rows' });
+      for (const key of group.keys) {
+        const input = el('input', { type: 'checkbox', id: `layer-${key}` });
+        input.checked = this.filters[key];
+        input.addEventListener('change', () => {
+          this.filters[key] = input.checked;
+          master.checked = group.keys.every((k) => this.filters[k]);
+          onChange({ ...this.filters });
+        });
+        this.inputs.set(key, input);
+        rows.append(el('label', { for: `layer-${key}` }, [input, filterLabel(key)]));
+      }
+      const single = group.keys.length === 1;
+      this.root.append(
+        el('div', { class: 'layer-group' }, [
+          el('label', { class: 'layer-group-title', for: `layer-group-${group.title}` }, [master, group.title]),
+          ...(single ? [] : [rows]),
+        ]),
+      );
+      if (single) this.inputs.get(group.keys[0]!)!.remove();
+      if (single) {
+        // one switch groups are their own master
+        master.addEventListener('change', () => { this.filters[group.keys[0]!] = master.checked; });
+      }
     }
   }
 }
