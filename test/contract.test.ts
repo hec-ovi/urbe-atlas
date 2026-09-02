@@ -32,6 +32,9 @@ const COMPACT = [12.14, 13.74];
 const STANDARD = [20.14, 9.74];
 const minBand = (type: ParcelType): number => (HEAVY_TYPES.has(type) ? 12.14 : 9.74);
 
+/** How far off the grid a fully irregular city may lean a district cut, degrees (CONTRACT.md). */
+const MAX_DISTRICT_LEAN_DEG = 15;
+
 /** Sharpest turn a street centerline may make, from CONTRACT.md. */
 const MAX_TURN_DEG = 120;
 /** Overlap band a ground surface pair may not exceed, meters (CONTRACT.md). */
@@ -297,6 +300,46 @@ describe('blueprint output', () => {
         expect(shaft.bottom).toBe(st.level);
         expect(pointInPolygon(st.entrances[i], shaft.footprint), `${st.id} shaft ${i} on its entrance`).toBe(true);
       });
+    }
+  });
+});
+
+describe('districts', () => {
+  /** Every district edge that is not a stretch of the city outline: the cuts between districts. */
+  function cutEdges(bp: CityBlueprint): { deviation: number; length: number }[] {
+    const onOutline = (p: Vec2): boolean =>
+      bp.meta.boundary.some((q, i) => segmentDistance(p, bp.meta.boundary[i], bp.meta.boundary[(i + 1) % bp.meta.boundary.length]) < 0.5);
+    const out: { deviation: number; length: number }[] = [];
+    for (const d of bp.districts) {
+      for (let i = 0; i < d.boundary.length; i++) {
+        const a = d.boundary[i];
+        const b = d.boundary[(i + 1) % d.boundary.length];
+        const length = distance(a, b);
+        if (length < 0.01) continue;
+        const mid: Vec2 = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
+        if (onOutline(a) && onOutline(b) && onOutline(mid)) continue;
+        const off = Math.atan2(b[1] - a[1], b[0] - a[0]) - bp.meta.gridAngle;
+        const quarter = ((off % (Math.PI / 2)) + Math.PI / 2) % (Math.PI / 2);
+        out.push({ deviation: (Math.min(quarter, Math.PI / 2 - quarter) * 180) / Math.PI, length });
+      }
+    }
+    return out;
+  }
+
+  it('cuts districts on the city grid, leaning only as far as irregularity allows', () => {
+    const size = { width: 1500, depth: 1500 };
+    const districtCount: [number, number] = [4, 4];
+    const square = generateCity({ seed: 'urbe', size, districtCount, irregularity: 0 });
+    const squareCuts = cutEdges(square);
+    expect(squareCuts.length).toBeGreaterThan(0);
+    for (const cut of squareCuts) expect(cut.deviation, `${cut.length.toFixed(0)} m cut`).toBeLessThan(0.5);
+
+    const irregularity = 0.35;
+    const leaned = generateCity({ seed: 'urbe', size, districtCount, irregularity });
+    const leanedCuts = cutEdges(leaned);
+    expect(leanedCuts.length).toBeGreaterThan(0);
+    for (const cut of leanedCuts) {
+      expect(cut.deviation, `${cut.length.toFixed(0)} m cut`).toBeLessThanOrEqual(irregularity * MAX_DISTRICT_LEAN_DEG + 0.5);
     }
   });
 });

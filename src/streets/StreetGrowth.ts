@@ -15,11 +15,15 @@ import { StreamlineTracer, TracedLine } from './StreamlineTracer';
 const RADIAL_DOWNTOWN_FROM = 0.4;
 
 export class StreetGrowth {
-  static buildField(rng: Rng, boundary: Polygon, params: ResolvedParams, districts: PlannedDistrict[]): TensorField {
-    // One city grid: every gridded district shares the same angle, so blocks stay square and
-    // monotonous from district to district. Only a downtown turns radial, and only when the
-    // city is asked to be irregular; a regular city keeps its downtown on the grid too.
-    const cityTheta = rng.range(0, Math.PI);
+  static buildField(
+    boundary: Polygon,
+    params: ResolvedParams,
+    districts: PlannedDistrict[],
+    cityTheta: number,
+  ): TensorField {
+    // Every gridded district sits on the one city grid. Only a downtown turns
+    // radial, and only when the city is asked to be irregular; a regular city
+    // keeps its downtown on the grid too.
     const radialDowntown = params.irregularity >= RADIAL_DOWNTOWN_FROM;
     const bases: FieldBasis[] = districts.map((d) => {
       if (d.kind === 'downtown' && radialDowntown) {

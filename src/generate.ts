@@ -37,8 +37,9 @@ import { area, bounds, centroid, pointInPolygon } from './geom/polygon';
 import { directionAt, length as lineLength, pointAt } from './geom/polyline';
 import { closestOnSegment, cross, dist, sub } from './geom/vec';
 import { LEVELS } from './levels';
+import { cityGridAngle } from './grid';
 
-export const BLUEPRINT_VERSION = '0.7.0';
+export const BLUEPRINT_VERSION = '0.8.0';
 
 const SUBDIVISION: Record<DistrictKind, SubdivisionConfig> = {
   downtown: { minLotArea: 500, maxLotArea: 2600, chanceNoDivide: 0.12 },
@@ -55,12 +56,13 @@ export function generateCity(input: AtlasParams): CityBlueprint {
   // --- boundary, districts, streets -------------------------------------
   const boundary = CityBoundary.generate(Rng.from(seed, 'boundary'), params.size, params.irregularity);
   const planned = DistrictPlanner.plan(Rng.from(seed, 'districts'), boundary, params);
-  const field = StreetGrowth.buildField(Rng.from(seed, 'field'), boundary, params, planned);
+  const gridAngle = cityGridAngle(Rng.from(seed, 'grid'));
+  const field = StreetGrowth.buildField(boundary, params, planned, gridAngle);
   let lines = StreetGrowth.grow(field, boundary, Rng.from(seed, 'streets'), params, planned);
 
   const cityCenter = centroid(boundary);
   const extent = Math.max(params.size.width, params.size.depth) * 3;
-  const cells = DistrictShapes.cells(planned, boundary, extent);
+  const cells = DistrictShapes.cells(planned, boundary, extent, gridAngle, params.irregularity, Rng.from(seed, 'district-shapes'));
   const districtOfPoint = (p: Vec2): number => {
     for (let i = 0; i < cells.length; i++) if (pointInPolygon(p, cells[i])) return i;
     let best = 0;
@@ -114,8 +116,13 @@ export function generateCity(input: AtlasParams): CityBlueprint {
       Rng.from(seed, 'alleys'),
     );
     if (alleys.length > 0) {
-      graph = buildGraph([...lines, ...alleys.map((path) => ({ path, class: 'alley' as const }))]);
-      faces = facesOf(graph.edges);
+      const withAlleys = buildGraph([...lines, ...alleys.map((path) => ({ path, class: 'alley' as const }))]);
+      const alleyFaces = facesOf(withAlleys.edges);
+      // an alley that leaves two faces sharing ground is not worth the block it cuts
+      if (facesPlanar(alleyFaces)) {
+        graph = withAlleys;
+        faces = alleyFaces;
+      }
     }
   }
 
@@ -387,6 +394,7 @@ export function generateCity(input: AtlasParams): CityBlueprint {
       params: params as CityBlueprint['meta']['params'],
       bounds: bounds(boundary),
       units: 'meters',
+      gridAngle,
       boundary,
     },
     districts,

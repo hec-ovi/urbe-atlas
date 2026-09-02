@@ -24,8 +24,8 @@ Samples, committed and test-guaranteed to regenerate byte-identical:
 
 ## Out
 `CityBlueprint`: [schema/blueprint.ts](schema/blueprint.ts).
-- `meta`: schema version, seed, resolved params, bounds, irregular city boundary polygon.
-- `districts`: kind (downtown, commercial, residential, industrial, mixed), wealth tier, boundary, floor cap.
+- `meta`: schema version, seed, resolved params, bounds, the city grid angle, irregular city boundary polygon.
+- `districts`: kind (downtown, commercial, residential, industrial, mixed), wealth tier, boundary (a rectangle on the city grid, clipped to the city outline), floor cap.
 - `streets`: planar graph of nodes and edges; each edge has class (`street` | `road` | `highway` | `alley`), centerline path (curves as polylines), carriageway width, per-side sidewalk widths, and `level` (meters above the ground plane: 0 at grade, 8 on a highway deck, [src/levels.ts](src/levels.ts)); pedestrian crossings at intersections. An alley is pedestrian only: carriageway 0, 3 to 5 m of ground, all of it sidewalk, cut through long blocks (dense in poor and commercial districts, elsewhere only as a mid-block connector).
 - `blocks`: street-bounded faces with a curb strip, sidewalk strip polygons, contained parcels, open areas. Curb corners at intersections carry a rounded return.
 - `parcels`: type (residential, hotel, offices, corpo, hospital, clinic, police, military, factory, commerce, mall, restaurant, coffee_shop), tier (poor, mid, rich, high_rich), lot polygon, footprint polygon (the lot inset by the type's setback and trimmed to the band the type needs), street access point, 3D envelope (min/max floors, nominal floor height and max height; real per-floor elevations are owned by exterior).
@@ -41,8 +41,9 @@ Closed set, thrown as `AtlasError { code, message, details? }` ([schema/blueprin
 
 ## Invariants
 - Bus stops keep the researched spacing in a city 1.6 km across or larger and close in proportionally below that, so a small city still runs routes.
-- Planar streets: when the traced network leaves two faces sharing ground, the streets grow again from the next seed in line (three tries), and a city that never planarizes refuses with `E_UNSATISFIABLE`.
+- Planar streets: when the traced network leaves two faces sharing ground, the streets grow again from the next seed in line (three tries), and a city that never planarizes refuses with `E_UNSATISFIABLE`. Alleys are cut into that network only while they keep it planar; a set of alleys that would leave two faces sharing ground is dropped and the city keeps its blocks whole.
 - Street pattern: every gridded district shares one city grid angle, so blocks stay square and monotonous across districts; a downtown turns radial only when `irregularity` is 0.4 or more, and the boundary bends streets only in proportion to `irregularity`. Default size is 1000 x 1000 m, default irregularity 0.35 (a square city; 0.4 and up rings the downtown).
+- District shape follows that same grid: the planned centers are halved by cuts perpendicular to a grid axis, so a district is a rectangle in grid space clipped to the city outline. `irregularity` is the only thing that leaves the grid: it slides a cut off the midpoint by up to a quarter of the gap it splits and leans it by up to 15 degrees, both in proportion. At irregularity 0 every cut is exactly on the grid.
 - Levels are the one place height lives for networks: a consumer stacks highway decks, tracks and platforms from `level`, never from class.
 - A highway is a through route: every highway chain ends either at a junction with other highway arms or within 30 m of the city boundary, so a deck never dead-ends over a block. A chain that stops inside the city is demoted to `road` before widths and blocks are read.
 - IDs are globally unique across the whole blueprint (disjoint prefixes per collection).

@@ -55,6 +55,8 @@ export interface BlueprintMeta {
   /** Axis-aligned bounds of all geometry. */
   bounds: { min: Vec2; max: Vec2 };
   units: 'meters';
+  /** The city grid: the angle in radians every gridded district's streets and every district cut follow. */
+  gridAngle: number;
   /** Irregular outer city boundary. */
   boundary: Polygon;
 }

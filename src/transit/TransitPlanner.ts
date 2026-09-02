@@ -21,7 +21,7 @@ import type { PlannedDistrict } from '../districts/DistrictPlanner';
 import type { BuiltEdge, BuiltNode } from '../streets/Graph';
 import { closestOnSegment, dist, normalize, sub, add, scale } from '../geom/vec';
 import { directionAt, distanceTo, length as lineLength, offsetAt, pointAt } from '../geom/polyline';
-import { type EntrancePlace, boxOf, platformOf, shaftsOf } from './stations';
+import { type EntrancePlace, STATION, boxOf, platformOf, shaftsOf } from './stations';
 import { carriagewayWidth } from '../streets/widths';
 import { LEVELS } from '../levels';
 import { bounds } from '../geom/polygon';
@@ -323,7 +323,8 @@ export class TransitPlanner {
     const ids: string[] = [];
     for (let i = 0; i < count; i++) {
       const along = (total * i) / (count - 1);
-      const pos = pointAt(geometry, along);
+      const pos = this.enterablePoint(geometry, along, spacing / 3);
+      if (!pos) continue; // nowhere along here that a street can reach: no station
       const existing = all.find((s) => dist(s.position, pos) < mergeRadius);
       if (existing) {
         if (ids[ids.length - 1] !== existing.id) ids.push(existing.id);
@@ -334,6 +335,29 @@ export class TransitPlanner {
       ids.push(st.id);
     }
     return ids;
+  }
+
+  /**
+   * A station goes where the street can reach it. The sampled point wins when
+   * its sidewalk is within a passage's length; otherwise the search slides
+   * along the line either way, and gives up rather than leave a platform
+   * nobody can enter.
+   */
+  private enterablePoint(geometry: Polyline, along: number, slide: number): Vec2 | null {
+    const total = lineLength(geometry);
+    const reach = (p: Vec2): number => {
+      const places = this.entrancesNear(p);
+      return places.length === 0 ? Infinity : Math.min(...places.map((e) => dist(e.point, p)));
+    };
+    const offsets = [0];
+    for (let step = slide / 4; step <= slide; step += slide / 4) offsets.push(-step, step);
+    for (const offset of offsets) {
+      const at = along + offset;
+      if (at < 0 || at > total) continue;
+      const p = pointAt(geometry, at);
+      if (reach(p) <= STATION.maxPassage) return p;
+    }
+    return null;
   }
 
   /**
