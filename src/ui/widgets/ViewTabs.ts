@@ -1,4 +1,4 @@
-/** Two sidebar tabs, creation and visualization, each shown alone or hidden; the sidebar folds when both are hidden. */
+/** Two conventional sidebar tabs: creation and visualization. */
 import { el } from '../components/dom';
 
 export type TabName = 'creation' | 'visualization';
@@ -7,7 +7,7 @@ export class ViewTabs {
   readonly root: HTMLElement;
   private readonly panes: Record<TabName, HTMLElement>;
   private readonly buttons: Record<TabName, HTMLButtonElement>;
-  private active: TabName | null = 'creation';
+  private active: TabName = 'creation';
 
   constructor(creation: HTMLElement[], visualization: HTMLElement[], private readonly onChange?: (active: TabName | null) => void) {
     this.panes = {
@@ -19,7 +19,7 @@ export class ViewTabs {
       visualization: el('button', { class: 'tab-button', type: 'button' }, ['Visualization']) as HTMLButtonElement,
     };
     for (const name of ['creation', 'visualization'] as TabName[]) {
-      this.buttons[name].addEventListener('click', () => this.show(this.active === name ? null : name));
+      this.buttons[name].addEventListener('click', () => this.show(name));
     }
     this.root = el('div', { class: 'view-tabs' }, [
       el('div', { class: 'tab-bar' }, [this.buttons.creation, this.buttons.visualization]),
@@ -29,8 +29,8 @@ export class ViewTabs {
     this.show('creation');
   }
 
-  /** Shows one tab, or none: clicking the active tab hides it. */
-  show(name: TabName | null): void {
+  /** Shows one tab and keeps the control surface present. */
+  show(name: TabName): void {
     this.active = name;
     for (const key of ['creation', 'visualization'] as TabName[]) {
       this.panes[key].hidden = key !== name;

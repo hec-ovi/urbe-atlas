@@ -1,16 +1,16 @@
-/**
- * Canvas renderer for a CityBlueprint: pan (drag), zoom (wheel,
- * cursor-anchored), layer toggles, and a parcel pick on click.
- */
-import type { CityBlueprint, Parcel, Polygon, Polyline, Vec2 } from '../../../schema/blueprint';
+/** Dark 2D blueprint renderer with exact filters, pan, zoom and feature inspection. */
+import type { CityBlueprint, HighwayStructure, Parcel, Polygon, Polyline, Station, StreetEdge, Vec2 } from '../../../schema/blueprint';
 import {
   BOUNDARY_COLOR,
+  DIAGNOSTIC_COLORS,
   DISTRICT_OUTLINE,
+  FURNITURE_COLORS,
   GROUND_COLORS,
   TRANSIT_COLORS,
   parcelColor,
   streetColor,
 } from '../components/colors';
+import { defaultFilters, type Filters } from './filters';
 
 export interface Layers {
   ground: boolean;
@@ -20,83 +20,119 @@ export interface Layers {
   districts: boolean;
 }
 
-export const DEFAULT_LAYERS: Layers = { ground: true, zones: true, streets: true, transit: true, districts: false };
+export type MapHit =
+  | { kind: 'parcel'; parcel: Parcel }
+  | { kind: 'street'; edge: StreetEdge; structure?: HighwayStructure }
+  | { kind: 'station'; station: Station; mode: 'train' | 'subway' };
 
-/** Pointer travel that turns a click into a pan, pixels. */
-const DRAG_SLOP = 4;
+export const DEFAULT_LAYERS: Layers = { ground: true, zones: true, streets: true, transit: true, districts: false };
+const HIT_RADIUS_PX = 9;
 
 export class MapView {
   readonly canvas: HTMLCanvasElement;
   private blueprint: CityBlueprint | null = null;
-  private layers: Layers = { ...DEFAULT_LAYERS };
+  private filters: Filters = defaultFilters();
+  private selected: MapHit | null = null;
   private scale = 0.25;
   private offsetX = 0;
   private offsetZ = 0;
   private dragging = false;
   private lastX = 0;
   private lastZ = 0;
-  private travel = 0;
 
-  constructor(onParcelClick?: (parcel: Parcel) => void) {
+  constructor(
+    private readonly onSelect?: (hit: MapHit) => void,
+    private readonly onHover?: (hit: MapHit | null) => void,
+  ) {
     this.canvas = document.createElement('canvas');
     this.canvas.className = 'map-view';
-    this.canvas.addEventListener('mousedown', (e) => {
+    this.canvas.setAttribute('aria-label', '2D city blueprint. Drag to pan, use the wheel to zoom, and right-click to inspect.');
+    this.canvas.tabIndex = 0;
+    this.canvas.addEventListener('mousedown', (event) => {
+      if (event.button !== 0) return;
       this.dragging = true;
-      this.travel = 0;
-      this.lastX = e.clientX;
-      this.lastZ = e.clientY;
+      this.lastX = event.clientX;
+      this.lastZ = event.clientY;
       this.canvas.classList.add('dragging');
     });
-    this.canvas.addEventListener('click', (e) => {
-      if (!onParcelClick || this.travel > DRAG_SLOP) return;
-      const rect = this.canvas.getBoundingClientRect();
-      const parcel = this.parcelAt(this.world(e.clientX - rect.left, e.clientY - rect.top));
-      if (parcel) onParcelClick(parcel);
+    this.canvas.addEventListener('contextmenu', (event) => {
+      event.preventDefault();
+      const hit = this.hitAtEvent(event);
+      if (!hit) return;
+      this.selected = hit;
+      this.render();
+      this.onSelect?.(hit);
     });
+    this.canvas.addEventListener('mousemove', (event) => {
+      if (this.dragging) return;
+      const hit = this.hitAtEvent(event);
+      this.canvas.classList.toggle('inspectable', hit !== null);
+      this.onHover?.(hit);
+    });
+    this.canvas.addEventListener('mouseleave', () => this.onHover?.(null));
     window.addEventListener('mouseup', () => {
       this.dragging = false;
       this.canvas.classList.remove('dragging');
     });
-    window.addEventListener('mousemove', (e) => {
+    window.addEventListener('mousemove', (event) => {
       if (!this.dragging) return;
-      this.travel += Math.abs(e.clientX - this.lastX) + Math.abs(e.clientY - this.lastZ);
-      this.offsetX += e.clientX - this.lastX;
-      this.offsetZ += e.clientY - this.lastZ;
-      this.lastX = e.clientX;
-      this.lastZ = e.clientY;
+      this.offsetX += event.clientX - this.lastX;
+      this.offsetZ += event.clientY - this.lastZ;
+      this.lastX = event.clientX;
+      this.lastZ = event.clientY;
       this.render();
     });
-    this.canvas.addEventListener('wheel', (e) => {
-      e.preventDefault();
-      const factor = e.deltaY < 0 ? 1.15 : 1 / 1.15;
+    this.canvas.addEventListener('wheel', (event) => {
+      event.preventDefault();
+      const factor = event.deltaY < 0 ? 1.15 : 1 / 1.15;
       const rect = this.canvas.getBoundingClientRect();
-      const mx = e.clientX - rect.left;
-      const mz = e.clientY - rect.top;
-      this.offsetX = mx - (mx - this.offsetX) * factor;
-      this.offsetZ = mz - (mz - this.offsetZ) * factor;
-      this.scale *= factor;
+      const x = event.clientX - rect.left;
+      const z = event.clientY - rect.top;
+      const nextScale = clamp(this.scale * factor, 0.02, 80);
+      const applied = nextScale / this.scale;
+      this.offsetX = x - (x - this.offsetX) * applied;
+      this.offsetZ = z - (z - this.offsetZ) * applied;
+      this.scale = nextScale;
       this.render();
-    });
+    }, { passive: false });
   }
 
-  setBlueprint(bp: CityBlueprint): void {
-    this.blueprint = bp;
+  setBlueprint(blueprint: CityBlueprint): void {
+    this.blueprint = blueprint;
+    this.selected = null;
     this.resetView();
   }
 
+  setFilters(filters: Filters): void {
+    this.filters = { ...filters };
+    this.render();
+  }
+
+  clearSelection(): void {
+    this.selected = null;
+    this.render();
+  }
+
+  /** Compatibility for callers that only know the five coarse groups. */
   setLayers(layers: Layers): void {
-    this.layers = { ...layers };
+    for (const key of Object.keys(this.filters) as (keyof Filters)[]) {
+      if (key.startsWith('ground.')) this.filters[key] = layers.ground;
+      else if (key.startsWith('zone.')) this.filters[key] = layers.zones;
+      else if (key.startsWith('street.')) this.filters[key] = layers.streets;
+      else if (key.startsWith('transit.')) this.filters[key] = layers.transit;
+    }
+    this.filters.districts = layers.districts;
     this.render();
   }
 
   resetView(): void {
     if (!this.blueprint) return;
     const { min, max } = this.blueprint.meta.bounds;
-    const w = this.canvas.width || 1;
-    const h = this.canvas.height || 1;
-    this.scale = Math.min(w / (max[0] - min[0]), h / (max[1] - min[1])) * 0.92;
-    this.offsetX = (w - (max[0] + min[0]) * this.scale) / 2;
-    this.offsetZ = (h - (max[1] + min[1]) * this.scale) / 2;
+    const width = this.canvas.width || 1;
+    const height = this.canvas.height || 1;
+    this.scale = Math.min(width / (max[0] - min[0]), height / (max[1] - min[1])) * 0.9;
+    this.offsetX = (width - (max[0] + min[0]) * this.scale) / 2;
+    this.offsetZ = (height - (max[1] + min[1]) * this.scale) / 2;
     this.render();
   }
 
@@ -106,141 +142,233 @@ export class MapView {
     this.resetView();
   }
 
-  private tx(p: Vec2): [number, number] {
-    return [p[0] * this.scale + this.offsetX, p[1] * this.scale + this.offsetZ];
+  render(): void {
+    const context = this.canvas.getContext('2d');
+    if (!context) return;
+    context.fillStyle = '#080c11';
+    context.fillRect(0, 0, this.canvas.width, this.canvas.height);
+    if (!this.blueprint) return;
+    const blueprint = this.blueprint;
+    context.lineCap = 'round';
+    context.lineJoin = 'round';
+
+    this.polygon(context, blueprint.meta.boundary, '#0f1821', BOUNDARY_COLOR, 1.5);
+    for (const ground of blueprint.volumetric.ground) {
+      if (this.filters[`ground.${ground.surface}`]) this.polygon(context, ground.polygon, GROUND_COLORS[ground.surface]);
+    }
+    for (const parcel of blueprint.parcels) {
+      if (this.filters[`zone.${parcel.type}`]) this.polygon(context, parcel.lot, parcelColor(parcel.type, parcel.tier), '#0b1118', 0.5);
+    }
+    for (const edge of blueprint.streets.edges) {
+      if (!this.filters[`street.${edge.class}`]) continue;
+      const structure = edge.class === 'highway'
+        ? blueprint.streets.highwayStructures.find((item) => item.edgeIds.includes(edge.id))
+        : undefined;
+      const width = structure?.width ?? (edge.class === 'alley' ? edge.sidewalk.left + edge.sidewalk.right : edge.width);
+      this.line(context, edge.path, streetColor(edge.class), Math.max(width * this.scale, 1.2));
+    }
+    if (blueprint.streets.edges.some((edge) => this.filters[`street.${edge.class}`])) {
+      for (const crossing of blueprint.streets.crossings) {
+        for (const segment of crossing.segments) this.line(context, [segment.from, segment.to], '#f4f7fa', 1.3);
+      }
+    }
+    if (this.filters.districts) {
+      context.setLineDash([7, 5]);
+      for (const district of blueprint.districts) this.polygon(context, district.boundary, null, DISTRICT_OUTLINE, 2);
+      context.setLineDash([]);
+    }
+    this.drawTransit(context, blueprint);
+    this.drawFurniture(context, blueprint);
+    this.drawDiagnostics(context, blueprint);
+    this.drawSelection(context);
   }
 
-  /** Canvas pixels back to city meters. */
-  private world(x: number, z: number): Vec2 {
-    return [(x - this.offsetX) / this.scale, (z - this.offsetZ) / this.scale];
+  private drawTransit(context: CanvasRenderingContext2D, blueprint: CityBlueprint): void {
+    if (this.filters['transit.bus']) {
+      const edges = new Map(blueprint.streets.edges.map((edge) => [edge.id, edge]));
+      for (const route of blueprint.transit.busRoutes) {
+        for (const edgeId of route.edgeIds) {
+          const edge = edges.get(edgeId);
+          if (edge) this.line(context, edge.path, TRANSIT_COLORS.busRoute, 2.2);
+        }
+      }
+      for (const stop of blueprint.transit.busStops) this.dot(context, stop.position, 3, TRANSIT_COLORS.busStop, '#07110b');
+    }
+    if (this.filters['transit.subway']) {
+      context.setLineDash([7, 4]);
+      for (const line of blueprint.transit.subwayLines) this.line(context, line.path, TRANSIT_COLORS.subway, 3);
+      context.setLineDash([]);
+      for (const station of blueprint.transit.subwayStations) this.dot(context, station.position, 5, TRANSIT_COLORS.subwayStation, '#351126');
+    }
+    if (this.filters['transit.train']) {
+      for (const line of blueprint.transit.trainLines) this.line(context, line.path, TRANSIT_COLORS.train, 4);
+      for (const station of blueprint.transit.trainStations) this.square(context, station.position, 5, TRANSIT_COLORS.trainStation, '#082534');
+    }
   }
 
-  private parcelAt(point: Vec2): Parcel | null {
+  private drawFurniture(context: CanvasRenderingContext2D, blueprint: CityBlueprint): void {
+    if (this.filters['furniture.signal']) {
+      for (const signal of blueprint.streets.signals) this.square(context, signal.position, 2, FURNITURE_COLORS.signal);
+    }
+    for (const item of blueprint.streets.planting) {
+      if (this.filters[`furniture.${item.kind}`]) this.dot(context, item.position, item.kind === 'tree' ? 2.2 : 1.5, FURNITURE_COLORS[item.kind]);
+    }
+  }
+
+  private drawDiagnostics(context: CanvasRenderingContext2D, blueprint: CityBlueprint): void {
+    if (this.filters['diagnostic.highwayCenterlines']) {
+      context.setLineDash([10, 5]);
+      for (const structure of blueprint.streets.highwayStructures) this.line(context, structure.path, DIAGNOSTIC_COLORS.highwayCenterlines, 2);
+      context.setLineDash([]);
+    }
+    if (this.filters['diagnostic.highwaySupports']) {
+      for (const structure of blueprint.streets.highwayStructures) {
+        for (const support of structure.supports) this.polygon(context, support.footprint, null, DIAGNOSTIC_COLORS.highwaySupports, 2);
+      }
+    }
+    if (this.filters['diagnostic.stationAccess']) {
+      for (const station of blueprint.transit.subwayStations) {
+        for (const access of station.accessPaths) {
+          for (const segment of access.segments) {
+            this.line(context, segment.path.map(([x, , z]) => [x, z]), DIAGNOSTIC_COLORS.stationAccess, 2);
+          }
+        }
+      }
+    }
+  }
+
+  private drawSelection(context: CanvasRenderingContext2D): void {
+    if (!this.selected) return;
+    if (this.selected.kind === 'parcel') {
+      if (!this.filters[`zone.${this.selected.parcel.type}`]) return;
+      this.polygon(context, this.selected.parcel.lot, null, '#ffffff', 3);
+    } else if (this.selected.kind === 'street') {
+      if (!this.filters[`street.${this.selected.edge.class}`]) return;
+      this.line(context, this.selected.edge.path, '#ffffff', Math.max(4, this.selected.edge.width * this.scale + 4));
+      this.line(context, this.selected.edge.path, streetColor(this.selected.edge.class), Math.max(1.5, this.selected.edge.width * this.scale));
+    } else {
+      if (!this.filters[`transit.${this.selected.mode}`]) return;
+      this.polygon(context, this.selected.station.platform, null, '#ffffff', 3);
+    }
+  }
+
+  private hitAtEvent(event: MouseEvent): MapHit | null {
+    const rect = this.canvas.getBoundingClientRect();
+    return this.featureAt(this.world(event.clientX - rect.left, event.clientY - rect.top));
+  }
+
+  private featureAt(point: Vec2): MapHit | null {
     if (!this.blueprint) return null;
+    const tolerance = HIT_RADIUS_PX / Math.max(this.scale, 0.001);
+    if (this.filters['transit.subway']) {
+      for (const station of this.blueprint.transit.subwayStations) {
+        if (distance(point, station.position) <= tolerance) return { kind: 'station', station, mode: 'subway' };
+      }
+    }
+    if (this.filters['transit.train']) {
+      for (const station of this.blueprint.transit.trainStations) {
+        if (distance(point, station.position) <= tolerance) return { kind: 'station', station, mode: 'train' };
+      }
+    }
+    const orderedEdges = [...this.blueprint.streets.edges].sort((a, b) => Number(b.class === 'highway') - Number(a.class === 'highway'));
+    for (const edge of orderedEdges) {
+      if (!this.filters[`street.${edge.class}`]) continue;
+      const halfWidth = Math.max(edge.width / 2, tolerance);
+      if (distanceToPolyline(point, edge.path) > halfWidth) continue;
+      const structure = edge.class === 'highway'
+        ? this.blueprint.streets.highwayStructures.find((item) => item.edgeIds.includes(edge.id))
+        : undefined;
+      return { kind: 'street', edge, ...(structure ? { structure } : {}) };
+    }
     for (const parcel of this.blueprint.parcels) {
-      if (contains(point, parcel.lot)) return parcel;
+      if (this.filters[`zone.${parcel.type}`] && contains(point, parcel.lot)) return { kind: 'parcel', parcel };
     }
     return null;
   }
 
-  render(): void {
-    const ctx = this.canvas.getContext('2d');
-    if (!ctx || !this.blueprint) return;
-    const bp = this.blueprint;
-    ctx.fillStyle = '#f3f1ec';
-    ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
-
-    this.polygon(ctx, bp.meta.boundary, '#eae7df', BOUNDARY_COLOR, 1.5);
-
-    if (this.layers.ground) {
-      for (const g of bp.volumetric.ground) {
-        if (g.surface === 'block') continue; // parcels draw on top in the zones layer
-        this.polygon(ctx, g.polygon, GROUND_COLORS[g.surface]);
-      }
-    }
-
-    if (this.layers.zones) {
-      for (const p of bp.parcels) {
-        this.polygon(ctx, p.lot, parcelColor(p.type, p.tier));
-      }
-    }
-
-    if (this.layers.streets) {
-      for (const e of bp.streets.edges) {
-        // an alley has no carriageway: its width is the sidewalk pair
-        const width = e.class === 'alley' ? e.sidewalk.left + e.sidewalk.right : e.width;
-        this.line(ctx, e.path, streetColor(e.class), Math.max(width * this.scale * 0.35, 0.6));
-      }
-    }
-
-    if (this.layers.districts) {
-      ctx.setLineDash([6, 4]);
-      for (const d of bp.districts) {
-        this.polygon(ctx, d.boundary, null, DISTRICT_OUTLINE, 1.5);
-      }
-      ctx.setLineDash([]);
-    }
-
-    if (this.layers.transit) {
-      for (const r of bp.transit.busRoutes) {
-        const stops = r.stopIds
-          .map((id) => bp.transit.busStops.find((s) => s.id === id))
-          .filter((s): s is NonNullable<typeof s> => s !== undefined);
-        this.line(ctx, stops.map((s) => s.position), TRANSIT_COLORS.busRoute, 1);
-      }
-      for (const s of bp.transit.busStops) this.dot(ctx, s.position, 2.5, TRANSIT_COLORS.busStop);
-      for (const l of bp.transit.subwayLines) this.line(ctx, l.path, TRANSIT_COLORS.subway, 2.5);
-      for (const s of bp.transit.subwayStations) this.dot(ctx, s.position, 4, TRANSIT_COLORS.subwayStation);
-      for (const l of bp.transit.trainLines) this.line(ctx, l.path, TRANSIT_COLORS.train, 3);
-      for (const s of bp.transit.trainStations) this.square(ctx, s.position, 5, TRANSIT_COLORS.trainStation);
-    }
+  private tx(point: Vec2): [number, number] {
+    return [point[0] * this.scale + this.offsetX, point[1] * this.scale + this.offsetZ];
   }
 
-  private polygon(
-    ctx: CanvasRenderingContext2D,
-    poly: Polygon,
-    fill: string | null,
-    stroke?: string,
-    strokeWidth = 1,
-  ): void {
-    if (poly.length < 3) return;
-    ctx.beginPath();
-    const [x0, z0] = this.tx(poly[0]);
-    ctx.moveTo(x0, z0);
-    for (let i = 1; i < poly.length; i++) {
-      const [x, z] = this.tx(poly[i]);
-      ctx.lineTo(x, z);
-    }
-    ctx.closePath();
-    if (fill) {
-      ctx.fillStyle = fill;
-      ctx.fill();
-    }
-    if (stroke) {
-      ctx.strokeStyle = stroke;
-      ctx.lineWidth = strokeWidth;
-      ctx.stroke();
-    }
+  private world(x: number, z: number): Vec2 {
+    return [(x - this.offsetX) / this.scale, (z - this.offsetZ) / this.scale];
   }
 
-  private line(ctx: CanvasRenderingContext2D, path: Polyline, color: string, width: number): void {
+  private polygon(context: CanvasRenderingContext2D, polygon: Polygon, fill: string | null, stroke?: string, strokeWidth = 1): void {
+    if (polygon.length < 3) return;
+    context.beginPath();
+    const [x0, z0] = this.tx(polygon[0]);
+    context.moveTo(x0, z0);
+    for (let index = 1; index < polygon.length; index++) {
+      const [x, z] = this.tx(polygon[index]);
+      context.lineTo(x, z);
+    }
+    context.closePath();
+    if (fill) { context.fillStyle = fill; context.fill(); }
+    if (stroke) { context.strokeStyle = stroke; context.lineWidth = strokeWidth; context.stroke(); }
+  }
+
+  private line(context: CanvasRenderingContext2D, path: Polyline, color: string, width: number): void {
     if (path.length < 2) return;
-    ctx.beginPath();
+    context.beginPath();
     const [x0, z0] = this.tx(path[0]);
-    ctx.moveTo(x0, z0);
-    for (let i = 1; i < path.length; i++) {
-      const [x, z] = this.tx(path[i]);
-      ctx.lineTo(x, z);
+    context.moveTo(x0, z0);
+    for (let index = 1; index < path.length; index++) {
+      const [x, z] = this.tx(path[index]);
+      context.lineTo(x, z);
     }
-    ctx.strokeStyle = color;
-    ctx.lineWidth = width;
-    ctx.stroke();
+    context.strokeStyle = color;
+    context.lineWidth = width;
+    context.stroke();
   }
 
-  private dot(ctx: CanvasRenderingContext2D, p: Vec2, r: number, color: string): void {
-    const [x, z] = this.tx(p);
-    ctx.beginPath();
-    ctx.arc(x, z, r, 0, Math.PI * 2);
-    ctx.fillStyle = color;
-    ctx.fill();
+  private dot(context: CanvasRenderingContext2D, point: Vec2, radius: number, color: string, stroke?: string): void {
+    const [x, z] = this.tx(point);
+    context.beginPath();
+    context.arc(x, z, radius, 0, Math.PI * 2);
+    context.fillStyle = color;
+    context.fill();
+    if (stroke) { context.strokeStyle = stroke; context.lineWidth = 1; context.stroke(); }
   }
 
-  private square(ctx: CanvasRenderingContext2D, p: Vec2, r: number, color: string): void {
-    const [x, z] = this.tx(p);
-    ctx.fillStyle = color;
-    ctx.fillRect(x - r, z - r, r * 2, r * 2);
+  private square(context: CanvasRenderingContext2D, point: Vec2, radius: number, color: string, stroke?: string): void {
+    const [x, z] = this.tx(point);
+    context.fillStyle = color;
+    context.fillRect(x - radius, z - radius, radius * 2, radius * 2);
+    if (stroke) { context.strokeStyle = stroke; context.lineWidth = 1; context.strokeRect(x - radius, z - radius, radius * 2, radius * 2); }
   }
 }
 
-/** Ray cast: is the point inside the ring? */
-function contains(p: Vec2, ring: Polygon): boolean {
+function contains(point: Vec2, ring: Polygon): boolean {
   let inside = false;
-  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
-    const a = ring[i];
-    const b = ring[j];
-    if (a[1] > p[1] !== b[1] > p[1] && p[0] < ((b[0] - a[0]) * (p[1] - a[1])) / (b[1] - a[1]) + a[0]) {
-      inside = !inside;
-    }
+  for (let index = 0, previous = ring.length - 1; index < ring.length; previous = index++) {
+    const a = ring[index];
+    const b = ring[previous];
+    if (a[1] > point[1] !== b[1] > point[1]
+      && point[0] < ((b[0] - a[0]) * (point[1] - a[1])) / (b[1] - a[1]) + a[0]) inside = !inside;
   }
   return inside;
+}
+
+function distanceToPolyline(point: Vec2, path: Polyline): number {
+  let nearest = Infinity;
+  for (let index = 1; index < path.length; index++) nearest = Math.min(nearest, distanceToSegment(point, path[index - 1], path[index]));
+  return nearest;
+}
+
+function distanceToSegment(point: Vec2, start: Vec2, end: Vec2): number {
+  const dx = end[0] - start[0];
+  const dz = end[1] - start[1];
+  const lengthSquared = dx * dx + dz * dz;
+  if (lengthSquared === 0) return distance(point, start);
+  const t = clamp(((point[0] - start[0]) * dx + (point[1] - start[1]) * dz) / lengthSquared, 0, 1);
+  return distance(point, [start[0] + dx * t, start[1] + dz * t]);
+}
+
+function distance(a: Vec2, b: Vec2): number {
+  return Math.hypot(a[0] - b[0], a[1] - b[1]);
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, value));
 }

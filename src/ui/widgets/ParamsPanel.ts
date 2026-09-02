@@ -79,10 +79,10 @@ export class ParamsPanel {
     const validate = () => this.validate();
     this.seed = el('input', { type: 'text', value: 'urbe', id: 'seed', autocomplete: 'off', spellcheck: 'false' });
     this.seed.addEventListener('input', validate);
-    this.width = new RangeField({ id: 'width', label: 'Width (m)', min: 300, max: 5000, step: 100, value: 1000, unit: 'm', onInput: validate });
-    this.depth = new RangeField({ id: 'depth', label: 'Depth (m)', min: 300, max: 5000, step: 100, value: 1000, unit: 'm', onInput: validate });
+    this.width = new RangeField({ id: 'width', label: 'Width (m)', min: 300, max: 5000, exactMin: 1, step: 100, value: 1000, unit: 'm', onInput: validate });
+    this.depth = new RangeField({ id: 'depth', label: 'Depth (m)', min: 300, max: 5000, exactMin: 1, step: 100, value: 1000, unit: 'm', onInput: validate });
     this.irregularity = new RangeField({
-      id: 'irregularity', label: 'Irregularity', min: 0, max: 1, step: 0.05, value: 0.35, onInput: validate,
+      id: 'irregularity', label: 'Irregularity', min: 0, max: 1, exactMax: 1, step: 0.05, value: 0.35, onInput: validate,
       description: '0 keeps the street grid strict. 0.4 and above permits a radial downtown.',
     });
     this.districtMin = new RangeField({ id: 'district-min', label: 'Minimum districts', min: 1, max: 24, step: 1, value: 1, integer: true, onInput: validate });
@@ -102,7 +102,7 @@ export class ParamsPanel {
     const districtCaps = el('div', { class: 'district-cap-grid' });
     for (const kind of DISTRICTS) {
       const enabled = el('input', { type: 'checkbox', id: `cap-${kind}` });
-      const value = el('input', { type: 'number', min: '1', max: '120', step: '1', value: '40', id: `cap-${kind}-value`, disabled: '' });
+      const value = el('input', { type: 'number', min: '1', step: '1', value: '40', id: `cap-${kind}-value`, disabled: '' });
       enabled.addEventListener('change', () => { value.disabled = !enabled.checked; validate(); });
       value.addEventListener('input', validate);
       this.districtCaps.set(kind, { enabled, value });
@@ -263,15 +263,14 @@ export class ParamsPanel {
 
   private firstIssue(): { element: HTMLElement; message: string } | null {
     if (!this.seed.value.trim()) return { element: this.seed, message: 'Enter a seed.' };
-    for (const [control, label, min, max] of [
-      [this.width, 'Width', 300, 5000], [this.depth, 'Depth', 300, 5000],
-      [this.irregularity, 'Irregularity', 0, 1], [this.maxFloors, 'Global floor cap', 1, 120],
-      [this.districtMin, 'Minimum districts', 1, 24], [this.districtMax, 'Maximum districts', 1, 24],
-    ] as [RangeField, string, number, number][]) {
-      if (!Number.isFinite(control.value) || control.value < min || control.value > max) {
-        return { element: control.number, message: `${label} must be between ${min} and ${max}.` };
-      }
+    if (!Number.isFinite(this.width.value) || this.width.value <= 0) return { element: this.width.number, message: 'Width must be greater than zero.' };
+    if (!Number.isFinite(this.depth.value) || this.depth.value <= 0) return { element: this.depth.number, message: 'Depth must be greater than zero.' };
+    if (!Number.isFinite(this.irregularity.value) || this.irregularity.value < 0 || this.irregularity.value > 1) {
+      return { element: this.irregularity.number, message: 'Irregularity must be between 0 and 1.' };
     }
+    if (!Number.isFinite(this.maxFloors.value) || this.maxFloors.value < 1) return { element: this.maxFloors.number, message: 'Global floor cap must be at least 1.' };
+    if (!Number.isFinite(this.districtMin.value) || this.districtMin.value < 1) return { element: this.districtMin.number, message: 'Minimum districts must be at least 1.' };
+    if (!Number.isFinite(this.districtMax.value) || this.districtMax.value < 1) return { element: this.districtMax.number, message: 'Maximum districts must be at least 1.' };
     if (!Number.isInteger(this.maxFloors.value) || !Number.isInteger(this.districtMin.value) || !Number.isInteger(this.districtMax.value)) {
       return { element: this.districtMin.number, message: 'Floor and district counts must be whole numbers.' };
     }
@@ -283,13 +282,13 @@ export class ParamsPanel {
     }
     for (const [kind, control] of this.districtCaps) {
       const value = Number(control.value.value);
-      if (control.enabled.checked && (!Number.isInteger(value) || value < 1 || value > 120)) {
-        return { element: control.value, message: `${humanize(kind)} floor cap must be between 1 and 120.` };
+      if (control.enabled.checked && (!Number.isInteger(value) || value < 1)) {
+        return { element: control.value, message: `${humanize(kind)} floor cap must be an integer of at least 1.` };
       }
     }
     const weightSum = [...this.tierWeights.values()].reduce((sum, field) => sum + field.value, 0);
-    if ([...this.tierWeights.values()].some((field) => !Number.isFinite(field.value) || field.value < 0 || field.value > 1)) {
-      return { element: this.tierWeights.get('poor')!.number, message: 'Wealth weights must be between 0 and 1.' };
+    if ([...this.tierWeights.values()].some((field) => !Number.isFinite(field.value) || field.value < 0)) {
+      return { element: this.tierWeights.get('poor')!.number, message: 'Wealth weights must be zero or greater.' };
     }
     if (weightSum <= 0) return { element: this.tierWeights.get('poor')!.number, message: 'At least one wealth weight must be above zero.' };
     return null;

@@ -21,12 +21,12 @@ beforeEach(() => {
   document.body.replaceChildren();
 });
 
-/** Clicks a grid over the map until `hit` reports the pick landed. */
-async function clickUntil(canvas: HTMLElement, hit: () => boolean): Promise<void> {
+/** Right-clicks a grid over the map until `hit` reports the pick landed. */
+async function inspectUntil(canvas: HTMLElement, hit: () => boolean): Promise<void> {
   const user = userEvent.setup();
   for (let x = 30; x < CANVAS && !hit(); x += 30) {
     for (let z = 30; z < CANVAS && !hit(); z += 30) {
-      await user.pointer({ target: canvas, coords: { clientX: x, clientY: z }, keys: '[MouseLeft]' });
+      await user.pointer({ target: canvas, coords: { clientX: x, clientY: z }, keys: '[MouseRight]' });
     }
   }
 }
@@ -57,11 +57,29 @@ describe('LayerToggles', () => {
     const toggles = new LayerToggles(onChange);
     document.body.append(toggles.root);
     // the group row switches every street class; one row switches one class
-    await userEvent.click(getByLabelText(toggles.root, 'Streets'));
+    await userEvent.click(getByLabelText(toggles.root, 'Street network'));
     const allStreetsOff = { ...defaultFilters(), 'street.street': false, 'street.road': false, 'street.highway': false, 'street.alley': false };
     expect(onChange).toHaveBeenLastCalledWith(allStreetsOff);
     await userEvent.click(getByLabelText(toggles.root, 'highway'));
     expect(onChange).toHaveBeenLastCalledWith({ ...allStreetsOff, 'street.highway': true });
+    await userEvent.click(getByRole(toggles.root, 'button', { name: 'Only highway' }));
+    const highwayOnly = onChange.mock.lastCall![0];
+    expect(highwayOnly['street.highway']).toBe(true);
+    expect(Object.entries(highwayOnly).filter(([key]) => key !== 'street.highway').every(([, visible]) => visible === false)).toBe(true);
+  });
+
+  it('supports global visibility reset and one-group isolation', async () => {
+    const onChange = vi.fn();
+    const toggles = new LayerToggles(onChange);
+    document.body.append(toggles.root);
+    await userEvent.click(getByRole(toggles.root, 'button', { name: 'Hide all' }));
+    expect(Object.values(onChange.mock.lastCall![0]).every((visible) => visible === false)).toBe(true);
+    const transit = getByLabelText(toggles.root, 'Public transit').closest('.layer-group')!;
+    await userEvent.click(getByRole(transit, 'button', { name: 'Only' }));
+    const isolated = onChange.mock.lastCall![0];
+    expect(isolated['transit.bus']).toBe(true);
+    expect(isolated['transit.train']).toBe(true);
+    expect(isolated['street.highway']).toBe(false);
   });
 });
 
@@ -129,8 +147,8 @@ describe('ParamsPanel', () => {
     const width = getByLabelText(panel.root, 'Width (m)') as HTMLInputElement;
     const slider = getByLabelText(panel.root, 'Width (m) slider') as HTMLInputElement;
     await userEvent.clear(width);
-    await userEvent.type(width, '200');
-    expect(getByRole(panel.root, 'alert').textContent).toContain('between 300 and 5000');
+    await userEvent.type(width, '0');
+    expect(getByRole(panel.root, 'alert').textContent).toContain('greater than zero');
     expect((getByRole(panel.root, 'button', { name: 'Generate city' }) as HTMLButtonElement).disabled).toBe(true);
     await userEvent.clear(width);
     await userEvent.type(width, '1200');
@@ -172,17 +190,18 @@ describe('MapView', () => {
     expect(view.canvas.width).toBe(400);
   });
 
-  it('emits the parcel under a click', async () => {
+  it('pins a map feature only from a right-click', async () => {
     const blueprint = generateCity(SMALL);
-    const clicked = vi.fn();
-    const view = new MapView(clicked);
+    const selected = vi.fn();
+    const view = new MapView(selected);
     document.body.append(view.canvas);
     view.setBlueprint(blueprint);
     view.resize(CANVAS, CANVAS);
-    await clickUntil(view.canvas, () => clicked.mock.calls.length > 0);
-    expect(clicked).toHaveBeenCalled();
-    const picked = clicked.mock.calls[0][0];
-    expect(blueprint.parcels.some((p) => p.id === picked.id)).toBe(true);
+    await userEvent.click(view.canvas);
+    expect(selected).not.toHaveBeenCalled();
+    await inspectUntil(view.canvas, () => selected.mock.calls.length > 0);
+    expect(selected).toHaveBeenCalled();
+    expect(['parcel', 'street', 'station']).toContain(selected.mock.calls[0][0].kind);
   });
 });
 
@@ -200,16 +219,46 @@ describe('PreviewApp', () => {
   it('merges indexed station posts with non-indexed platforms without a geometry error', () => {
     const error = vi.spyOn(console, 'error').mockImplementation(() => undefined);
     const view = new Map3DView();
-    const blueprint = generateCity({ seed: 'preview-3d', size: { width: 1000, depth: 1000 } });
+    const blueprint = generateCity({ seed: 'urbe', size: { width: 1000, depth: 1000 } });
     expect(blueprint.transit.trainStations.length).toBeGreaterThan(0);
+    expect(blueprint.transit.subwayStations.length).toBeGreaterThan(0);
     view.setBlueprint(blueprint);
     const layers = (view as unknown as {
       layers: Map<string, { getObjectByName(name: string): unknown }>;
     }).layers;
     expect([...layers.entries()].some(([key, group]) =>
       key.startsWith('zone.') && group.getObjectByName('floor-elevations') !== undefined)).toBe(true);
+    expect(layers.has('diagnostic.highwayCenterlines')).toBe(blueprint.streets.highwayStructures.length > 0);
+    expect(layers.has('diagnostic.highwaySupports')).toBe(blueprint.streets.highwayStructures.some((item) => item.supports.length > 0));
+    expect(layers.has('diagnostic.stationAccess')).toBe(blueprint.transit.subwayStations.some((item) => item.accessPaths.length > 0));
     expect(error.mock.calls.flat().join(' ')).not.toContain('mergeGeometries');
     error.mockRestore();
+  });
+
+  it('inserts highway profile breakpoints into a 3D deck', () => {
+    const view = new Map3DView();
+    const blueprint = generateCity({ seed: 'profile-preview', size: { width: 1000, depth: 1000 } });
+    const structure = blueprint.streets.highwayStructures[0];
+    expect(structure).toBeTruthy();
+    structure.path = [[0, 0], [20, 0]];
+    structure.elevationProfile = [
+      { distance: 0, level: 0 },
+      { distance: 10, level: 8 },
+      { distance: 20, level: 0 },
+    ];
+    structure.supports = [];
+    view.setBlueprint(blueprint);
+    const layers = (view as unknown as { layers: Map<string, { traverse(visitor: (node: unknown) => void): void }> }).layers;
+    let hasPeak = false;
+    layers.get('street.highway')!.traverse((node) => {
+      const geometry = (node as { geometry?: { getAttribute(name: string): { count: number; getX(index: number): number; getY(index: number): number; getZ(index: number): number } } }).geometry;
+      const position = geometry?.getAttribute('position');
+      if (!position) return;
+      for (let index = 0; index < position.count; index++) {
+        if (Math.abs(position.getX(index) - 10) < 0.01 && position.getY(index) > 7.99 && Math.abs(position.getZ(index)) < 0.01) hasPeak = true;
+      }
+    });
+    expect(hasPeak).toBe(true);
   });
 
   it('blocks the form behind a progress cover while generating', async () => {
@@ -218,9 +267,11 @@ describe('PreviewApp', () => {
     const overlay = app.root.querySelector('.progress-overlay') as HTMLElement;
     const form = app.root.querySelector('.params-form') as HTMLFieldSetElement;
     expect(overlay.hidden).toBe(false);
+    expect(overlay.dataset.stage).toBe('preparing');
     expect(form.disabled).toBe(true);
     await running;
     expect(overlay.hidden).toBe(true);
+    expect(overlay.dataset.stage).toBe('ready');
     expect(form.disabled).toBe(false);
     expect(app.root.querySelector('.status')?.textContent).toContain('parcels');
   });
@@ -257,38 +308,72 @@ describe('PreviewApp', () => {
     });
   });
 
-  it('opens the configured link when a parcel is clicked', async () => {
+  it('inspects a parcel before opening its configured link', async () => {
     const app = mount();
     await app.generate(SMALL);
     app.resize();
     const canvas = app.root.querySelector('canvas') as HTMLCanvasElement;
     const opened = vi.spyOn(window, 'open').mockReturnValue(null);
 
-    // default template: a click opens the engine's building viewer for this seed's world
-    await clickUntil(canvas, () => opened.mock.calls.length > 0);
+    const parcelSelected = () => app.root.querySelector('.inspector-open') !== null;
+    await inspectUntil(canvas, parcelSelected);
+    expect(parcelSelected()).toBe(true);
+    await userEvent.click(getByRole(app.root, 'button', { name: 'Open building view' }));
     expect(String(opened.mock.calls[0][0])).toMatch(/^http:\/\/localhost:5306\/\?mode=building&parcel=p\d+&out=\/out\/preview$/);
 
-    // template cleared: a click reports the parcel and opens nothing
+    // template cleared: the inspector reports the parcel and opens nothing
     const user = userEvent.setup();
     await user.clear(getByLabelText(app.root, 'URL template'));
     opened.mockClear();
+    await user.click(getByRole(app.root, 'button', { name: 'Open building view' }));
     const reported = (): boolean => /p\d+: \w+/.test(getByRole(app.root, 'log').textContent ?? '');
-    await clickUntil(canvas, reported);
     expect(reported()).toBe(true);
     expect(opened).not.toHaveBeenCalled();
 
     await user.click(getByLabelText(app.root, 'URL template'));
     await user.paste('https://engine.test/?seed={seed}&parcel={parcelId}');
-    await clickUntil(canvas, () => opened.mock.calls.length > 0);
+    await user.click(getByRole(app.root, 'button', { name: 'Open building view' }));
     expect(opened).toHaveBeenCalledTimes(1);
     expect(String(opened.mock.calls[0][0])).toMatch(/^https:\/\/engine\.test\/\?seed=preview&parcel=p\d+$/);
     expect(getByRole(app.root, 'log').textContent).toContain('https://engine.test/?seed=preview&parcel=p');
+
+    await user.click(getByRole(app.root, 'button', { name: 'Clear selection' }));
+    expect(getByText(app.root, 'Hover to preview. Right-click a feature to keep its measurements here.')).toBeTruthy();
     opened.mockRestore();
+  });
+
+  it('uses the dark workspace and exposes generated geometry diagnostics', async () => {
+    const app = mount();
+    expect(app.root.dataset.theme).toBe('dark');
+    await app.generate({ seed: 'diagnostics', size: { width: 1000, depth: 1000 } });
+    await userEvent.click(getByRole(app.root, 'button', { name: 'Visualization' }));
+    expect(getByText(app.root, 'Blueprint summary')).toBeTruthy();
+    expect(getByText(app.root, /runs · \d+ ramps · \d+ supports/)).toBeTruthy();
+    expect(getByLabelText(app.root, 'highway centerlines')).toBeTruthy();
+    expect(getByLabelText(app.root, 'station access')).toBeTruthy();
+  });
+
+  it('downloads the generated blueprint from the persistent map toolbar', async () => {
+    const createUrl = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:atlas');
+    const revokeUrl = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => undefined);
+    const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined);
+    const app = mount();
+    const download = getByRole(app.root, 'button', { name: 'Download blueprint' }) as HTMLButtonElement;
+    expect(download.disabled).toBe(true);
+    await app.generate(SMALL);
+    expect(download.disabled).toBe(false);
+    await userEvent.click(download);
+    expect(createUrl).toHaveBeenCalledTimes(1);
+    expect(click).toHaveBeenCalledTimes(1);
+    expect(getByRole(app.root, 'log').textContent).toContain('atlas-blueprint-preview.json');
+    createUrl.mockRestore();
+    revokeUrl.mockRestore();
+    click.mockRestore();
   });
 });
 
 describe('sidebar tabs and view mode', () => {
-  it('shows creation first, switches to visualization, hides a tab clicked twice, and switches the map to 3D', async () => {
+  it('keeps one control tab visible and switches the map to 3D', async () => {
     const { PreviewApp } = await import('../src/ui/views/PreviewApp');
     const app = new PreviewApp();
     document.body.append(app.root);
@@ -306,8 +391,8 @@ describe('sidebar tabs and view mode', () => {
     expect(app.root.querySelector('.map-view-3d')?.hidden).toBe(false);
 
     await userEvent.click(visualization);
-    expect(visualization.getAttribute('aria-pressed')).toBe('false');
-    expect(threeD.closest('.tab-pane')?.hidden).toBe(true);
+    expect(visualization.getAttribute('aria-pressed')).toBe('true');
+    expect(threeD.closest('.tab-pane')?.hidden).toBe(false);
     app.root.remove();
   });
 });

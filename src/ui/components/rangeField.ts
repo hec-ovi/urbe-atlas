@@ -8,6 +8,8 @@ export interface RangeFieldOptions {
   max: number;
   step: number;
   value: number;
+  exactMin?: number;
+  exactMax?: number;
   unit?: string;
   description?: string;
   integer?: boolean;
@@ -28,15 +30,16 @@ export class RangeField {
       value: String(options.value),
       'aria-label': `${options.label} slider`,
     });
-    this.number = el('input', {
+    const numberAttrs: Record<string, string> = {
       id: options.id,
       type: 'number',
-      min: String(options.min),
-      max: String(options.max),
+      min: String(options.exactMin ?? options.min),
       step: String(options.step),
       value: String(options.value),
       inputmode: options.integer ? 'numeric' : 'decimal',
-    });
+    };
+    if (options.exactMax !== undefined) numberAttrs.max = String(options.exactMax);
+    this.number = el('input', numberAttrs);
     const sync = (source: HTMLInputElement, target: HTMLInputElement) => {
       target.value = source.value;
       options.onInput?.();

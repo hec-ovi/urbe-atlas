@@ -19,10 +19,10 @@ const TYPE_HUE: Record<ParcelType, [h: number, s: number]> = {
 };
 
 const TIER_LIGHT: Record<WealthTier, number> = {
-  poor: 82,
-  mid: 66,
-  rich: 50,
-  high_rich: 36,
+  poor: 36,
+  mid: 48,
+  rich: 60,
+  high_rich: 72,
 };
 
 /** Hue, saturation and lightness of a parcel's colour, each on its usual scale. */
@@ -39,39 +39,45 @@ export function parcelColor(type: ParcelType, tier: WealthTier): string {
 export function streetColor(cls: StreetClass): string {
   switch (cls) {
     case 'highway':
-      return '#3a3f47';
+      return '#f2b84b';
     case 'road':
-      return '#565d66';
+      return '#dce6ef';
     case 'street':
-      return '#767d86';
+      return '#93a6b8';
     case 'alley':
-      return '#a98b62';
+      return '#c08b5a';
   }
 }
 
 export const GROUND_COLORS = {
-  roadway: '#565d66',
-  curb: '#8d9299',
-  sidewalk: '#b9bec4',
-  block: '#e6e2d8',
-  open: '#cfe0c3',
+  roadway: '#1e2935',
+  curb: '#c6d3de',
+  sidewalk: '#5c6e80',
+  block: '#14202b',
+  open: '#245044',
 } as const;
 
 export const FURNITURE_COLORS = {
-  signal: '#2f3338',
-  tree: '#3f7a44',
-  pole: '#767c84',
-  bin: '#4a4f57',
+  signal: '#ff667d',
+  tree: '#51d68a',
+  pole: '#e6edf3',
+  bin: '#9aa8b7',
 } as const;
 
 export const TRANSIT_COLORS = {
-  busStop: '#0b7f3b',
-  busRoute: '#0b7f3b',
-  subway: '#d0021b',
-  subwayStation: '#8b0012',
-  train: '#1a1a1a',
-  trainStation: '#000000',
+  busStop: '#66ee93',
+  busRoute: '#51d68a',
+  subway: '#f472b6',
+  subwayStation: '#ffb1d8',
+  train: '#59ccff',
+  trainStation: '#b8eaff',
 } as const;
 
-export const DISTRICT_OUTLINE = '#222222';
-export const BOUNDARY_COLOR = '#101418';
+export const DIAGNOSTIC_COLORS = {
+  highwayCenterlines: '#fff26d',
+  highwaySupports: '#ff4fd8',
+  stationAccess: '#65fff0',
+} as const;
+
+export const DISTRICT_OUTLINE = '#c084fc';
+export const BOUNDARY_COLOR = '#648199';

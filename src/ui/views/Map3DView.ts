@@ -5,14 +5,14 @@
  * hidden) and as decks with piers where a highway runs above it, rail as
  * tracks at grade and tunnels under it, stations as platforms with entrance
  * posts at the surface. Geometry merges per colour, so the city is a few
- * dozen draw calls. Drag orbits, wheel zooms, a click on a building reports
- * its parcel.
+ * dozen draw calls. Drag orbits, wheel zooms, and right-click inspects a
+ * building.
  */
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import type { CityBlueprint, Parcel, PlantingKind, Polygon, Polyline, Station, StreetEdge, TrafficSignal, Vec2 } from '../../../schema/blueprint';
-import { FURNITURE_COLORS, GROUND_COLORS, TRANSIT_COLORS, parcelHsl, streetColor } from '../components/colors';
+import type { CityBlueprint, ElevationPoint, Parcel, PlantingKind, Polygon, Polyline, Station, StreetEdge, TrafficSignal, Vec2 } from '../../../schema/blueprint';
+import { DIAGNOSTIC_COLORS, FURNITURE_COLORS, GROUND_COLORS, TRANSIT_COLORS, parcelHsl, streetColor } from '../components/colors';
 import { defaultFilters, type FilterKey, type Filters } from './filters';
 
 const SKY = 0x0e1117;
@@ -38,9 +38,14 @@ export class Map3DView {
   private filters: Filters = defaultFilters();
   private frame = 0;
 
-  constructor(private readonly onParcelClick?: (parcel: Parcel) => void) {
+  constructor(
+    private readonly onParcelClick?: (parcel: Parcel) => void,
+    private readonly onParcelInspect?: (parcel: Parcel) => void,
+  ) {
     this.canvas = document.createElement('canvas');
     this.canvas.className = 'map-view map-view-3d';
+    this.canvas.setAttribute('aria-label', '3D city blueprint. Drag to orbit, use the wheel to zoom, and right-click a building to inspect.');
+    this.canvas.tabIndex = 0;
     this.scene.background = new THREE.Color(SKY);
     this.scene.add(new THREE.HemisphereLight(0xdfe6f2, 0x2a2622, 1.5), new THREE.DirectionalLight(0xffffff, 1.1).translateY(400).translateX(150));
     this.canvas.addEventListener('contextmenu', (e) => { e.preventDefault(); this.pick(e); });
@@ -70,6 +75,7 @@ export class Map3DView {
     this.buildTransit(bp);
     this.buildFurniture(bp);
     this.buildDistricts(bp);
+    this.buildDiagnostics(bp);
     this.applyFilters();
     this.resetView();
     this.render();
@@ -223,10 +229,8 @@ export class Map3DView {
       parts.highway!.push(deck(
         structure.path,
         structure.width,
-        structure.level,
+        structure.elevationProfile,
         structure.deckThickness,
-        structure.ramps.start,
-        structure.ramps.end,
       ));
       piers.push(...structure.supports.map((support) =>
         prism(support.footprint, support.bottom, support.top - support.bottom)));
@@ -289,6 +293,35 @@ export class Map3DView {
     }
   }
 
+  /** Bright optional overlays expose the arithmetic without changing city geometry. */
+  private buildDiagnostics(bp: CityBlueprint): void {
+    for (const structure of bp.streets.highwayStructures) {
+      const line = new THREE.Line(
+        new THREE.BufferGeometry().setFromPoints(profilePoints(structure.path, structure.elevationProfile, 0.35)),
+        new THREE.LineBasicMaterial({ color: DIAGNOSTIC_COLORS.highwayCenterlines }),
+      );
+      this.layer('diagnostic.highwayCenterlines').add(line);
+    }
+    const supports = bp.streets.highwayStructures.flatMap((structure) => structure.supports.map((support) =>
+      prism(support.footprint, support.bottom, support.top - support.bottom)));
+    this.merged(
+      'diagnostic.highwaySupports',
+      supports,
+      new THREE.MeshBasicMaterial({ color: DIAGNOSTIC_COLORS.highwaySupports, wireframe: true }),
+    );
+    for (const station of bp.transit.subwayStations) {
+      for (const access of station.accessPaths) {
+        for (const segment of access.segments) {
+          const points = segment.path.map(([x, y, z]) => new THREE.Vector3(x, y + 0.2, z));
+          this.layer('diagnostic.stationAccess').add(new THREE.Line(
+            new THREE.BufferGeometry().setFromPoints(points),
+            new THREE.LineBasicMaterial({ color: DIAGNOSTIC_COLORS.stationAccess }),
+          ));
+        }
+      }
+    }
+  }
+
   private popupNode: HTMLElement | null = null;
 
   private popup(parcel: Parcel, x: number, y: number): void {
@@ -302,7 +335,7 @@ export class Map3DView {
 
   /** The parcel under the pointer, offered in a popup; left clicks only orbit. */
   private pick(event: MouseEvent): void {
-    if (!this.onParcelClick || !this.renderer) return;
+    if ((!this.onParcelClick && !this.onParcelInspect) || !this.renderer) return;
     const rect = this.canvas.getBoundingClientRect();
     const pointer = new THREE.Vector2(((event.clientX - rect.left) / rect.width) * 2 - 1, -((event.clientY - rect.top) / rect.height) * 2 + 1);
     const raycaster = new THREE.Raycaster();
@@ -312,7 +345,10 @@ export class Map3DView {
     if (!hit) return;
     // the merged mesh does not know its parcels; the footprint under the hit does
     const parcel = this.parcels.find((p) => pointInPolygon([hit.point.x, hit.point.z], p.footprint));
-    if (parcel) this.popup(parcel, event.clientX, event.clientY);
+    if (parcel) {
+      this.onParcelInspect?.(parcel);
+      if (this.onParcelClick) this.popup(parcel, event.clientX, event.clientY);
+    }
   }
 }
 
@@ -485,19 +521,62 @@ function strip(path: Polyline, width: number, top: (along: number) => number, bo
 
 const JOINT_SEGMENTS = 12;
 
-/** The deck's height along the path: level in the middle, falling to the ground over a ramp at an open end. */
-function deckHeight(along: number, total: number, level: number, startRamp: number, endRamp: number): number {
-  let h = level;
-  if (startRamp > 0 && along < startRamp) h = Math.min(h, (level * along) / startRamp);
-  if (endRamp > 0 && total - along < endRamp) h = Math.min(h, (level * (total - along)) / endRamp);
-  return h;
+/** A closed slab along a path whose height is read from the blueprint profile. */
+function deck(path: Polyline, width: number, profile: ElevationPoint[], thickness: number): THREE.BufferGeometry {
+  const profiledPath = pathWithBreakpoints(path, profile);
+  const top = (along: number) => profileLevel(profile, along);
+  return strip(profiledPath, width, top, (along) => Math.max(0, top(along) - thickness));
 }
 
-/** A closed slab along a path: top, bottom and both side faces, height following the ramps. */
-function deck(path: Polyline, width: number, level: number, thickness: number, startRamp: number, endRamp: number): THREE.BufferGeometry {
-  const total = pathLength(path);
-  const top = (along: number) => deckHeight(along, total, level, startRamp, endRamp);
-  return strip(path, width, top, (along) => Math.max(0, top(along) - thickness));
+function profileLevel(profile: ElevationPoint[], distanceAlong: number): number {
+  if (profile.length === 0) return 0;
+  if (distanceAlong <= profile[0]!.distance) return profile[0]!.level;
+  for (let index = 1; index < profile.length; index++) {
+    const before = profile[index - 1]!;
+    const after = profile[index]!;
+    if (distanceAlong > after.distance) continue;
+    const span = after.distance - before.distance;
+    const t = span > 0 ? (distanceAlong - before.distance) / span : 0;
+    return before.level + (after.level - before.level) * t;
+  }
+  return profile[profile.length - 1]!.level;
+}
+
+/** Path vertices plus profile breakpoints, so every ramp transition remains visible. */
+function profilePoints(path: Polyline, profile: ElevationPoint[], lift: number): THREE.Vector3[] {
+  const pathDistances: number[] = [0];
+  for (let index = 1; index < path.length; index++) {
+    pathDistances.push(pathDistances[index - 1]! + dist(path[index - 1]!, path[index]!));
+  }
+  const distances = [...new Set([...pathDistances, ...profile.map((point) => point.distance)])].sort((a, b) => a - b);
+  return distances.map((distanceAlong) => {
+    const [x, z] = pointAlong(path, pathDistances, distanceAlong);
+    return new THREE.Vector3(x, profileLevel(profile, distanceAlong) + lift, z);
+  });
+}
+
+function pathWithBreakpoints(path: Polyline, profile: ElevationPoint[]): Polyline {
+  const pathDistances: number[] = [0];
+  for (let index = 1; index < path.length; index++) {
+    pathDistances.push(pathDistances[index - 1]! + dist(path[index - 1]!, path[index]!));
+  }
+  const distances = [...new Set([...pathDistances, ...profile.map((point) => point.distance)])].sort((a, b) => a - b);
+  return distances.map((distanceAlong) => pointAlong(path, pathDistances, distanceAlong));
+}
+
+function pointAlong(path: Polyline, distances: number[], target: number): Vec2 {
+  if (target <= 0) return path[0]!;
+  for (let index = 1; index < path.length; index++) {
+    if (target > distances[index]!) continue;
+    const startDistance = distances[index - 1]!;
+    const span = distances[index]! - startDistance;
+    const t = span > 0 ? (target - startDistance) / span : 0;
+    return [
+      path[index - 1]![0] + (path[index]![0] - path[index - 1]![0]) * t,
+      path[index - 1]![1] + (path[index]![1] - path[index - 1]![1]) * t,
+    ];
+  }
+  return path[path.length - 1]!;
 }
 
 /** A round tunnel along a path at a level below the ground. */
@@ -513,12 +592,6 @@ function normalize([x, z]: Vec2): Vec2 {
 
 function dist(a: Vec2, b: Vec2): number {
   return Math.hypot(b[0] - a[0], b[1] - a[1]);
-}
-
-function pathLength(path: Polyline): number {
-  let total = 0;
-  for (let i = 1; i < path.length; i++) total += dist(path[i - 1]!, path[i]!);
-  return total;
 }
 
 function pointInPolygon([px, pz]: Vec2, poly: Polygon): boolean {

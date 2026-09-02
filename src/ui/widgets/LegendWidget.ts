@@ -1,7 +1,7 @@
 /** Read-only color legend: parcel types by tier, street classes, transit modes. */
 import type { ParcelType, StreetClass } from '../../../schema/blueprint';
 import type { WealthTier } from '../../../schema/params';
-import { FURNITURE_COLORS, GROUND_COLORS, TRANSIT_COLORS, parcelColor, streetColor } from '../components/colors';
+import { DIAGNOSTIC_COLORS, FURNITURE_COLORS, GROUND_COLORS, TRANSIT_COLORS, parcelColor, streetColor } from '../components/colors';
 import { el } from '../components/dom';
 
 const TYPES: ParcelType[] = [
@@ -26,7 +26,7 @@ export class LegendWidget {
       row.append(el('span', { class: 'legend-label', text: type.replace('_', ' ') }));
       zoneRows.append(row);
     }
-    this.root.append(el('p', { class: 'legend-hint', text: 'tiers left to right: poor, mid, rich, high rich' }), zoneRows);
+    this.root.append(el('p', { class: 'legend-hint', text: 'Zone tier: poor, mid, rich, high rich' }), zoneRows);
 
     const other = el('div', { class: 'legend-section' });
     for (const cls of STREETS) {
@@ -46,6 +46,9 @@ export class LegendWidget {
       ['bus', TRANSIT_COLORS.busRoute],
       ['subway', TRANSIT_COLORS.subway],
       ['train', TRANSIT_COLORS.train],
+      ['highway centerline diagnostic', DIAGNOSTIC_COLORS.highwayCenterlines],
+      ['highway support diagnostic', DIAGNOSTIC_COLORS.highwaySupports],
+      ['station access diagnostic', DIAGNOSTIC_COLORS.stationAccess],
     ];
     for (const [label, color] of extras) {
       other.append(

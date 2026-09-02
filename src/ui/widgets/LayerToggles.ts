@@ -1,48 +1,113 @@
 /** Every visualization switch, grouped, each group with its own all-on/all-off row. */
 import { FILTER_GROUPS, defaultFilters, filterLabel, type FilterKey, type Filters } from '../views/filters';
+import { DIAGNOSTIC_COLORS, DISTRICT_OUTLINE, FURNITURE_COLORS, GROUND_COLORS, TRANSIT_COLORS, parcelColor, streetColor } from '../components/colors';
 import { el } from '../components/dom';
 
 export class LayerToggles {
   readonly root: HTMLElement;
   private readonly filters: Filters = defaultFilters();
   private readonly inputs = new Map<FilterKey, HTMLInputElement>();
+  private readonly masters = new Map<string, HTMLInputElement>();
 
   constructor(onChange: (filters: Filters) => void) {
     this.root = el('div', { class: 'layer-toggles' });
+    const notify = () => { this.syncMasters(); onChange({ ...this.filters }); };
+    const actions = el('div', { class: 'layer-actions' }, [
+      action('Show all', () => { for (const key of this.inputs.keys()) this.setKey(key, true); notify(); }),
+      action('Hide all', () => { for (const key of this.inputs.keys()) this.setKey(key, false); notify(); }),
+      action('Defaults', () => { const defaults = defaultFilters(); for (const key of this.inputs.keys()) this.setKey(key, defaults[key]); notify(); }),
+    ]);
+    this.root.append(actions);
     for (const group of FILTER_GROUPS) {
-      const master = el('input', { type: 'checkbox', id: `layer-group-${group.title}` });
+      const master = el('input', { type: 'checkbox', id: `layer-group-${group.id}`, 'aria-label': group.title });
       master.checked = group.keys.every((k) => this.filters[k]);
       master.addEventListener('change', () => {
-        for (const key of group.keys) {
-          this.filters[key] = master.checked;
-          this.inputs.get(key)!.checked = master.checked;
-        }
-        onChange({ ...this.filters });
+        for (const key of group.keys) this.setKey(key, master.checked);
+        notify();
       });
+      this.masters.set(group.id, master);
       const rows = el('div', { class: 'layer-group-rows' });
       for (const key of group.keys) {
         const input = el('input', { type: 'checkbox', id: `layer-${key}` });
+        input.setAttribute('aria-label', filterLabel(key));
         input.checked = this.filters[key];
         input.addEventListener('change', () => {
           this.filters[key] = input.checked;
-          master.checked = group.keys.every((k) => this.filters[k]);
-          onChange({ ...this.filters });
+          notify();
         });
         this.inputs.set(key, input);
-        rows.append(el('label', { for: `layer-${key}` }, [input, filterLabel(key)]));
+        const isolate = action(`Only ${filterLabel(key)}`, () => {
+          for (const candidate of this.inputs.keys()) this.setKey(candidate, candidate === key);
+          notify();
+        });
+        isolate.className = 'layer-item-only';
+        rows.append(el('div', { class: 'layer-row' }, [
+          el('label', { for: `layer-${key}` }, [
+            input,
+            el('span', { class: 'layer-swatch', style: `background:${filterColor(key)}`, 'aria-hidden': 'true' }),
+            el('span', { text: filterLabel(key) }),
+          ]),
+          isolate,
+        ]));
       }
-      const single = group.keys.length === 1;
+      const collapse = action(group.open ? 'Collapse' : 'Expand', () => {
+        const hidden = rows.hidden;
+        rows.hidden = !hidden;
+        collapse.textContent = hidden ? 'Collapse' : 'Expand';
+        collapse.setAttribute('aria-expanded', String(hidden));
+      });
+      collapse.className = 'layer-collapse';
+      collapse.setAttribute('aria-expanded', String(Boolean(group.open)));
+      rows.hidden = !group.open;
+      const only = action('Only', () => {
+        for (const key of this.inputs.keys()) this.setKey(key, group.keys.includes(key));
+        notify();
+      });
+      only.className = 'layer-only';
       this.root.append(
-        el('div', { class: 'layer-group' }, [
-          el('label', { class: 'layer-group-title', for: `layer-group-${group.title}` }, [master, group.title]),
-          ...(single ? [] : [rows]),
+        el('section', { class: 'layer-group' }, [
+          el('div', { class: 'layer-group-header' }, [
+            el('label', { class: 'layer-group-title', for: `layer-group-${group.id}` }, [
+              master,
+              el('span', {}, [el('strong', { text: group.title }), el('small', { text: group.description })]),
+            ]),
+            only,
+            collapse,
+          ]),
+          rows,
         ]),
       );
-      if (single) this.inputs.get(group.keys[0]!)!.remove();
-      if (single) {
-        // one switch groups are their own master
-        master.addEventListener('change', () => { this.filters[group.keys[0]!] = master.checked; });
-      }
+    }
+    this.syncMasters();
+  }
+
+  private setKey(key: FilterKey, visible: boolean): void {
+    this.filters[key] = visible;
+    this.inputs.get(key)!.checked = visible;
+  }
+
+  private syncMasters(): void {
+    for (const group of FILTER_GROUPS) {
+      const master = this.masters.get(group.id)!;
+      master.checked = group.keys.every((key) => this.filters[key]);
+      master.indeterminate = !master.checked && group.keys.some((key) => this.filters[key]);
     }
   }
+}
+
+function action(label: string, handler: () => void): HTMLButtonElement {
+  const button = el('button', { type: 'button', text: label }) as HTMLButtonElement;
+  button.addEventListener('click', handler);
+  return button;
+}
+
+function filterColor(key: FilterKey): string {
+  const [, name] = key.split('.');
+  if (key.startsWith('ground.')) return GROUND_COLORS[name as keyof typeof GROUND_COLORS];
+  if (key.startsWith('zone.')) return parcelColor(name as Parameters<typeof parcelColor>[0], 'mid');
+  if (key.startsWith('street.')) return streetColor(name as Parameters<typeof streetColor>[0]);
+  if (key.startsWith('transit.')) return TRANSIT_COLORS[name === 'bus' ? 'busRoute' : name as 'train' | 'subway'];
+  if (key.startsWith('furniture.')) return FURNITURE_COLORS[name as keyof typeof FURNITURE_COLORS];
+  if (key.startsWith('diagnostic.')) return DIAGNOSTIC_COLORS[name as keyof typeof DIAGNOSTIC_COLORS];
+  return DISTRICT_OUTLINE;
 }
