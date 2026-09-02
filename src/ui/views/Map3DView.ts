@@ -8,7 +8,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import type { CityBlueprint, Parcel, Polygon, Polyline, StreetEdge } from '../../../schema/blueprint';
-import { GROUND_COLORS, TRANSIT_COLORS, parcelColor, streetColor } from '../components/colors';
+import { GROUND_COLORS, TRANSIT_COLORS, parcelHsl, streetColor } from '../components/colors';
 import type { Layers } from './MapView';
 import { DEFAULT_LAYERS } from './MapView';
 
@@ -112,7 +112,8 @@ export class Map3DView {
       if (!parcel || volume.footprint.length < 3) continue;
       const floors = Math.max(1, Math.round(volume.height / parcel.envelope.floorHeight));
       const floorHeight = volume.height / floors;
-      const tone = new THREE.Color(parcelColor(parcel.type, parcel.tier));
+      const [h, sat, light] = parcelHsl(parcel.type, parcel.tier);
+      const tone = new THREE.Color().setHSL(h / 360, sat / 100, light / 100);
       const shape = shapeOf(volume.footprint);
       const group = new THREE.Group();
       for (let i = 0; i < floors; i++) {

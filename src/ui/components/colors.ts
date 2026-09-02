@@ -25,9 +25,15 @@ const TIER_LIGHT: Record<WealthTier, number> = {
   high_rich: 36,
 };
 
-export function parcelColor(type: ParcelType, tier: WealthTier): string {
+/** Hue, saturation and lightness of a parcel's colour, each on its usual scale. */
+export function parcelHsl(type: ParcelType, tier: WealthTier): [h: number, s: number, l: number] {
   const [h, s] = TYPE_HUE[type];
-  return `hsl(${h} ${s}% ${TIER_LIGHT[tier]}%)`;
+  return [h, s, TIER_LIGHT[tier]];
+}
+
+export function parcelColor(type: ParcelType, tier: WealthTier): string {
+  const [h, s, l] = parcelHsl(type, tier);
+  return `hsl(${h} ${s}% ${l}%)`;
 }
 
 export function streetColor(cls: StreetClass): string {
