@@ -133,11 +133,12 @@ export interface Parcel {
 
 /**
  * 3D envelope for downstream building generation.
- * Every parcel footprint keeps its type's band end to end (12 m for offices,
- * corpo, hotel, hospital, mall and factory, 8.5 m for the rest), contains a
- * 7.9 x 5.5 m rectangle for the walkup stair core, and a 10.4 x 8.0 m one
- * for the elevator core when the type is one of those six or the envelope
- * exceeds 6 floors. maxHeight always fits at least one floor of the type's family.
+ * Every parcel footprint hosts the core rectangle its type needs, derived from
+ * interior's core feasibility: the compact elevator core (12.14 x 13.74 m) for
+ * offices, corpo, hotel, hospital, mall and factory, the walkup core
+ * (11.14 x 9.74 m) for the rest. maxFloors stays within what the hosted core
+ * allows (4 with one stair, 6 with two, unlimited with an elevator core) and
+ * maxHeight always fits at least one floor of the type's family.
  */
 export interface Envelope {
   minFloors: number;

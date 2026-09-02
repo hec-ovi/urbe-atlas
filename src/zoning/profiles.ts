@@ -1,14 +1,13 @@
 /**
  * What a lot must offer a parcel type: the setback from the lot line, the
  * band its footprint keeps end to end, the share of the lot that band must
- * cover and the core rectangle it hosts.
+ * cover and the core it hosts.
  */
 import type { ParcelType, Polygon } from '../../schema/blueprint';
 import type { HostingProfile } from '../blocks/Hosting';
 import { trimToBand } from '../geom/band';
 import { area } from '../geom/polygon';
 import { isHeavy, minBand } from './bands';
-import { CORE_DEPTH, CORE_WIDTH, WALKUP_CORE_DEPTH, WALKUP_CORE_WIDTH } from './core';
 
 /** Distance from the lot line to the buildable footprint, meters. */
 const SETBACK: Partial<Record<ParcelType, number>> = {
@@ -32,12 +31,7 @@ export function setback(type: ParcelType): number {
 
 export function hostingProfile(type: ParcelType): HostingProfile {
   const heavy = isHeavy(type);
-  return {
-    setback: setback(type),
-    band: minBand(type),
-    core: heavy ? [CORE_WIDTH, CORE_DEPTH] : [WALKUP_CORE_WIDTH, WALKUP_CORE_DEPTH],
-    keep: heavy ? HEAVY_KEEP : 0,
-  };
+  return { setback: setback(type), band: minBand(type), heavy, keep: heavy ? HEAVY_KEEP : 0 };
 }
 
 /** Profiles a lot may build under, in order: its own type, then the light fallback for a heavy type. */

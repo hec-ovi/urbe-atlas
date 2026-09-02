@@ -10,7 +10,7 @@
 import type { Polygon } from '../../schema/blueprint';
 import { intersection, offset, union } from '../geom/clip';
 import { area, bounds } from '../geom/polygon';
-import { hostFootprint, HostingProfile } from './Hosting';
+import { hostFootprint, HostedFootprint, HostingProfile } from './Hosting';
 
 export interface LotCandidate {
   polygon: Polygon;
@@ -25,6 +25,8 @@ export interface BuildableLot {
   /** Lot polygon, grown when it absorbed a neighbour. */
   polygon: Polygon;
   footprint: Polygon;
+  /** Floors the hosted core allows, Infinity with an elevator core. */
+  floorCap: number;
   /** Index of the hosted profile in the lot's list. */
   profile: number;
 }
@@ -35,8 +37,7 @@ export interface BuildabilityResult {
   openAreas: Map<number, Polygon[]>;
 }
 
-interface Hosted {
-  footprint: Polygon;
+interface Hosted extends HostedFootprint {
   profile: number;
 }
 
@@ -84,7 +85,7 @@ export class Buildability {
     const survivors: BuildableLot[] = [];
     for (let i = 0; i < lots.length; i++) {
       const h = hosted[i];
-      if (alive[i] && h) survivors.push({ index: i, polygon: polygons[i], footprint: h.footprint, profile: h.profile });
+      if (alive[i] && h) survivors.push({ index: i, polygon: polygons[i], ...h });
     }
     return { lots: survivors, openAreas };
   }
@@ -93,8 +94,8 @@ export class Buildability {
 /** First profile the lot hosts, with the footprint it yields. */
 function host(lot: Polygon, profiles: HostingProfile[]): Hosted | null {
   for (let k = 0; k < profiles.length; k++) {
-    const footprint = hostFootprint(lot, profiles[k]);
-    if (footprint) return { footprint, profile: k };
+    const hosted = hostFootprint(lot, profiles[k]);
+    if (hosted) return { ...hosted, profile: k };
   }
   return null;
 }

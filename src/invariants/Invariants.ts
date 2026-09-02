@@ -1,15 +1,7 @@
 /** Post-generation coherence checks; any failure throws E_INVARIANT. */
 import type { CityBlueprint } from '../../schema/blueprint';
 import { invariantFailure } from '../errors';
-import {
-  CORE_DEPTH,
-  CORE_WIDTH,
-  NO_CORE_MAX_FLOORS,
-  WALKUP_CORE_DEPTH,
-  WALKUP_CORE_WIDTH,
-  fitsCore,
-  fitsWalkupCore,
-} from '../zoning/core';
+import { COMPACT_RECT, coreFit } from '../zoning/core';
 import { isHeavy, minBand } from '../zoning/bands';
 import { minFloorHeight } from '../zoning/floorMinimums';
 import { ALLEY_WIDTH } from '../streets/widths';
@@ -74,18 +66,15 @@ export class Invariants {
           `parcel ${p.id} (${p.type}) keeps a ${bandWidth(p.footprint).toFixed(2)} m band, below the ${minBand(p.type)} m its type needs`,
         );
       }
-      if (isHeavy(p.type) && !fitsCore(p.footprint)) {
-        throw invariantFailure(`parcel ${p.id} (${p.type}) footprint cannot host the ${CORE_WIDTH}x${CORE_DEPTH} m core`);
-      }
-      if (!fitsWalkupCore(p.footprint)) {
+      const fit = coreFit(p.footprint);
+      if (isHeavy(p.type) && !fit.compact) {
         throw invariantFailure(
-          `parcel ${p.id} footprint cannot host the ${WALKUP_CORE_WIDTH}x${WALKUP_CORE_DEPTH} m walkup core`,
+          `parcel ${p.id} (${p.type}) footprint cannot host the ${COMPACT_RECT.join('x')} m compact core`,
         );
       }
-      if (p.envelope.maxFloors > NO_CORE_MAX_FLOORS && !fitsCore(p.footprint)) {
-        throw invariantFailure(
-          `parcel ${p.id} has ${p.envelope.maxFloors} floors but its footprint cannot host the ${CORE_WIDTH}x${CORE_DEPTH} m core`,
-        );
+      if (fit.floorCap === 0) throw invariantFailure(`parcel ${p.id} footprint hosts no core rectangle`);
+      if (p.envelope.maxFloors > fit.floorCap) {
+        throw invariantFailure(`parcel ${p.id} has ${p.envelope.maxFloors} floors, over the ${fit.floorCap} its core allows`);
       }
       const minHeight = minFloorHeight(p.type);
       if (p.envelope.maxHeight < minHeight - 1e-6) {

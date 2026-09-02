@@ -23,9 +23,13 @@ const MIN_FLOOR_HEIGHT: Record<ParcelType, number> = {
   police: 3.0, military: 3.0, factory: 4.5, commerce: 3.0, mall: 3.0, restaurant: 3.0, coffee_shop: 3.0,
 };
 
-/** Band each type's footprint keeps end to end, meters (CONTRACT.md). */
+/** Core hosting rectangles, [length, depth] meters, and the band each type keeps end to end (CONTRACT.md). */
 const HEAVY_TYPES = new Set<ParcelType>(['offices', 'corpo', 'hotel', 'hospital', 'mall', 'factory']);
-const minBand = (type: ParcelType): number => (HEAVY_TYPES.has(type) ? 12 : 8.5);
+const WALKUP = [11.14, 9.74];
+const WALKUP_TWO_STAIRS = [17.64, 9.74];
+const COMPACT = [12.14, 13.74];
+const STANDARD = [20.14, 9.74];
+const minBand = (type: ParcelType): number => (HEAVY_TYPES.has(type) ? 12.14 : 9.74);
 
 /** Sharpest turn a street centerline may make, from CONTRACT.md. */
 const MAX_TURN_DEG = 120;
@@ -128,14 +132,14 @@ describe('blueprint output', () => {
       expect(p.envelope.maxHeight).toBeGreaterThanOrEqual(MIN_FLOOR_HEIGHT[p.type]);
       // band guarantee: the footprint keeps its type's band end to end
       expect(bandWidth(p.footprint), `${p.id} ${p.type} band`).toBeGreaterThanOrEqual(minBand(p.type) - 1e-6);
-      // walkup core guarantee: footprint OBB must at least span 7.9 x 5.5
+      // core guarantees: the footprint OBB at least spans the rectangle its type and floors need
       const obb = orientedBoundingBox(p.footprint);
-      expect(obb.length).toBeGreaterThanOrEqual(7.9);
-      expect(obb.width).toBeGreaterThanOrEqual(5.5);
-      if (p.envelope.maxFloors > 6 || HEAVY_TYPES.has(p.type)) {
-        // elevator core guarantee: footprint OBB must at least span 10.4 x 8
-        expect(obb.length).toBeGreaterThanOrEqual(10.4);
-        expect(obb.width).toBeGreaterThanOrEqual(8.0);
+      const spans = (rect: number[]): boolean => obb.length >= Math.max(...rect) - 1e-6 && obb.width >= Math.min(...rect) - 1e-6;
+      expect(spans(WALKUP), `${p.id} walkup core`).toBe(true);
+      if (HEAVY_TYPES.has(p.type)) expect(spans(COMPACT), `${p.id} ${p.type} compact core`).toBe(true);
+      if (p.envelope.maxFloors > 6) expect(spans(COMPACT) || spans(STANDARD), `${p.id} elevator core`).toBe(true);
+      else if (p.envelope.maxFloors > 4) {
+        expect(spans(WALKUP_TWO_STAIRS) || spans(COMPACT) || spans(STANDARD), `${p.id} two-stair core`).toBe(true);
       }
     }
 

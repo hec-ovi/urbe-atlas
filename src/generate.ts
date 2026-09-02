@@ -28,7 +28,6 @@ import { BlockBuilder, BuiltBlock } from './blocks/BlockBuilder';
 import { Buildability } from './blocks/Buildability';
 import { Subdivision, SubdivisionConfig } from './blocks/Subdivision';
 import { Zoning, LotInput } from './zoning/Zoning';
-import { NO_CORE_MAX_FLOORS, fitsCore } from './zoning/core';
 import { hostingProfiles } from './zoning/profiles';
 import { TransitPlanner } from './transit/TransitPlanner';
 import { Invariants } from './invariants/Invariants';
@@ -37,7 +36,7 @@ import { area, bounds, centroid, pointInPolygon } from './geom/polygon';
 import { directionAt, length as lineLength, pointAt } from './geom/polyline';
 import { closestOnSegment, cross, dist, sub } from './geom/vec';
 
-export const BLUEPRINT_VERSION = '0.3.2';
+export const BLUEPRINT_VERSION = '0.3.3';
 
 const SUBDIVISION: Record<DistrictKind, SubdivisionConfig> = {
   downtown: { minLotArea: 500, maxLotArea: 2600, chanceNoDivide: 0.12 },
@@ -221,10 +220,10 @@ export function generateCity(input: AtlasParams): CityBlueprint {
     const raw = rawLots[lot.index];
     const block = builtBlocks[raw.blockIndex];
     const footprint = lot.footprint;
-    // above 6 floors the footprint must host the elevator/stair core
+    // floors stay within what the hosted core allows
     let envelope = z.envelope;
-    if (envelope.maxFloors > NO_CORE_MAX_FLOORS && !fitsCore(footprint)) {
-      const maxFloors = NO_CORE_MAX_FLOORS;
+    if (envelope.maxFloors > lot.floorCap) {
+      const maxFloors = lot.floorCap;
       envelope = {
         minFloors: Math.min(envelope.minFloors, maxFloors),
         maxFloors,
