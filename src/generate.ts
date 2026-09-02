@@ -43,7 +43,7 @@ import { LEVELS } from './levels';
 import { cityGridAngle } from './grid';
 import { RAIL, STATION } from './transit/stations';
 
-export const BLUEPRINT_VERSION = '0.13.0';
+export const BLUEPRINT_VERSION = '0.13.1';
 
 const SUBDIVISION: Record<DistrictKind, SubdivisionConfig> = {
   downtown: { minLotArea: 500, maxLotArea: 2600, chanceNoDivide: 0.12 },
@@ -403,7 +403,8 @@ export function generateCity(input: AtlasParams): CityBlueprint {
     Rng.from(seed, 'planting'),
   );
   const subwayShafts = transit.subwayStations.flatMap((station) => station.shafts.map((shaft) => shaft.footprint));
-  const structures = highwayStructures(streetEdges, [...trainNoBuild, ...subwayShafts]);
+  const pedestrianPaving = builtBlocks.flatMap((block) => [...block.curb, ...block.sidewalk]);
+  const structures = highwayStructures(streetEdges, [...trainNoBuild, ...subwayShafts, ...pedestrianPaving]);
 
   // face = its roadway part + block pieces + open pieces, so per-face
   // differences give hole-free roadway ground and exact coverage.

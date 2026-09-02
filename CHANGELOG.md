@@ -1,5 +1,7 @@
 # Changelog
 
+0.2.19: blueprint 0.13.1 treats every curb and sidewalk polygon as a highway-column exclusion. A blocked column moves laterally under its deck or shifts backward while retaining a 30 m maximum span. Generation fails with `E_INVARIANT` when no valid support fits.
+
 0.2.18: blueprint 0.13.0 publishes exact distance-to-height profiles on every street edge and highway structure. A city-edge highway ramp rises linearly from grade to the 8 m deck over its computed run, retaining a breakpoint inside an edge when needed. Each street node groups incident edges by endpoint height, so routing cannot turn between a grade street and an elevated crossing.
 
 0.2.17: blueprint 0.12.0 publishes one continuous 3D access path per subway entrance. Four switchback stair flights stay inside the shaft, descend from grade to -12 m without a vertical edge, then a level passage reaches an explicit handoff inside the platform. Invariants reject missing, discontinuous, vertical or off-level paths.

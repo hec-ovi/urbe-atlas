@@ -4,7 +4,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import { generateCity } from '../src';
-import { HIGHWAY_DECK, HIGHWAY_EXIT_TOLERANCE, highwayRuns } from '../src/streets/Highways';
+import { HIGHWAY_DECK, HIGHWAY_EXIT_TOLERANCE, highwayRuns, highwayStructures } from '../src/streets/Highways';
 import { area, bounds, distanceToOutline } from '../src/geom/polygon';
 import { bufferLine, intersection } from '../src/geom/clip';
 import { distanceTo } from '../src/geom/polyline';
@@ -32,6 +32,22 @@ describe('highway runs', () => {
       highways.reduce((sum, e) => sum + length(e.path), 0),
       3,
     );
+  });
+
+  it('moves a support away from a pedestrian crossing band', () => {
+    const edge = { id: 'e0', class: 'highway' as const, from: 'n0', to: 'n1', path: [[0, 0], [240, 0]] as Vec2[] };
+    const crossing: Vec2[] = [[70, -8], [80, -8], [80, 8], [70, 8]];
+    const structure = highwayStructures([edge], [crossing])[0];
+    for (const support of structure.supports) {
+      const overlap = intersection([support.footprint], [crossing]).reduce((sum, polygon) => sum + area(polygon), 0);
+      expect(overlap).toBeLessThanOrEqual(1e-6);
+    }
+  });
+
+  it('fails closed when pedestrian paving blocks every valid support position', () => {
+    const edge = { id: 'e0', class: 'highway' as const, from: 'n0', to: 'n1', path: [[0, 0], [240, 0]] as Vec2[] };
+    const blocked: Vec2[] = [[60, -9], [180, -9], [180, 9], [60, 9]];
+    expect(() => highwayStructures([edge], [blocked])).toThrow(/cannot place a support/);
   });
 
   it('cuts a run only where the network ends or forks', () => {
@@ -94,6 +110,12 @@ describe('highway runs', () => {
           if (!overlapsBounds(support.footprint, parcel.footprint)) continue;
           const overlap = intersection([support.footprint], [parcel.footprint]).reduce((sum, polygon) => sum + area(polygon), 0);
           expect(overlap, `${structure.edgeIds[0]} support and ${parcel.id}`).toBeLessThanOrEqual(1e-6);
+        }
+        for (const surface of bp.volumetric.ground) {
+          if (surface.surface !== 'curb' && surface.surface !== 'sidewalk') continue;
+          if (!overlapsBounds(support.footprint, surface.polygon)) continue;
+          const overlap = intersection([support.footprint], [surface.polygon]).reduce((sum, polygon) => sum + area(polygon), 0);
+          expect(overlap, `${structure.edgeIds[0]} support and ${surface.surface}`).toBeLessThanOrEqual(1e-6);
         }
       }
     }
