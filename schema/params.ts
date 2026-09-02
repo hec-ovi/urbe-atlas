@@ -14,7 +14,7 @@ export interface AtlasParams {
   seed: Seed;
   /** City extent bounding box in meters. The city shape is irregular inside it. Default { width: 1000, depth: 1000 }. */
   size?: { width: number; depth: number };
-  /** 0..1: 0 leans rectangular grid, 1 heavily organic/curved. Default 0.6. */
+  /** 0..1: 0 leans rectangular grid, 1 heavily organic/curved. Default 0.35. */
   irregularity?: number;
   /** District count range, inclusive. Default scales with area (about 2 per sqrt(km2), range 0.7x-1.3x): a village gets [1, 2-3], the default 3 km city [4, 8]. */
   districtCount?: [min: number, max: number];

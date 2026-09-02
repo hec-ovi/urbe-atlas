@@ -40,7 +40,7 @@ export function resolveParams(input: AtlasParams): ResolvedParams {
     throw invalidParams('size.width and size.depth must be positive meters', { field: 'size' });
   }
 
-  const irregularity = input.irregularity ?? 0.6;
+  const irregularity = input.irregularity ?? 0.35;
   if (!(irregularity >= 0 && irregularity <= 1)) {
     throw invalidParams('irregularity must be in [0, 1]', { field: 'irregularity' });
   }

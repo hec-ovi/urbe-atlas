@@ -39,7 +39,7 @@ export class ParamsPanel {
     this.seed = el('input', { type: 'text', value: 'urbe', id: 'seed' });
     this.width = el('input', { type: 'number', value: '1000', min: '300', step: '100', id: 'width' });
     this.depth = el('input', { type: 'number', value: '1000', min: '300', step: '100', id: 'depth' });
-    this.irregularity = el('input', { type: 'range', min: '0', max: '1', step: '0.05', value: '0.6', id: 'irregularity' });
+    this.irregularity = el('input', { type: 'range', min: '0', max: '1', step: '0.05', value: '0.35', id: 'irregularity' });
     this.maxFloors = el('input', { type: 'number', value: '40', min: '1', id: 'maxFloors' });
 
     const featureFields: HTMLElement[] = [];

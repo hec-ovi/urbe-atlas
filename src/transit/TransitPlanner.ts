@@ -23,6 +23,7 @@ import { dist, normalize, sub, add, scale } from '../geom/vec';
 import { distanceTo, length as lineLength, offsetAt, pointAt } from '../geom/polyline';
 import { carriagewayWidth } from '../streets/widths';
 import { LEVELS } from '../levels';
+import { bounds } from '../geom/polygon';
 
 interface Adj {
   edge: BuiltEdge;
@@ -34,6 +35,8 @@ interface Adj {
 const CLASS_COST: Record<StreetClass, number> = { highway: 1.4, road: 0.6, street: 1.0, alley: Infinity };
 
 export class TransitPlanner {
+  /** 1 in a city 1.6 km across or larger; smaller cities space their bus stops closer, in proportion. */
+  private stopScale = 1;
   private readonly nodes: BuiltNode[];
   private readonly nodeById = new Map<string, BuiltNode>();
   private readonly edgeById = new Map<string, BuiltEdge>();
@@ -134,6 +137,8 @@ export class TransitPlanner {
     rng: Rng;
   }): Transit {
     const { districts, cityCenter, population, rng } = options;
+    const extent = bounds(options.boundary);
+    this.stopScale = Math.min(1, Math.min(extent.max[0] - extent.min[0], extent.max[1] - extent.min[1]) / FULL_SIZE_EXTENT);
     const transit: Transit = {
       busStops: [],
       busRoutes: [],
@@ -266,7 +271,8 @@ export class TransitPlanner {
       const l = lineLength(path);
       const di = districtOfNode(at);
       const central = dist(this.nodeById.get(at)!.position, cityCenter) < districts[di]?.radius * 1.5;
-      const spacing = central ? 320 : 460;
+      // researched spacing for a full-size city, closer in a small one so a short route still gets its stops
+      const spacing = (central ? 320 : 460) * this.stopScale;
       let cursor = 26; // clearance from the intersection
       while (cursor < l - 26) {
         sinceLast += cursor === 26 ? 26 : 0;
@@ -388,3 +394,6 @@ function lerpBend(a: Vec2, b: Vec2, rng: Rng): Vec2 {
   const f = rng.range(-0.08, 0.08);
   return [mid[0] + side[0] * f, mid[1] + side[1] * f];
 }
+
+/** The extent from which bus stop spacing is the researched full-size value. */
+const FULL_SIZE_EXTENT = 1600;
