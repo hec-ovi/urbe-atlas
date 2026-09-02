@@ -25,7 +25,7 @@ import { directionAt, distanceTo, length as lineLength, offsetAt, pointAt } from
 import { type EntrancePlace, RAIL, STATION, boxOf, platformOf, rectangle, stationAccessOf } from './stations';
 import { carriagewayWidth } from '../streets/widths';
 import { LEVELS } from '../levels';
-import { area, bounds, pointInPolygon } from '../geom/polygon';
+import { area, bounds, distanceToOutline, pointInPolygon } from '../geom/polygon';
 import { intersection } from '../geom/clip';
 
 interface Adj {
@@ -392,18 +392,35 @@ export class TransitPlanner {
     const count = Math.max(2, Math.round(total / spacing) + 1);
     const ids: string[] = [];
     for (let i = 0; i < count; i++) {
-      const along = (total * i) / (count - 1);
-      const pos = this.enterablePoint(geometry, along, spacing / 3, entranceObstacles);
-      if (!pos) continue; // nowhere along here that a street can reach: no station
-      const existing = all.find((s) => dist(s.position, pos) < mergeRadius);
+      const terminal = i === 0 ? geometry[0] : i === count - 1 ? geometry[geometry.length - 1] : null;
+      const platformHalf = STATION.subway.platformLength / 2;
+      const desired = i === 0
+        ? Math.min(platformHalf, total / 2)
+        : i === count - 1
+          ? Math.max(total - platformHalf, total / 2)
+          : (total * i) / (count - 1);
+      const placed = this.enterablePoint(
+        geometry,
+        desired,
+        terminal ? platformHalf : spacing / 3,
+        entranceObstacles,
+        terminal
+          ? (candidate) => covers(
+            platformOf(candidate.point, directionAt(geometry, candidate.along), 'subway'),
+            terminal,
+          )
+          : undefined,
+      );
+      if (!placed) continue; // nowhere along here that a street can reach: no station
+      const existing = terminal ? undefined : all.find((s) => dist(s.position, placed.point) < mergeRadius);
       if (existing) {
         if (ids[ids.length - 1] !== existing.id) ids.push(existing.id);
         continue;
       }
       const st = this.makeStation(
         `${prefix}${all.length}`,
-        pos,
-        directionAt(geometry, along),
+        placed.point,
+        directionAt(geometry, placed.along),
         districtOfNode,
         level,
         entranceObstacles,
@@ -420,7 +437,13 @@ export class TransitPlanner {
    * along the line either way, and gives up rather than leave a platform
    * nobody can enter.
    */
-  private enterablePoint(geometry: Polyline, along: number, slide: number, entranceObstacles: Polygon[]): Vec2 | null {
+  private enterablePoint(
+    geometry: Polyline,
+    along: number,
+    slide: number,
+    entranceObstacles: Polygon[],
+    accepts: (candidate: { point: Vec2; along: number }) => boolean = () => true,
+  ): { point: Vec2; along: number } | null {
     const total = lineLength(geometry);
     const reach = (p: Vec2): number => {
       const places = this.entrancesNear(p, entranceObstacles);
@@ -432,7 +455,8 @@ export class TransitPlanner {
       const at = along + offset;
       if (at < 0 || at > total) continue;
       const p = pointAt(geometry, at);
-      if (reach(p) <= STATION.maxPassage) return p;
+      const candidate = { point: p, along: at };
+      if (reach(p) <= STATION.maxPassage && accepts(candidate)) return candidate;
     }
     return null;
   }
@@ -508,6 +532,11 @@ export class TransitPlanner {
   private hasGroundConnection(nodeId: string): boolean {
     return this.adjacency.has(stateKey(nodeId, LEVELS.ground));
   }
+}
+
+/** Boundary points count as covered: line termini land on the platform end face. */
+function covers(polygon: Polygon, point: Vec2): boolean {
+  return pointInPolygon(point, polygon) || distanceToOutline(point, polygon) <= 1e-6;
 }
 
 /** Stable key for one physical node at one driveable elevation. */

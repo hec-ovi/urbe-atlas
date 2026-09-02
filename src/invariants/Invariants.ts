@@ -247,6 +247,18 @@ function checkRailNetwork(
       if (!stations.some((s) => s.id === id)) throw invariantFailure(`${label} line ${l.id} references missing station ${id}`);
     }
     if (l.stationIds.length < 2) throw invariantFailure(`${label} line ${l.id} serves fewer than 2 stations`);
+    if (label === 'subway') {
+      const first = stations.find((station) => station.id === l.stationIds[0])!;
+      const last = stations.find((station) => station.id === l.stationIds[l.stationIds.length - 1])!;
+      for (const [station, endpoint, end] of [
+        [first, l.path[0], 'start'],
+        [last, l.path[l.path.length - 1], 'end'],
+      ] as const) {
+        if (!pointInPolygon(endpoint, station.platform) && distanceToOutline(endpoint, station.platform) > 1e-6) {
+          throw invariantFailure(`${label} line ${l.id} ${end} leaves terminal platform ${station.id}`, { endpoint });
+        }
+      }
+    }
   }
   // network connected: stations linked when they share a line
   const parent = new Map<string, string>();
