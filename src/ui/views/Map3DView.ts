@@ -14,6 +14,8 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import type { CityBlueprint, Parcel, Polygon, Polyline, StreetEdge, Vec2 } from '../../../schema/blueprint';
 import { GROUND_COLORS, TRANSIT_COLORS, parcelHsl, streetColor } from '../components/colors';
 import { defaultFilters, type FilterKey, type Filters } from './filters';
+import { highwayRuns } from '../../streets/Highways';
+import { LEVELS } from '../../levels';
 
 const SKY = 0x0e1117;
 const FLOOR_GAP = 0.08;
@@ -179,23 +181,21 @@ export class Map3DView {
   }
 
   private buildStreets(bp: CityBlueprint): void {
-    const nodes = new Map(bp.streets.nodes.map((n) => [n.id, n]));
-    const decks = highwayEnds(bp.streets.edges);
     const parts: Record<string, THREE.BufferGeometry[]> = { street: [], road: [], highway: [], alley: [] };
     const piers: THREE.BufferGeometry[] = [];
     for (const edge of bp.streets.edges) {
+      if (edge.level > 0) continue; // highways are drawn as whole runs below
       const width = Math.max(1.5, edge.width + edge.sidewalk.left + edge.sidewalk.right);
-      if (edge.level > 0) {
-        // a deck with thickness, ramping to the ground where the highway ends
-        const path = edge.path.map(([x, z]) => [x, z] as Vec2);
-        const startRamp = decks.has(edge.from) ? RAMP_LENGTH : 0;
-        const endRamp = decks.has(edge.to) ? RAMP_LENGTH : 0;
-        parts[edge.class]!.push(deck(path, width, edge.level, DECK_THICKNESS, startRamp, endRamp));
-        piers.push(...piersAlong(path, width, edge.level, startRamp, endRamp));
-      } else {
-        parts[edge.class]!.push(ribbon(edge.path, width, edge.level + UNDER_GROUND));
-      }
-      void nodes;
+      parts[edge.class]!.push(ribbon(edge.path, width, edge.level + UNDER_GROUND));
+    }
+    // One deck per highway run, not per edge: a route is continuous through its
+    // junctions and ramps to the ground only where it leaves the city.
+    const highwayWidth = bp.streets.edges.find((e) => e.class === 'highway')?.width ?? 15;
+    for (const run of highwayRuns(bp.streets.edges)) {
+      const closed = dist(run[0]!, run[run.length - 1]!) < 1e-6;
+      const ramp = closed ? 0 : RAMP_LENGTH;
+      parts.highway!.push(deck(run, highwayWidth, LEVELS.highway, DECK_THICKNESS, ramp, ramp));
+      piers.push(...piersAlong(run, highwayWidth, LEVELS.highway, ramp, ramp));
     }
     for (const cls of Object.keys(parts) as (keyof typeof parts)[]) {
       this.merged(`street.${cls as StreetEdge['class']}`, parts[cls]!, new THREE.MeshLambertMaterial({ color: streetColor(cls as StreetEdge['class']) }));
@@ -423,17 +423,6 @@ function piersAlong(path: Polyline, width: number, level: number, startRamp: num
 function tunnel(path: Polyline, radius: number, level: number): THREE.BufferGeometry {
   const points = path.map(([x, z]) => new THREE.Vector3(x, level, z));
   return new THREE.TubeGeometry(new THREE.CatmullRomCurve3(points, false, 'centripetal', 0.1), Math.max(8, path.length * 4), radius, 8, false);
-}
-
-/** The nodes where a highway ends: one highway edge only, so the deck ramps down there. */
-function highwayEnds(edges: StreetEdge[]): Set<string> {
-  const count = new Map<string, number>();
-  for (const e of edges) {
-    if (e.class !== 'highway') continue;
-    count.set(e.from, (count.get(e.from) ?? 0) + 1);
-    count.set(e.to, (count.get(e.to) ?? 0) + 1);
-  }
-  return new Set([...count.entries()].filter(([, n]) => n === 1).map(([id]) => id));
 }
 
 function normalize([x, z]: Vec2): Vec2 {

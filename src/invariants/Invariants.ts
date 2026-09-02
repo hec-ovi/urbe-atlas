@@ -5,6 +5,7 @@ import { COMPACT_RECT, coreFit } from '../zoning/core';
 import { isHeavy, minBand } from '../zoning/bands';
 import { minFloorHeight } from '../zoning/floorMinimums';
 import { ALLEY_WIDTH } from '../streets/widths';
+import { HIGHWAY_EXIT_TOLERANCE } from '../streets/Highways';
 import { bandWidth, hostsBand } from '../geom/band';
 import { area, distanceToOutline, isSimpleRing, pointInPolygon } from '../geom/polygon';
 import { distanceTo } from '../geom/polyline';
@@ -91,6 +92,27 @@ export class Invariants {
     for (const e of bp.streets.edges) {
       if (e.class !== 'highway' && (e.sidewalk.left <= 0 || e.sidewalk.right <= 0)) {
         throw invariantFailure(`edge ${e.id} (${e.class}) is missing a sidewalk`);
+      }
+    }
+
+    // highways are through routes: an end is a junction with another highway
+    // or a point at the city edge, never a deck stopping over a block
+    const highwayEnds = new Map<string, number>();
+    for (const e of bp.streets.edges) {
+      if (e.class !== 'highway') continue;
+      highwayEnds.set(e.from, (highwayEnds.get(e.from) ?? 0) + 1);
+      highwayEnds.set(e.to, (highwayEnds.get(e.to) ?? 0) + 1);
+    }
+    const nodeById = new Map(bp.streets.nodes.map((n) => [n.id, n]));
+    for (const [nodeId, count] of highwayEnds) {
+      if (count !== 1) continue;
+      const node = nodeById.get(nodeId);
+      if (!node) throw invariantFailure(`highway end references missing node ${nodeId}`);
+      const d = distanceToOutline(node.position, bp.meta.boundary);
+      if (d > HIGHWAY_EXIT_TOLERANCE) {
+        throw invariantFailure(`highway dead-ends ${d.toFixed(1)} m inside the city at ${nodeId}`, {
+          node: node.position,
+        });
       }
     }
 

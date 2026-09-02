@@ -20,6 +20,7 @@ import { DistrictShapes } from './districts/DistrictShapes';
 import { StreetGrowth } from './streets/StreetGrowth';
 import { AlleyPlanner } from './streets/AlleyPlanner';
 import { StreetGraphBuilder } from './streets/Graph';
+import { demoteDeadEnds } from './streets/Highways';
 import { FaceExtractor } from './streets/Faces';
 import type { Face } from './streets/Faces';
 import { Crossings } from './streets/Crossings';
@@ -117,6 +118,10 @@ export function generateCity(input: AtlasParams): CityBlueprint {
       faces = facesOf(graph.edges);
     }
   }
+
+  // A highway that stops inside the city would leave its deck dead-ending over
+  // a block: those chains become road before widths and blocks are read.
+  demoteDeadEnds(graph.edges, graph.nodes, boundary);
 
   // --- street edges with widths and districts ---------------------------
   const edgeDistrict = new Map<string, number>();
