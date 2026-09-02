@@ -85,7 +85,9 @@ describe('highway runs', () => {
       }
       for (const support of structure.supports) {
         supports++;
-        expect(distanceTo(structure.path, support.position)).toBeLessThan(0.002);
+        expect(distanceTo(structure.path, support.position)).toBeLessThanOrEqual(
+          structure.width / 2 - HIGHWAY_DECK.supportSize / 2 + 0.002,
+        );
         expect(support.bottom).toBe(0);
         expect(support.top).toBe(structure.level - structure.deckThickness);
         for (const parcel of bp.parcels) {

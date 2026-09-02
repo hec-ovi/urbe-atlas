@@ -34,14 +34,15 @@ import { Zoning, LotInput } from './zoning/Zoning';
 import { hostingProfiles } from './zoning/profiles';
 import { TransitPlanner } from './transit/TransitPlanner';
 import { Invariants } from './invariants/Invariants';
-import { bufferLine, difference, intersection, snapPoint, union } from './geom/clip';
+import { bufferLine, difference, intersection, offset, snapPoint, union } from './geom/clip';
 import { area, bounds, centroid, pointInPolygon } from './geom/polygon';
 import { directionAt, length as lineLength, pointAt } from './geom/polyline';
 import { closestOnSegment, cross, dist, sub } from './geom/vec';
 import { LEVELS } from './levels';
 import { cityGridAngle } from './grid';
+import { RAIL, STATION } from './transit/stations';
 
-export const BLUEPRINT_VERSION = '0.10.0';
+export const BLUEPRINT_VERSION = '0.11.0';
 
 const SUBDIVISION: Record<DistrictKind, SubdivisionConfig> = {
   downtown: { minLotArea: 500, maxLotArea: 2600, chanceNoDivide: 0.12 },
@@ -159,6 +160,42 @@ export function generateCity(input: AtlasParams): CityBlueprint {
     return Math.max(e.sidewalk.left, e.sidewalk.right);
   };
   const streetEdgeById = new Map(streetEdges.map((e) => [e.id, e]));
+  // Curved joins can extend the deck into a face beyond its centerline
+  // offset, so construction clearance is reserved from the exact buffered
+  // run. A wider exclusion keeps an entire train platform away from a deck,
+  // regardless of the platform's eventual orientation.
+  const highwayNoBuild = union(
+    streetEdges
+      .filter((edge) => edge.class === 'highway')
+      .flatMap((edge) => bufferLine(edge.path, edge.width + HIGHWAY_DECK.buildingClearance * 2)),
+  );
+  const trainStationExclusion = union(
+    streetEdges
+      .filter((edge) => edge.class === 'highway')
+      .flatMap((edge) => bufferLine(
+        edge.path,
+        edge.width
+          + Math.hypot(STATION.train.platformLength, STATION.train.platformWidth)
+          + RAIL.buildingClearance * 2,
+      )),
+  );
+  // Transit runs on the driveable graph. The train is planned now because its
+  // grade-level right-of-way must be removed before parcels are subdivided.
+  const vehicleEdges = graph.edges.filter((edge) => edge.class !== 'alley');
+  const vehicleEdgeIds = new Set(vehicleEdges.map((edge) => edge.id));
+  const vehicleNodes = graph.nodes.filter((node) => node.edgeIds.some((id) => vehicleEdgeIds.has(id)));
+  const planner = new TransitPlanner(vehicleNodes, vehicleEdges, sidewalkOf);
+  const nodeById = new Map(graph.nodes.map((node) => [node.id, node]));
+  const transitRng = Rng.from(seed, 'transit');
+  const trainPlan = params.features.trains
+    ? planner.planTrain({
+        districtOfNode: (nodeId) => districtOfPoint(nodeById.get(nodeId)!.position),
+        cityCenter,
+        boundary,
+        stationExclusion: trainStationExclusion,
+        rng: transitRng,
+      })
+    : undefined;
 
   // --- blocks -----------------------------------------------------------
   // An alley has no carriageway to carve out: the sidewalk rings of the two
@@ -202,23 +239,22 @@ export function generateCity(input: AtlasParams): CityBlueprint {
       return e !== undefined && (e.sidewalk.left > 0 || e.sidewalk.right > 0);
     }),
   );
-  // The deck reservation is wider than the carriageway by the construction
-  // clearance published in HIGHWAY_DECK. Curves and round junction joins can
-  // enter a face beyond its straight edge offset, so cut that exact footprint
-  // from buildable land before subdivision instead of letting a facade meet
-  // or cross the deck edge.
-  const highwayNoBuild = union(
-    streetEdges
-      .filter((edge) => edge.class === 'highway')
-      .flatMap((edge) => bufferLine(edge.path, edge.width + HIGHWAY_DECK.buildingClearance * 2)),
-  );
+  const trainNoBuild = trainPlan
+    ? union([
+        ...trainPlan.trainLines.flatMap((line) =>
+          bufferLine(line.path, line.width + RAIL.buildingClearance * 2)),
+        ...trainPlan.trainStations.flatMap((station) =>
+          offset([station.platform], RAIL.buildingClearance)),
+      ])
+    : [];
+  const infrastructureNoBuild = union([...highwayNoBuild, ...trainNoBuild]);
   builtBlocks.forEach((block, blockIndex) => {
     const districtIndex = blockDistrict[blockIndex];
     const cfg = SUBDIVISION[planned[districtIndex].kind];
     const rng = lotRng.fork(blockIndex);
-    const reserved = intersection(block.interior, highwayNoBuild);
+    const reserved = intersection(block.interior, infrastructureNoBuild);
     blockOpenAreas[blockIndex].push(...reserved);
-    for (const interior of difference(block.interior, highwayNoBuild)) {
+    for (const interior of difference(block.interior, infrastructureNoBuild)) {
       // a block reachable only via highways gets no parcels: open ground instead
       if (sidewalkedEdges[blockIndex].length === 0) {
         blockOpenAreas[blockIndex].push(interior);
@@ -328,12 +364,6 @@ export function generateCity(input: AtlasParams): CityBlueprint {
 
   // --- transit -----------------------------------------------------------
   const population = zonedParcels.reduce((s, z) => s + z.residents, 0);
-  // vehicles never enter an alley: the planner only sees the driveable graph
-  const vehicleEdges = graph.edges.filter((e) => e.class !== 'alley');
-  const vehicleEdgeIds = new Set(vehicleEdges.map((e) => e.id));
-  const vehicleNodes = graph.nodes.filter((n) => n.edgeIds.some((id) => vehicleEdgeIds.has(id)));
-  const planner = new TransitPlanner(vehicleNodes, vehicleEdges, sidewalkOf);
-  const nodeById = new Map(graph.nodes.map((n) => [n.id, n]));
   const anchors = parcels
     .filter((p) => p.type === 'hospital' || p.type === 'mall' || p.type === 'corpo')
     .map((p) => centroid(p.lot));
@@ -345,7 +375,9 @@ export function generateCity(input: AtlasParams): CityBlueprint {
     population,
     anchors,
     features: params.features,
-    rng: Rng.from(seed, 'transit'),
+    trainPlan,
+    entranceObstacles: parcels.map((parcel) => parcel.footprint),
+    rng: transitRng,
   });
   pruneUnusedStops(transit.busStops, transit.busRoutes.flatMap((r) => r.stopIds));
 
@@ -366,7 +398,8 @@ export function generateCity(input: AtlasParams): CityBlueprint {
     obstacles,
     Rng.from(seed, 'planting'),
   );
-  const structures = highwayStructures(streetEdges);
+  const subwayShafts = transit.subwayStations.flatMap((station) => station.shafts.map((shaft) => shaft.footprint));
+  const structures = highwayStructures(streetEdges, [...trainNoBuild, ...subwayShafts]);
 
   // face = its roadway part + block pieces + open pieces, so per-face
   // differences give hole-free roadway ground and exact coverage.

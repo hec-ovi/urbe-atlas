@@ -84,8 +84,9 @@ function checkSupports(structure: HighwayStructure): void {
     if (Math.abs(area(support.footprint) - HIGHWAY_DECK.supportSize ** 2) > 0.01) {
       throw invariantFailure(`highway ${structure.edgeIds[0]} has a support with the wrong size`);
     }
-    if (distanceTo(structure.path, support.position) > POSITION_EPS) {
-      throw invariantFailure(`highway ${structure.edgeIds[0]} has a support off its centerline`);
+    const lateral = distanceTo(structure.path, support.position);
+    if (lateral > structure.width / 2 - HIGHWAY_DECK.supportSize / 2 + POSITION_EPS) {
+      throw invariantFailure(`highway ${structure.edgeIds[0]} has a support outside its deck`);
     }
     if (support.bottom !== 0 || Math.abs(support.top - (structure.level - structure.deckThickness)) > 1e-9) {
       throw invariantFailure(`highway ${structure.edgeIds[0]} has a floating support`);

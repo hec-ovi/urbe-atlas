@@ -108,7 +108,7 @@ export interface HighwayStructure {
 
 /** One vertical highway column. Its footprint is reserved outside every building footprint. */
 export interface HighwaySupport {
-  /** Center of the footprint, snapped to the blueprint's 1 mm grid. */
+  /** Center of the footprint under the deck, snapped to the blueprint's 1 mm grid. */
   position: Vec2;
   /** Column footprint in plan, CCW. */
   footprint: Polygon;
@@ -287,6 +287,8 @@ export interface RailLine {
   underground: boolean;
   /** Track height above the ground plane: negative under it (src/levels.ts). */
   level: number;
+  /** Full reserved corridor width: track bed at grade, tunnel diameter underground. */
+  width: number;
 }
 
 /** Low poly city for map previews: one prism per parcel plus ground cover. */

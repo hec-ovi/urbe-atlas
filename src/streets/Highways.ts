@@ -15,9 +15,12 @@ import type {
 } from '../../schema/blueprint';
 import type { BuiltEdge, BuiltNode } from './Graph';
 import { distanceToOutline } from '../geom/polygon';
-import { snapPoint } from '../geom/clip';
-import { length as pathLength, pointAt } from '../geom/polyline';
+import { intersection, snapPoint } from '../geom/clip';
+import { area, bounds } from '../geom/polygon';
+import { directionAt, length as pathLength, pointAt } from '../geom/polyline';
+import { add, scale } from '../geom/vec';
 import { LEVELS } from '../levels';
+import { invariantFailure } from '../errors';
 
 /** What these rules need of an edge: the shape shared by the graph and the blueprint. */
 export interface ClassedEdge {
@@ -189,8 +192,9 @@ export function highwayRuns(edges: readonly ClassedEdge[]): HighwayRun[] {
  * the explicit clearance check makes that relationship fail closed if a
  * future block or zoning change puts a building under the deck.
  */
-export function highwayStructures(edges: readonly ClassedEdge[]): HighwayStructure[] {
+export function highwayStructures(edges: readonly ClassedEdge[], gradeObstacles: readonly Polygon[] = []): HighwayStructure[] {
   const byId = new Map(edges.map((edge) => [edge.id, edge]));
+  const obstacles = gradeObstacles.map((polygon) => ({ polygon, box: bounds(polygon) }));
   return highwayRuns(edges).map((run) => {
     const first = byId.get(run.edgeIds[0])!;
     const width = 'width' in first && typeof first.width === 'number' ? first.width : 15;
@@ -204,21 +208,25 @@ export function highwayStructures(edges: readonly ClassedEdge[]): HighwayStructu
     const supports = [];
     const flatStart = ramps.start;
     const flatEnd = total - ramps.end;
-    for (let along = flatStart + HIGHWAY_DECK.supportPitch / 2; along < flatEnd; along += HIGHWAY_DECK.supportPitch) {
-      const position = snapPoint(pointAt(run.path, along));
-      const half = HIGHWAY_DECK.supportSize / 2;
-      const footprint: Polygon = [
-        [position[0] - half, position[1] - half],
-        [position[0] + half, position[1] - half],
-        [position[0] + half, position[1] + half],
-        [position[0] - half, position[1] + half],
-      ];
-      supports.push({
-        position,
-        footprint,
-        bottom: LEVELS.ground,
-        top: level - HIGHWAY_DECK.thickness,
-      });
+    let previousAlong = flatStart;
+    let targetAlong = flatStart + HIGHWAY_DECK.supportPitch / 2;
+    while (targetAlong < flatEnd) {
+      // Keep the regular pitch until a grade-level rail reservation crosses
+      // the corridor, then shift this and all following columns backward onto
+      // the same new pitch. This brackets the crossing without opening an
+      // unsupported span wider than supportPitch.
+      let along = targetAlong;
+      let support = clearSupportAt(run.path, along, width, level, obstacles);
+      while (!support && along > previousAlong + 1) {
+        along -= 1;
+        support = clearSupportAt(run.path, along, width, level, obstacles);
+      }
+      if (!support) {
+        throw invariantFailure(`highway ${run.edgeIds[0]} cannot place a support clear of grade infrastructure`);
+      }
+      supports.push(support);
+      previousAlong = along;
+      targetAlong = along + HIGHWAY_DECK.supportPitch;
     }
     return {
       edgeIds: run.edgeIds,
@@ -229,5 +237,48 @@ export function highwayStructures(edges: readonly ClassedEdge[]): HighwayStructu
       ramps,
       supports,
     };
+  });
+}
+
+function clearSupportAt(
+  path: Polyline,
+  along: number,
+  deckWidth: number,
+  level: number,
+  obstacles: readonly { polygon: Polygon; box: ReturnType<typeof bounds> }[],
+): HighwayStructure['supports'][number] | null {
+  const center = pointAt(path, along);
+  const direction = directionAt(path, along);
+  const side: Vec2 = [-direction[1], direction[0]];
+  const lateral = Math.max(0, deckWidth / 2 - HIGHWAY_DECK.supportSize / 2 - 0.5);
+  for (const offset of [0, lateral, -lateral]) {
+      const position = snapPoint(add(center, scale(side, offset)));
+      const half = HIGHWAY_DECK.supportSize / 2;
+      const footprint: Polygon = [
+        [position[0] - half, position[1] - half],
+        [position[0] + half, position[1] - half],
+        [position[0] + half, position[1] + half],
+        [position[0] - half, position[1] + half],
+      ];
+      const support = {
+        position,
+        footprint,
+        bottom: LEVELS.ground,
+        top: level - HIGHWAY_DECK.thickness,
+      };
+      if (!hitsAny(footprint, obstacles)) return support;
+  }
+  return null;
+}
+
+function hitsAny(
+  footprint: Polygon,
+  obstacles: readonly { polygon: Polygon; box: ReturnType<typeof bounds> }[],
+): boolean {
+  const box = bounds(footprint);
+  return obstacles.some((obstacle) => {
+    if (obstacle.box.min[0] >= box.max[0] || obstacle.box.max[0] <= box.min[0]
+      || obstacle.box.min[1] >= box.max[1] || obstacle.box.max[1] <= box.min[1]) return false;
+    return intersection([footprint], [obstacle.polygon]).reduce((sum, polygon) => sum + area(polygon), 0) > 1e-6;
   });
 }

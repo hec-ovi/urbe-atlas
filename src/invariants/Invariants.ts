@@ -14,6 +14,7 @@ import { checkStreetEdges } from './streetEdges';
 import { checkStations } from './stations';
 import { checkFurniture } from './furniture';
 import { checkHighwayStructures } from './highways';
+import { checkTransitClearance } from './transitClearance';
 
 /** Shortest run of kerb the generator ever publishes as its own piece, meters. */
 const MIN_CURB_RUN = 0.5;
@@ -174,6 +175,7 @@ export class Invariants {
     checkRailNetwork(bp.transit.subwayStations, bp.transit.subwayLines, 'subway');
     checkRailNetwork(bp.transit.trainStations, bp.transit.trainLines, 'train');
     checkStations(bp);
+    checkTransitClearance(bp);
     checkFurniture(bp);
 
     // feature toggles respected

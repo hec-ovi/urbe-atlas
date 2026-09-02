@@ -18,7 +18,6 @@ import { defaultFilters, type FilterKey, type Filters } from './filters';
 const SKY = 0x0e1117;
 const FLOOR_GAP = 0.08;
 const UNDER_GROUND = -0.02;
-const TUNNEL_RADIUS = 3;
 const PLATFORM_THICKNESS = 1;
 const HEADHOUSE_HEIGHT = 3.2;
 const SIGNAL = { poleHeight: 6, poleSize: 0.28, mastSize: 0.2, headHeight: 0.9, headSize: 0.32 };
@@ -211,11 +210,11 @@ export class Map3DView {
   private buildTransit(bp: CityBlueprint): void {
     const t = bp.transit;
     const under = (level: number) => level < 0;
-    const rail = (key: FilterKey, path: Polyline, level: number, color: string) => {
+    const rail = (key: FilterKey, path: Polyline, level: number, width: number, color: string) => {
       if (under(level)) {
-        this.layer(key).add(new THREE.Mesh(tunnel(path, TUNNEL_RADIUS, level), new THREE.MeshLambertMaterial({ color })));
+        this.layer(key).add(new THREE.Mesh(tunnel(path, width / 2, level), new THREE.MeshLambertMaterial({ color })));
       } else {
-        this.layer(key).add(new THREE.Mesh(ribbon(path, 4, level + 0.06), new THREE.MeshLambertMaterial({ color })));
+        this.layer(key).add(new THREE.Mesh(ribbon(path, width, level + 0.06), new THREE.MeshLambertMaterial({ color })));
       }
     };
     // the earth the tunnels run through: a dark translucent slab under the whole city
@@ -228,8 +227,8 @@ export class Map3DView {
       earth.position.set((b.min[0] + b.max[0]) / 2, -EARTH_DEPTH / 2, (b.min[1] + b.max[1]) / 2);
       this.layer('transit.subway').add(earth);
     }
-    for (const line of t.trainLines) rail('transit.train', line.path, line.level, TRANSIT_COLORS.train);
-    for (const line of t.subwayLines) rail('transit.subway', line.path, line.level, TRANSIT_COLORS.subway);
+    for (const line of t.trainLines) rail('transit.train', line.path, line.level, line.width, TRANSIT_COLORS.train);
+    for (const line of t.subwayLines) rail('transit.subway', line.path, line.level, line.width, TRANSIT_COLORS.subway);
 
     this.merged('transit.train', t.trainStations.flatMap(stationParts), new THREE.MeshLambertMaterial({ color: TRANSIT_COLORS.trainStation }));
     this.merged('transit.subway', t.subwayStations.flatMap(stationParts), new THREE.MeshLambertMaterial({ color: TRANSIT_COLORS.subwayStation }));

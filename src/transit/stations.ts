@@ -31,6 +31,13 @@ export const STATION = {
   maxPassage: 30,
 } as const;
 
+/** Rail corridor dimensions shared by generation, validation and previews. */
+export const RAIL = {
+  trainWidth: 4,
+  subwayDiameter: 6,
+  buildingClearance: 1,
+} as const;
+
 /** A street entrance: where it stands, which way its street runs, how much sidewalk it has. */
 export interface EntrancePlace {
   point: Vec2;
