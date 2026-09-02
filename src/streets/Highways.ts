@@ -51,6 +51,9 @@ export const HIGHWAY_DECK = {
   buildingClearance: 1,
 } as const;
 
+/** Two full ramps plus one supportable flat span. */
+export const MIN_HIGHWAY_RUN = HIGHWAY_DECK.rampLength * 2 + HIGHWAY_DECK.supportPitch;
+
 /** Nodes where a highway ends: exactly one highway edge meets there. */
 export function highwayEndNodes(edges: readonly ClassedEdge[]): Map<string, string[]> {
   const byNode = new Map<string, string[]>();
@@ -103,6 +106,106 @@ export function demoteDeadEnds(edges: BuiltEdge[], nodes: readonly BuiltNode[], 
     }
   }
   return demoted;
+}
+
+/**
+ * Keeps only structurally useful highway runs. When tracing leaves no usable
+ * through route, the shortest graph route between the farthest city-edge
+ * nodes becomes the highway. Its endpoints remain real graph junctions at
+ * grade and its middle rises onto a supportable deck.
+ */
+export function ensureUsableHighway(edges: BuiltEdge[], nodes: readonly BuiltNode[], boundary: Polygon): number {
+  demoteDeadEnds(edges, nodes, boundary);
+  let changed = 0;
+  for (const run of highwayRuns(edges)) {
+    const flat = pathLength(run.path)
+      - (run.rampAtStart ? HIGHWAY_DECK.rampLength : 0)
+      - (run.rampAtEnd ? HIGHWAY_DECK.rampLength : 0);
+    if (flat >= HIGHWAY_DECK.supportPitch) continue;
+    const ids = new Set(run.edgeIds);
+    for (const edge of edges) {
+      if (!ids.has(edge.id) || edge.class !== 'highway') continue;
+      edge.class = 'road';
+      changed++;
+    }
+  }
+  demoteDeadEnds(edges, nodes, boundary);
+  if (edges.some((edge) => edge.class === 'highway')) return changed;
+
+  const candidates = nodes
+    .filter((node) => distanceToOutline(node.position, boundary) <= HIGHWAY_EXIT_TOLERANCE)
+    .sort((a, b) => a.id.localeCompare(b.id));
+  let endpoints: [BuiltNode, BuiltNode] | null = null;
+  let separation = -Infinity;
+  for (let i = 0; i < candidates.length; i++) {
+    for (let j = i + 1; j < candidates.length; j++) {
+      const apart = dist(candidates[i].position, candidates[j].position);
+      if (apart > separation + 1e-9) {
+        endpoints = [candidates[i], candidates[j]];
+        separation = apart;
+      }
+    }
+  }
+  if (!endpoints || separation < MIN_HIGHWAY_RUN) return changed;
+  const route = shortestGraphRoute(edges, endpoints[0].id, endpoints[1].id);
+  if (!route || route.length < MIN_HIGHWAY_RUN) return changed;
+  const ids = new Set(route.edgeIds);
+  for (const edge of edges) {
+    if (!ids.has(edge.id) || edge.class === 'highway') continue;
+    edge.class = 'highway';
+    changed++;
+  }
+  return changed;
+}
+
+interface GraphRoute {
+  edgeIds: string[];
+  length: number;
+}
+
+/** Deterministic Dijkstra over the already planar street graph. */
+function shortestGraphRoute(edges: readonly BuiltEdge[], from: string, to: string): GraphRoute | null {
+  const adjacency = new Map<string, { edge: BuiltEdge; other: string; length: number }[]>();
+  for (const edge of edges) {
+    if (edge.class === 'alley') continue;
+    const length = pathLength(edge.path);
+    (adjacency.get(edge.from) ?? adjacency.set(edge.from, []).get(edge.from)!).push({ edge, other: edge.to, length });
+    (adjacency.get(edge.to) ?? adjacency.set(edge.to, []).get(edge.to)!).push({ edge, other: edge.from, length });
+  }
+  for (const list of adjacency.values()) list.sort((a, b) => a.edge.id.localeCompare(b.edge.id));
+  const distances = new Map<string, number>([[from, 0]]);
+  const previous = new Map<string, { node: string; edgeId: string }>();
+  const visited = new Set<string>();
+  while (true) {
+    let current: string | null = null;
+    let best = Infinity;
+    for (const [node, distance] of distances) {
+      if (visited.has(node)) continue;
+      if (distance < best - 1e-9 || (Math.abs(distance - best) <= 1e-9 && (current === null || node < current))) {
+        current = node;
+        best = distance;
+      }
+    }
+    if (current === null) return null;
+    if (current === to) break;
+    visited.add(current);
+    for (const step of adjacency.get(current) ?? []) {
+      const candidate = best + step.length;
+      const old = distances.get(step.other);
+      if (old !== undefined && candidate >= old - 1e-9) continue;
+      distances.set(step.other, candidate);
+      previous.set(step.other, { node: current, edgeId: step.edge.id });
+    }
+  }
+  const edgeIds: string[] = [];
+  let current = to;
+  while (current !== from) {
+    const step = previous.get(current);
+    if (!step) return null;
+    edgeIds.push(step.edgeId);
+    current = step.node;
+  }
+  return { edgeIds: edgeIds.reverse(), length: distances.get(to)! };
 }
 
 /**

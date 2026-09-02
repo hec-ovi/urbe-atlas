@@ -20,7 +20,7 @@ import { DistrictShapes } from './districts/DistrictShapes';
 import { StreetGrowth } from './streets/StreetGrowth';
 import { AlleyPlanner } from './streets/AlleyPlanner';
 import { StreetGraphBuilder } from './streets/Graph';
-import { applyHighwayElevationProfiles, demoteDeadEnds, HIGHWAY_DECK, highwayStructures } from './streets/Highways';
+import { applyHighwayElevationProfiles, ensureUsableHighway, HIGHWAY_DECK, highwayStructures } from './streets/Highways';
 import { streetNodesWithConnections } from './streets/Connections';
 import { FaceExtractor } from './streets/Faces';
 import type { Face } from './streets/Faces';
@@ -130,9 +130,10 @@ export function generateCity(input: AtlasParams): CityBlueprint {
     }
   }
 
-  // A highway that stops inside the city would leave its deck dead-ending over
-  // a block: those chains become road before widths and blocks are read.
-  demoteDeadEnds(graph.edges, graph.nodes, boundary);
+  // Keep a complete, supportable through route. A tracer fragment becomes a
+  // road; when none survives, a city-edge route through the planar graph is
+  // promoted before widths, blocks and parcels are derived.
+  if (params.features.highways) ensureUsableHighway(graph.edges, graph.nodes, boundary);
 
   // --- street edges with widths and districts ---------------------------
   const edgeDistrict = new Map<string, number>();

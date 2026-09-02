@@ -4,7 +4,8 @@
  */
 import { describe, expect, it } from 'vitest';
 import { generateCity } from '../src';
-import { HIGHWAY_DECK, HIGHWAY_EXIT_TOLERANCE, highwayRuns, highwayStructures } from '../src/streets/Highways';
+import { HIGHWAY_DECK, HIGHWAY_EXIT_TOLERANCE, MIN_HIGHWAY_RUN, highwayRuns, highwayStructures } from '../src/streets/Highways';
+import { checkHighwayStructures } from '../src/invariants/highways';
 import { area, bounds, distanceToOutline } from '../src/geom/polygon';
 import { bufferLine, intersection } from '../src/geom/clip';
 import { distanceTo } from '../src/geom/polyline';
@@ -26,6 +27,42 @@ const length = (path: Vec2[]): number =>
   path.slice(1).reduce((sum, p, i) => sum + Math.hypot(p[0] - path[i][0], p[1] - path[i][1]), 0);
 
 describe('highway runs', () => {
+  it('builds the reported 1000 m city as a complete supported route', () => {
+    const city = generateCity({ seed: 'urbe', size: { width: 1000, depth: 1000 } });
+    expect(city.streets.highwayStructures).toHaveLength(1);
+    const structure = city.streets.highwayStructures[0];
+    expect(length(structure.path)).toBeGreaterThanOrEqual(MIN_HIGHWAY_RUN);
+    expect(structure.ramps).toEqual({ start: HIGHWAY_DECK.rampLength, end: HIGHWAY_DECK.rampLength });
+    expect(structure.supports.length).toBeGreaterThan(0);
+    const edgeIds = new Set(structure.edgeIds);
+    for (const endpoint of [structure.path[0], structure.path[structure.path.length - 1]]) {
+      const node = city.streets.nodes.find((candidate) => Math.hypot(
+        candidate.position[0] - endpoint[0],
+        candidate.position[1] - endpoint[1],
+      ) < 0.002)!;
+      expect(node.connections.some((group) =>
+        group.level === 0
+        && group.edgeIds.some((id) => edgeIds.has(id))
+        && group.edgeIds.some((id) => !edgeIds.has(id))),
+      `${node.id} ramp must meet a grade street`).toBe(true);
+    }
+  });
+
+  it('rejects a pair of ramps with no supportable deck between them', () => {
+    const city = generateCity({ seed: 'urbe', size: { width: 1000, depth: 1000 } });
+    const broken = structuredClone(city);
+    const structure = broken.streets.highwayStructures[0];
+    structure.path = [[0, 0], [20, 0]];
+    structure.ramps = { start: 10, end: 10 };
+    structure.elevationProfile = [
+      { distance: 0, level: 0 },
+      { distance: 10, level: structure.level },
+      { distance: 20, level: 0 },
+    ];
+    structure.supports = [];
+    expect(() => checkHighwayStructures(broken)).toThrow(/no supportable flat deck/);
+  });
+
   it('carries every metre of highway, each in exactly one run', () => {
     expect(highways.length).toBeGreaterThan(0);
     expect(runs.reduce((sum, r) => sum + length(r.path), 0)).toBeCloseTo(

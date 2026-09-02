@@ -71,6 +71,9 @@ function checkRamps(structure: HighwayStructure): void {
   if (start < 0 || end < 0 || start + end > total + 1e-9) {
     throw invariantFailure(`highway ${structure.edgeIds[0]} has invalid ramp lengths`, { total, start, end });
   }
+  if ((start > 0 || end > 0) && total - start - end < HIGHWAY_DECK.supportPitch - POSITION_EPS) {
+    throw invariantFailure(`highway ${structure.edgeIds[0]} has no supportable flat deck`, { total, start, end });
+  }
   if (structure.deckThickness <= 0 || structure.deckThickness >= structure.level) {
     throw invariantFailure(`highway ${structure.edgeIds[0]} has invalid deck thickness`);
   }
