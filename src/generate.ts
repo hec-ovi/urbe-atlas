@@ -24,7 +24,7 @@ import { demoteDeadEnds } from './streets/Highways';
 import { FaceExtractor } from './streets/Faces';
 import type { Face } from './streets/Faces';
 import { Crossings } from './streets/Crossings';
-import { carriagewayWidth, sidewalkWidth } from './streets/widths';
+import { CURB_WIDTH, carriagewayWidth, sidewalkWidth } from './streets/widths';
 import { BlockBuilder, BuiltBlock } from './blocks/BlockBuilder';
 import { Buildability } from './blocks/Buildability';
 import { Subdivision, SubdivisionConfig } from './blocks/Subdivision';
@@ -38,7 +38,7 @@ import { directionAt, length as lineLength, pointAt } from './geom/polyline';
 import { closestOnSegment, cross, dist, sub } from './geom/vec';
 import { LEVELS } from './levels';
 
-export const BLUEPRINT_VERSION = '0.5.0';
+export const BLUEPRINT_VERSION = '0.6.0';
 
 const SUBDIVISION: Record<DistrictKind, SubdivisionConfig> = {
   downtown: { minLotArea: 500, maxLotArea: 2600, chanceNoDivide: 0.12 },
@@ -156,12 +156,19 @@ export function generateCity(input: AtlasParams): CityBlueprint {
   // blocks it separates meet at its centerline and are the whole alley, so
   // those blocks keep their rings narrow enough to stay within ALLEY_WIDTH.
   const alleyEdgeIds = new Set(streetEdges.filter((e) => e.class === 'alley').map((e) => e.id));
+  // the kerb stops where an alley reaches a block: a band across its centerline
+  // takes back what the two flanking rings would otherwise pave as kerb
+  const alleyBuffers = new Map<string, Polygon[]>();
+  for (const e of graph.edges) {
+    if (alleyEdgeIds.has(e.id)) alleyBuffers.set(e.id, bufferLine(e.path, CURB_WIDTH * 4));
+  }
   const builtBlocks = BlockBuilder.build(
     faces,
     roadwayOf(graph.edges),
-    (face) => {
+    alleyBuffers,
+    (face: Face) => {
       const di = districtOfPoint(centroid(face.polygon));
-      const cls = face.edgeIds.some((id) => alleyEdgeIds.has(id)) ? 'alley' : 'street';
+      const cls = face.edgeIds.some((id: string) => alleyEdgeIds.has(id)) ? 'alley' : 'street';
       return sidewalkWidth(cls, planned[di].kind);
     },
     Rng.from(seed, 'curbs'),
@@ -283,6 +290,7 @@ export function generateCity(input: AtlasParams): CityBlueprint {
     id: `b${i}`,
     districtId: `d${blockDistrict[i]}`,
     boundary: b.boundary,
+    curb: b.curb,
     sidewalk: b.sidewalk,
     parcelIds: parcels.filter((p) => p.blockId === `b${i}`).map((p) => p.id),
     openAreas: blockOpenAreas[i],
@@ -335,6 +343,7 @@ export function generateCity(input: AtlasParams): CityBlueprint {
       ground.push({ surface: 'roadway', polygon: poly });
     }
   });
+  for (const b of builtBlocks) for (const poly of b.curb) ground.push({ surface: 'curb', polygon: poly });
   for (const b of builtBlocks) for (const poly of b.sidewalk) ground.push({ surface: 'sidewalk', polygon: poly });
   for (const p of parcels) ground.push({ surface: 'block', polygon: p.lot });
   for (const open of blockOpenAreas) for (const poly of open) ground.push({ surface: 'open', polygon: poly });

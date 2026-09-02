@@ -2,6 +2,14 @@
 import type { StreetClass } from '../../schema/blueprint';
 import type { DistrictKind } from '../../schema/params';
 
+/**
+ * The kerb: a band of ground between the roadway and the sidewalk, its own
+ * surface so materials border there instead of butting one texture against
+ * another. It is the outer edge of the sidewalk band, so the published
+ * sidewalk width includes it. An alley has no roadway and so no kerb.
+ */
+export const CURB_WIDTH = 0.15;
+
 /** An alley is this wide, ground to ground, all of it sidewalk. */
 export const ALLEY_WIDTH: [min: number, max: number] = [3, 5];
 

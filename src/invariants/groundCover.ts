@@ -1,6 +1,6 @@
 /**
- * The volumetric ground cover is a partition of the city: roadway, sidewalk,
- * block and open surfaces tile it, so no two of them may overlap.
+ * The volumetric ground cover is a partition of the city: roadway, curb,
+ * sidewalk, block and open surfaces tile it, so no two of them may overlap.
  *
  * Every coordinate sits on the geometry kernel's 1 mm grid, so two surfaces
  * that share a boundary can still report a sliver of a few square centimetres

@@ -38,6 +38,7 @@ export class LegendWidget {
       );
     }
     const extras: [string, string][] = [
+      ['curb', GROUND_COLORS.curb],
       ['sidewalk', GROUND_COLORS.sidewalk],
       ['open ground', GROUND_COLORS.open],
       ['bus', TRANSIT_COLORS.busRoute],

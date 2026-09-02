@@ -6,7 +6,7 @@
 import type { ParcelType, StreetClass } from '../../../schema/blueprint';
 import type { Layers } from './MapView';
 
-export const GROUND_KEYS = ['roadway', 'sidewalk', 'block', 'open'] as const;
+export const GROUND_KEYS = ['roadway', 'curb', 'sidewalk', 'block', 'open'] as const;
 export const ZONE_KEYS: ParcelType[] = [
   'residential', 'hotel', 'offices', 'corpo', 'hospital', 'clinic', 'police', 'military',
   'factory', 'commerce', 'mall', 'restaurant', 'coffee_shop',

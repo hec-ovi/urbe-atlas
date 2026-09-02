@@ -4,7 +4,7 @@ import { invariantFailure } from '../errors';
 import { COMPACT_RECT, coreFit } from '../zoning/core';
 import { isHeavy, minBand } from '../zoning/bands';
 import { minFloorHeight } from '../zoning/floorMinimums';
-import { ALLEY_WIDTH } from '../streets/widths';
+import { ALLEY_WIDTH, CURB_WIDTH } from '../streets/widths';
 import { HIGHWAY_EXIT_TOLERANCE } from '../streets/Highways';
 import { bandWidth, hostsBand } from '../geom/band';
 import { area, distanceToOutline, isSimpleRing, pointInPolygon } from '../geom/polygon';
@@ -12,6 +12,9 @@ import { distanceTo } from '../geom/polyline';
 import { checkGroundCover } from './groundCover';
 import { checkStreetEdges } from './streetEdges';
 import { checkStations } from './stations';
+
+/** Shortest run of kerb the generator ever publishes as its own piece, meters. */
+const MIN_CURB_RUN = 0.5;
 
 export class Invariants {
   static check(bp: CityBlueprint): void {
@@ -201,7 +204,15 @@ export class Invariants {
       for (const poly of b.sidewalk) {
         if (!isSimpleRing(poly)) throw invariantFailure(`block ${b.id} has a sidewalk polygon that is not a simple ring`);
       }
-      const interior = area(b.boundary) - b.sidewalk.reduce((s, poly) => s + area(poly), 0);
+      // a kerb piece is a run of strip, never a sliver left by a boolean
+      for (const poly of b.curb) {
+        if (!isSimpleRing(poly)) throw invariantFailure(`block ${b.id} has a curb polygon that is not a simple ring`);
+        if (area(poly) < CURB_WIDTH * MIN_CURB_RUN) {
+          throw invariantFailure(`block ${b.id} has a curb sliver`, { area: area(poly) });
+        }
+      }
+      const paved = [...b.sidewalk, ...b.curb].reduce((s, poly) => s + area(poly), 0);
+      const interior = area(b.boundary) - paved;
       const parts = bp.parcels.filter((p) => p.blockId === b.id).reduce((s, p) => s + area(p.lot), 0)
         + b.openAreas.reduce((s, poly) => s + area(poly), 0);
       if (parts > interior * 1.05 + 30) {

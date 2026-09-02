@@ -8,7 +8,8 @@ import { AtlasError, generateCity } from '../src';
 import { bandWidth } from '../src/geom/band';
 import { orientedBoundingBox } from '../src/geom/obb';
 import { intersection, offset } from '../src/geom/clip';
-import { bounds, pointInPolygon } from '../src/geom/polygon';
+import { area as polygonArea, bounds, pointInPolygon } from '../src/geom/polygon';
+import { CURB_WIDTH } from '../src/streets/widths';
 import type { CityBlueprint, ParcelType, Polyline, Vec2 } from '../schema/blueprint';
 
 const PARCEL_TYPES: ParcelType[] = [
@@ -40,6 +41,15 @@ let cached: CityBlueprint | null = null;
 const defaultCity = (): CityBlueprint => (cached ??= generateCity({ seed: 'contract' }));
 
 const distance = (a: Vec2, b: Vec2): number => Math.hypot(a[0] - b[0], a[1] - b[1]);
+
+/** Distance from a point to a segment, for the kerb walk. */
+function segmentDistance(p: Vec2, a: Vec2, b: Vec2): number {
+  const vx = b[0] - a[0];
+  const vz = b[1] - a[1];
+  const len = vx * vx + vz * vz;
+  const t = len > 0 ? Math.max(0, Math.min(1, ((p[0] - a[0]) * vx + (p[1] - a[1]) * vz) / len)) : 0;
+  return Math.hypot(p[0] - (a[0] + t * vx), p[1] - (a[1] + t * vz));
+}
 
 /** Turn at path[i], in degrees: 0 straight ahead, 180 straight back. */
 function turnAt(path: Polyline, i: number): number {
@@ -175,6 +185,40 @@ describe('blueprint output', () => {
       }
     }
     expect(arcVertices).toBeGreaterThan(bp.blocks.length);
+  });
+
+  it('runs a curb strip along every block boundary a roadway borders', () => {
+    const bp = defaultCity();
+    const alleys = bp.streets.edges.filter((e) => e.class === 'alley');
+    const nearAlley = (p: Vec2): boolean =>
+      alleys.some((e) => e.path.slice(1).some((q, i) => segmentDistance(p, e.path[i], q) < CURB_WIDTH * 4));
+    let curbPieces = 0;
+    for (const b of bp.blocks) {
+      for (const poly of b.curb) {
+        curbPieces++;
+        // a run of kerb, never a sliver a boolean left behind
+        expect(polygonArea(poly), 'curb piece area').toBeGreaterThan(CURB_WIDTH * 0.5);
+      }
+      // walk the boundary and step into the band: the kerb covers it end to end
+      for (let i = 0; i < b.boundary.length; i++) {
+        const a = b.boundary[i];
+        const c = b.boundary[(i + 1) % b.boundary.length];
+        const span = distance(a, c);
+        if (span === 0) continue;
+        for (let step = 0; step < Math.ceil(span); step++) {
+          const t = (step + 0.5) / Math.ceil(span);
+          const on: Vec2 = [a[0] + (c[0] - a[0]) * t, a[1] + (c[1] - a[1]) * t];
+          // rings are CCW, so the inward normal is the edge direction turned left
+          const into: Vec2 = [
+            on[0] - ((c[1] - a[1]) / span) * (CURB_WIDTH / 2),
+            on[1] + ((c[0] - a[0]) / span) * (CURB_WIDTH / 2),
+          ];
+          if (nearAlley(into)) continue;
+          expect(b.curb.some((poly) => pointInPolygon(into, poly)), `${b.id} kerb at ${into}`).toBe(true);
+        }
+      }
+    }
+    expect(curbPieces).toBeGreaterThan(0);
   });
 
   it('keeps ids globally unique with the documented prefixes', () => {

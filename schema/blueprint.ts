@@ -111,7 +111,9 @@ export interface Block {
   districtId: string;
   /** Curb line: the face minus the roadway, with rounded corners at intersections. */
   boundary: Polygon;
-  /** Sidewalk strip polygons between boundary and the buildable interior. */
+  /** Curb strip: the outer 0.15 m of the block, between roadway and sidewalk, absent along an alley. */
+  curb: Polygon[];
+  /** Sidewalk strip polygons between the curb and the buildable interior. */
   sidewalk: Polygon[];
   parcelIds: string[];
   /** Unbuilt leftover areas (plazas, courtyards). Parcels + sidewalk + openAreas cover the block. */
@@ -228,7 +230,7 @@ export interface BuildingVolume {
 }
 
 export interface GroundSurface {
-  surface: 'roadway' | 'sidewalk' | 'block' | 'open';
+  surface: 'roadway' | 'curb' | 'sidewalk' | 'block' | 'open';
   polygon: Polygon;
 }
 

@@ -143,7 +143,7 @@ export class Map3DView {
   }
 
   private buildGround(bp: CityBlueprint): void {
-    const parts: Record<string, THREE.BufferGeometry[]> = { roadway: [], sidewalk: [], block: [], open: [] };
+    const parts: Record<string, THREE.BufferGeometry[]> = { roadway: [], curb: [], sidewalk: [], block: [], open: [] };
     for (const cover of bp.volumetric.ground) {
       if (cover.polygon.length < 3) continue;
       parts[cover.surface]!.push(plate(cover.polygon, cover.surface === 'roadway' ? 0 : 0.05));
