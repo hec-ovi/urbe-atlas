@@ -4,8 +4,10 @@
  */
 import { describe, expect, it } from 'vitest';
 import { generateCity } from '../src';
-import { HIGHWAY_EXIT_TOLERANCE, highwayRuns } from '../src/streets/Highways';
-import { distanceToOutline } from '../src/geom/polygon';
+import { HIGHWAY_DECK, HIGHWAY_EXIT_TOLERANCE, highwayRuns } from '../src/streets/Highways';
+import { area, bounds, distanceToOutline } from '../src/geom/polygon';
+import { bufferLine, intersection } from '../src/geom/clip';
+import { distanceTo } from '../src/geom/polyline';
 import type { Vec2 } from '../schema/blueprint';
 
 // a 3 km city is where the network forks; a small one has a single chain
@@ -54,5 +56,45 @@ describe('highway runs', () => {
         if (ramps) expect(distanceToOutline(point, bp.meta.boundary)).toBeLessThanOrEqual(HIGHWAY_EXIT_TOLERANCE);
       }
     }
+  });
+
+  it('publishes every edge in one reproducible deck structure', () => {
+    const covered = bp.streets.highwayStructures.flatMap((structure) => structure.edgeIds);
+    expect(covered.length).toBe(highways.length);
+    expect(new Set(covered).size).toBe(highways.length);
+    expect(new Set(covered)).toEqual(new Set(highways.map((edge) => edge.id)));
+    expect(bp.streets.highwayStructures).toEqual(generateCity({ seed: 'urbe', size: { width: 3000, depth: 3000 } }).streets.highwayStructures);
+  });
+
+  it('keeps each deck and every support clear of building footprints', () => {
+    const overlapsBounds = (a: Vec2[], b: Vec2[]): boolean => {
+      const aa = bounds(a);
+      const bb = bounds(b);
+      return aa.min[0] < bb.max[0] && aa.max[0] > bb.min[0] && aa.min[1] < bb.max[1] && aa.max[1] > bb.min[1];
+    };
+    let supports = 0;
+    for (const structure of bp.streets.highwayStructures) {
+      const reservation = bufferLine(
+        structure.path,
+        structure.width + HIGHWAY_DECK.buildingClearance * 2,
+      );
+      for (const parcel of bp.parcels) {
+        if (!reservation.some((polygon) => overlapsBounds(polygon, parcel.footprint))) continue;
+        const overlap = intersection(reservation, [parcel.footprint]).reduce((sum, polygon) => sum + area(polygon), 0);
+        expect(overlap, `${structure.edgeIds[0]} deck and ${parcel.id}`).toBeLessThanOrEqual(1e-6);
+      }
+      for (const support of structure.supports) {
+        supports++;
+        expect(distanceTo(structure.path, support.position)).toBeLessThan(0.002);
+        expect(support.bottom).toBe(0);
+        expect(support.top).toBe(structure.level - structure.deckThickness);
+        for (const parcel of bp.parcels) {
+          if (!overlapsBounds(support.footprint, parcel.footprint)) continue;
+          const overlap = intersection([support.footprint], [parcel.footprint]).reduce((sum, polygon) => sum + area(polygon), 0);
+          expect(overlap, `${structure.edgeIds[0]} support and ${parcel.id}`).toBeLessThanOrEqual(1e-6);
+        }
+      }
+    }
+    expect(supports).toBeGreaterThan(0);
   });
 });

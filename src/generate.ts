@@ -20,7 +20,7 @@ import { DistrictShapes } from './districts/DistrictShapes';
 import { StreetGrowth } from './streets/StreetGrowth';
 import { AlleyPlanner } from './streets/AlleyPlanner';
 import { StreetGraphBuilder } from './streets/Graph';
-import { demoteDeadEnds } from './streets/Highways';
+import { demoteDeadEnds, HIGHWAY_DECK, highwayStructures } from './streets/Highways';
 import { FaceExtractor } from './streets/Faces';
 import type { Face } from './streets/Faces';
 import { Crossings } from './streets/Crossings';
@@ -34,14 +34,14 @@ import { Zoning, LotInput } from './zoning/Zoning';
 import { hostingProfiles } from './zoning/profiles';
 import { TransitPlanner } from './transit/TransitPlanner';
 import { Invariants } from './invariants/Invariants';
-import { bufferLine, difference, intersection, snapPoint } from './geom/clip';
+import { bufferLine, difference, intersection, snapPoint, union } from './geom/clip';
 import { area, bounds, centroid, pointInPolygon } from './geom/polygon';
 import { directionAt, length as lineLength, pointAt } from './geom/polyline';
 import { closestOnSegment, cross, dist, sub } from './geom/vec';
 import { LEVELS } from './levels';
 import { cityGridAngle } from './grid';
 
-export const BLUEPRINT_VERSION = '0.9.0';
+export const BLUEPRINT_VERSION = '0.10.0';
 
 const SUBDIVISION: Record<DistrictKind, SubdivisionConfig> = {
   downtown: { minLotArea: 500, maxLotArea: 2600, chanceNoDivide: 0.12 },
@@ -202,11 +202,23 @@ export function generateCity(input: AtlasParams): CityBlueprint {
       return e !== undefined && (e.sidewalk.left > 0 || e.sidewalk.right > 0);
     }),
   );
+  // The deck reservation is wider than the carriageway by the construction
+  // clearance published in HIGHWAY_DECK. Curves and round junction joins can
+  // enter a face beyond its straight edge offset, so cut that exact footprint
+  // from buildable land before subdivision instead of letting a facade meet
+  // or cross the deck edge.
+  const highwayNoBuild = union(
+    streetEdges
+      .filter((edge) => edge.class === 'highway')
+      .flatMap((edge) => bufferLine(edge.path, edge.width + HIGHWAY_DECK.buildingClearance * 2)),
+  );
   builtBlocks.forEach((block, blockIndex) => {
     const districtIndex = blockDistrict[blockIndex];
     const cfg = SUBDIVISION[planned[districtIndex].kind];
     const rng = lotRng.fork(blockIndex);
-    for (const interior of block.interior) {
+    const reserved = intersection(block.interior, highwayNoBuild);
+    blockOpenAreas[blockIndex].push(...reserved);
+    for (const interior of difference(block.interior, highwayNoBuild)) {
       // a block reachable only via highways gets no parcels: open ground instead
       if (sidewalkedEdges[blockIndex].length === 0) {
         blockOpenAreas[blockIndex].push(interior);
@@ -354,6 +366,7 @@ export function generateCity(input: AtlasParams): CityBlueprint {
     obstacles,
     Rng.from(seed, 'planting'),
   );
+  const structures = highwayStructures(streetEdges);
 
   // face = its roadway part + block pieces + open pieces, so per-face
   // differences give hole-free roadway ground and exact coverage.
@@ -415,7 +428,7 @@ export function generateCity(input: AtlasParams): CityBlueprint {
       boundary,
     },
     districts,
-    streets: { nodes: graph.nodes, edges: streetEdges, crossings, signals, planting },
+    streets: { nodes: graph.nodes, edges: streetEdges, crossings, signals, planting, highwayStructures: structures },
     blocks,
     parcels,
     transit,

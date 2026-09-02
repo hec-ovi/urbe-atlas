@@ -81,6 +81,41 @@ export interface StreetGraph {
   signals: TrafficSignal[];
   /** Street furniture along the sidewalks of the whole city, one flat list. */
   planting: PlantingPoint[];
+  /** Reproducible deck, ramp and support geometry for every elevated highway run. */
+  highwayStructures: HighwayStructure[];
+}
+
+/**
+ * One maximal elevated highway run. Consumers build the deck and its columns
+ * from this data instead of choosing their own ramp and support arithmetic.
+ */
+export interface HighwayStructure {
+  /** Highway edges covered by this structure, ordered from path start to end. */
+  edgeIds: string[];
+  /** Continuous centerline assembled from edgeIds, with shared points once. */
+  path: Polyline;
+  /** Full deck width. */
+  width: number;
+  /** Deck surface height on the flat part. */
+  level: number;
+  /** Structural depth below the deck surface. */
+  deckThickness: number;
+  /** Length over which each open end rises from grade. Zero at a junction or closed ring. */
+  ramps: { start: number; end: number };
+  /** Columns supporting the flat deck, in path order. */
+  supports: HighwaySupport[];
+}
+
+/** One vertical highway column. Its footprint is reserved outside every building footprint. */
+export interface HighwaySupport {
+  /** Center of the footprint, snapped to the blueprint's 1 mm grid. */
+  position: Vec2;
+  /** Column footprint in plan, CCW. */
+  footprint: Polygon;
+  /** Grade at the column foot. */
+  bottom: number;
+  /** Underside of the deck. */
+  top: number;
 }
 
 /**

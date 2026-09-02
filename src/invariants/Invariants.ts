@@ -13,6 +13,7 @@ import { checkGroundCover } from './groundCover';
 import { checkStreetEdges } from './streetEdges';
 import { checkStations } from './stations';
 import { checkFurniture } from './furniture';
+import { checkHighwayStructures } from './highways';
 
 /** Shortest run of kerb the generator ever publishes as its own piece, meters. */
 const MIN_CURB_RUN = 0.5;
@@ -92,6 +93,7 @@ export class Invariants {
 
     // street edges: no degenerate run, no centerline folded over its own band
     checkStreetEdges(bp);
+    checkHighwayStructures(bp);
 
     // sidewalk presence along streets and roads
     for (const e of bp.streets.edges) {

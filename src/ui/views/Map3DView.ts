@@ -14,15 +14,10 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import type { CityBlueprint, Parcel, PlantingKind, Polygon, Polyline, Station, StreetEdge, TrafficSignal, Vec2 } from '../../../schema/blueprint';
 import { FURNITURE_COLORS, GROUND_COLORS, TRANSIT_COLORS, parcelHsl, streetColor } from '../components/colors';
 import { defaultFilters, type FilterKey, type Filters } from './filters';
-import { highwayRuns } from '../../streets/Highways';
-import { LEVELS } from '../../levels';
 
 const SKY = 0x0e1117;
 const FLOOR_GAP = 0.08;
 const UNDER_GROUND = -0.02;
-const DECK_THICKNESS = 1.0;
-const RAMP_LENGTH = 60;
-const PIER_PITCH = 30;
 const TUNNEL_RADIUS = 3;
 const PLATFORM_THICKNESS = 1;
 const HEADHOUSE_HEIGHT = 3.2;
@@ -195,12 +190,17 @@ export class Map3DView {
     }
     // One deck per highway run, not per edge: a route is continuous through its
     // junctions and ramps to the ground only at a terminus, where it leaves the city.
-    const highwayWidth = bp.streets.edges.find((e) => e.class === 'highway')?.width ?? 15;
-    for (const { path, rampAtStart, rampAtEnd } of highwayRuns(bp.streets.edges)) {
-      const start = rampAtStart ? RAMP_LENGTH : 0;
-      const end = rampAtEnd ? RAMP_LENGTH : 0;
-      parts.highway!.push(deck(path, highwayWidth, LEVELS.highway, DECK_THICKNESS, start, end));
-      piers.push(...piersAlong(path, highwayWidth, LEVELS.highway, start, end));
+    for (const structure of bp.streets.highwayStructures) {
+      parts.highway!.push(deck(
+        structure.path,
+        structure.width,
+        structure.level,
+        structure.deckThickness,
+        structure.ramps.start,
+        structure.ramps.end,
+      ));
+      piers.push(...structure.supports.map((support) =>
+        prism(support.footprint, support.bottom, support.top - support.bottom)));
     }
     for (const cls of Object.keys(parts) as (keyof typeof parts)[]) {
       this.merged(`street.${cls as StreetEdge['class']}`, parts[cls]!, new THREE.MeshLambertMaterial({ color: streetColor(cls as StreetEdge['class']) }));
@@ -471,20 +471,6 @@ function deck(path: Polyline, width: number, level: number, thickness: number, s
   return strip(path, width, top, (along) => Math.max(0, top(along) - thickness));
 }
 
-/** Columns under a deck, one every PIER_PITCH metres, none where it has ramped to the ground. */
-function piersAlong(path: Polyline, width: number, level: number, startRamp: number, endRamp: number): THREE.BufferGeometry[] {
-  const out: THREE.BufferGeometry[] = [];
-  const total = pathLength(path);
-  const size = Math.min(2, width / 3);
-  for (let along = PIER_PITCH / 2; along < total; along += PIER_PITCH) {
-    const h = deckHeight(along, total, level, startRamp, endRamp) - DECK_THICKNESS;
-    if (h < 1) continue;
-    const [x, z] = pointAlong(path, along);
-    out.push(new THREE.BoxGeometry(size, h, size).translate(x, h / 2, z));
-  }
-  return out;
-}
-
 /** A round tunnel along a path at a level below the ground. */
 function tunnel(path: Polyline, radius: number, level: number): THREE.BufferGeometry {
   const points = path.map(([x, z]) => new THREE.Vector3(x, level, z));
@@ -504,19 +490,6 @@ function pathLength(path: Polyline): number {
   let total = 0;
   for (let i = 1; i < path.length; i++) total += dist(path[i - 1]!, path[i]!);
   return total;
-}
-
-function pointAlong(path: Polyline, along: number): Vec2 {
-  let left = along;
-  for (let i = 1; i < path.length; i++) {
-    const d = dist(path[i - 1]!, path[i]!);
-    if (left <= d || i === path.length - 1) {
-      const t = d === 0 ? 0 : Math.min(1, left / d);
-      return [path[i - 1]![0] + (path[i]![0] - path[i - 1]![0]) * t, path[i - 1]![1] + (path[i]![1] - path[i - 1]![1]) * t];
-    }
-    left -= d;
-  }
-  return path[0]!;
 }
 
 function pointInPolygon([px, pz]: Vec2, poly: Polygon): boolean {

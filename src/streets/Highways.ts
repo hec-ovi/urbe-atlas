@@ -6,9 +6,18 @@
  * back and demoted to `road`, one edge per pass, until every highway end is
  * either a junction with another highway or a point at the city edge.
  */
-import type { Polygon, Polyline, StreetClass, Vec2 } from '../../schema/blueprint';
+import type {
+  HighwayStructure,
+  Polygon,
+  Polyline,
+  StreetClass,
+  Vec2,
+} from '../../schema/blueprint';
 import type { BuiltEdge, BuiltNode } from './Graph';
 import { distanceToOutline } from '../geom/polygon';
+import { snapPoint } from '../geom/clip';
+import { length as pathLength, pointAt } from '../geom/polyline';
+import { LEVELS } from '../levels';
 
 /** What these rules need of an edge: the shape shared by the graph and the blueprint. */
 export interface ClassedEdge {
@@ -27,6 +36,15 @@ export interface PositionedNode {
 
 /** How near the boundary a highway end counts as leaving the city. */
 export const HIGHWAY_EXIT_TOLERANCE = 30;
+
+/** Highway construction dimensions shared by the blueprint and preview. */
+export const HIGHWAY_DECK = {
+  thickness: 1,
+  rampLength: 60,
+  supportPitch: 30,
+  supportSize: 2,
+  buildingClearance: 1,
+} as const;
 
 /** Nodes where a highway ends: exactly one highway edge meets there. */
 export function highwayEndNodes(edges: readonly ClassedEdge[]): Map<string, string[]> {
@@ -88,6 +106,7 @@ export function demoteDeadEnds(edges: BuiltEdge[], nodes: readonly BuiltNode[], 
  * the ground there) or a junction with other highway arms (the deck stays up).
  */
 export interface HighwayRun {
+  edgeIds: string[];
   path: Polyline;
   rampAtStart: boolean;
   rampAtEnd: boolean;
@@ -155,10 +174,60 @@ export function highwayRuns(edges: readonly ClassedEdge[]): HighwayRun[] {
     if (path.length < 2) continue;
     const ring = behind.end === ahead.end;
     runs.push({
+      edgeIds: ids,
       path,
       rampAtStart: !ring && (at.get(behind.end) ?? []).length === 1,
       rampAtEnd: !ring && (at.get(ahead.end) ?? []).length === 1,
     });
   }
   return runs;
+}
+
+/**
+ * Publishes the construction arithmetic for every elevated run. The street
+ * graph has already reserved the whole carriageway before parcels are cut;
+ * the explicit clearance check makes that relationship fail closed if a
+ * future block or zoning change puts a building under the deck.
+ */
+export function highwayStructures(edges: readonly ClassedEdge[]): HighwayStructure[] {
+  const byId = new Map(edges.map((edge) => [edge.id, edge]));
+  return highwayRuns(edges).map((run) => {
+    const first = byId.get(run.edgeIds[0])!;
+    const width = 'width' in first && typeof first.width === 'number' ? first.width : 15;
+    const level = 'level' in first && typeof first.level === 'number' ? first.level : LEVELS.highway;
+    const total = pathLength(run.path);
+    const maxRamp = total / ((run.rampAtStart ? 1 : 0) + (run.rampAtEnd ? 1 : 0) || 1);
+    const ramps = {
+      start: run.rampAtStart ? Math.min(HIGHWAY_DECK.rampLength, maxRamp) : 0,
+      end: run.rampAtEnd ? Math.min(HIGHWAY_DECK.rampLength, maxRamp) : 0,
+    };
+    const supports = [];
+    const flatStart = ramps.start;
+    const flatEnd = total - ramps.end;
+    for (let along = flatStart + HIGHWAY_DECK.supportPitch / 2; along < flatEnd; along += HIGHWAY_DECK.supportPitch) {
+      const position = snapPoint(pointAt(run.path, along));
+      const half = HIGHWAY_DECK.supportSize / 2;
+      const footprint: Polygon = [
+        [position[0] - half, position[1] - half],
+        [position[0] + half, position[1] - half],
+        [position[0] + half, position[1] + half],
+        [position[0] - half, position[1] + half],
+      ];
+      supports.push({
+        position,
+        footprint,
+        bottom: LEVELS.ground,
+        top: level - HIGHWAY_DECK.thickness,
+      });
+    }
+    return {
+      edgeIds: run.edgeIds,
+      path: run.path,
+      width,
+      level,
+      deckThickness: HIGHWAY_DECK.thickness,
+      ramps,
+      supports,
+    };
+  });
 }
