@@ -24,6 +24,7 @@ const PIER_PITCH = 30;
 const TUNNEL_RADIUS = 3;
 const PLATFORM = { length: 24, width: 6, height: 1 };
 const ENTRANCE = { size: 2, height: 3 };
+const GROUND_SEE_THROUGH = 0.7;
 
 export class Map3DView {
   readonly canvas: HTMLCanvasElement;
@@ -41,7 +42,7 @@ export class Map3DView {
     this.canvas.className = 'map-view map-view-3d';
     this.scene.background = new THREE.Color(SKY);
     this.scene.add(new THREE.HemisphereLight(0xdfe6f2, 0x2a2622, 1.5), new THREE.DirectionalLight(0xffffff, 1.1).translateY(400).translateX(150));
-    this.canvas.addEventListener('click', (e) => this.pick(e));
+    this.canvas.addEventListener('contextmenu', (e) => { e.preventDefault(); this.pick(e); });
   }
 
   /** Starts drawing; needs a WebGL2 context, so a page without one shows an empty canvas. */
@@ -116,6 +117,18 @@ export class Map3DView {
 
   private applyFilters(): void {
     for (const [key, group] of this.layers) group.visible = this.filters[key] ?? true;
+    // the ground goes translucent while the subway shows, so the tunnels read as under it, not floating
+    const seeThrough = this.filters['transit.subway'];
+    for (const [key, group] of this.layers) {
+      if (!key.startsWith('ground.')) continue;
+      group.traverse((node) => {
+        const material = (node as THREE.Mesh).material as THREE.MeshLambertMaterial | undefined;
+        if (!material?.isMaterial) return;
+        material.transparent = seeThrough;
+        material.opacity = seeThrough ? GROUND_SEE_THROUGH : 1;
+        material.needsUpdate = true;
+      });
+    }
   }
 
   /** Merged mesh of many geometries in one colour, into one layer. */
@@ -194,10 +207,7 @@ export class Map3DView {
     const under = (level: number) => level < 0;
     const rail = (key: FilterKey, path: Polyline, level: number, color: string) => {
       if (under(level)) {
-        const material = new THREE.MeshLambertMaterial({ color, transparent: true, opacity: 0.6, depthTest: false });
-        const mesh = new THREE.Mesh(tunnel(path, TUNNEL_RADIUS, level), material);
-        mesh.renderOrder = 2;
-        this.layer(key).add(mesh);
+        this.layer(key).add(new THREE.Mesh(tunnel(path, TUNNEL_RADIUS, level), new THREE.MeshLambertMaterial({ color })));
       } else {
         this.layer(key).add(new THREE.Mesh(ribbon(path, 4, level + 0.06), new THREE.MeshLambertMaterial({ color })));
       }
@@ -208,10 +218,9 @@ export class Map3DView {
     const station = (key: FilterKey, position: Vec2, level: number, entrances: Vec2[], color: string) => {
       const platform = new THREE.Mesh(
         new THREE.BoxGeometry(PLATFORM.length, PLATFORM.height, PLATFORM.width),
-        new THREE.MeshLambertMaterial({ color, transparent: under(level), opacity: under(level) ? 0.7 : 1, depthTest: !under(level) }),
+        new THREE.MeshLambertMaterial({ color }),
       );
       platform.position.set(position[0], level + PLATFORM.height / 2, position[1]);
-      platform.renderOrder = under(level) ? 3 : 0;
       this.layer(key).add(platform);
       // entrances stand on the sidewalk at grade, whatever the platform's level
       for (const [x, z] of entrances) {
@@ -235,6 +244,18 @@ export class Map3DView {
     }
   }
 
+  private popupNode: HTMLElement | null = null;
+
+  private popup(parcel: Parcel, x: number, y: number): void {
+    this.popupNode?.remove();
+    const node = popupFor(parcel, x, y, () => this.onParcelClick?.(parcel));
+    this.popupNode = node;
+    this.canvas.parentElement?.append(node);
+    const dismiss = (e: Event) => { if (e.target !== node && !node.contains(e.target as Node)) { node.remove(); document.removeEventListener('pointerdown', dismiss); } };
+    setTimeout(() => document.addEventListener('pointerdown', dismiss), 0);
+  }
+
+  /** The parcel under the pointer, offered in a popup; left clicks only orbit. */
   private pick(event: MouseEvent): void {
     if (!this.onParcelClick || !this.renderer) return;
     const rect = this.canvas.getBoundingClientRect();
@@ -246,8 +267,26 @@ export class Map3DView {
     if (!hit) return;
     // the merged mesh does not know its parcels; the footprint under the hit does
     const parcel = this.parcels.find((p) => pointInPolygon([hit.point.x, hit.point.z], p.footprint));
-    if (parcel) this.onParcelClick(parcel);
+    if (parcel) this.popup(parcel, event.clientX, event.clientY);
   }
+}
+
+/** The popup a right click opens over a building: what it is, and a way into its own view. */
+function popupFor(parcel: Parcel, x: number, y: number, open: () => void): HTMLElement {
+  const root = document.createElement('div');
+  root.className = 'parcel-popup';
+  root.style.left = `${x}px`;
+  root.style.top = `${y}px`;
+  const title = document.createElement('div');
+  title.className = 'parcel-popup-title';
+  title.textContent = `${parcel.id} · ${parcel.type} ${parcel.tier} · block ${parcel.blockId}`;
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = 'button';
+  button.textContent = 'Open in new view';
+  button.addEventListener('click', () => { open(); root.remove(); });
+  root.append(title, button);
+  return root;
 }
 
 function shapeOf(polygon: Polygon): THREE.Shape {
@@ -259,38 +298,77 @@ function plate(polygon: Polygon, y: number): THREE.BufferGeometry {
   return new THREE.ShapeGeometry(shapeOf(polygon)).rotateX(-Math.PI / 2).translate(0, y, 0);
 }
 
-/** The offset points of a path: left and right of every vertex, mitred at joins with the mitre length capped. */
-function offsets(path: Polyline, half: number): { left: Vec2[]; right: Vec2[] } {
-  const left: Vec2[] = [];
-  const right: Vec2[] = [];
-  for (let i = 0; i < path.length; i++) {
-    const [x, z] = path[i]!;
-    const [px, pz] = path[Math.max(0, i - 1)]!;
-    const [nx, nz] = path[Math.min(path.length - 1, i + 1)]!;
-    const d1 = normalize([x - px, z - pz]);
-    const d2 = normalize([nx - x, nz - z]);
-    const t = normalize([d1[0] + d2[0], d1[1] + d2[1]]);
-    const n: Vec2 = [-t[1], t[0]];
-    // the mitre grows as the bend sharpens; cap it at twice the half width so a tight bend never spikes
-    const cos = Math.max(0.5, n[0] * -d1[1] + n[1] * d1[0]);
-    const m = half / cos;
-    left.push([x + n[0] * m, z + n[1] * m]);
-    right.push([x - n[0] * m, z - n[1] * m]);
-  }
-  return { left, right };
+/** Unit direction of a segment. */
+function direction(a: Vec2, b: Vec2): Vec2 {
+  return normalize([b[0] - a[0], b[1] - a[1]]);
 }
 
-/** A flat strip of one width along a polyline at height y, facing up. */
+/**
+ * A flat strip along a polyline at height y, facing up: one quad per segment,
+ * exactly half the width to each side, plus a round joint at every bend so
+ * the strip never reaches past its own width on a corner.
+ */
 function ribbon(path: Polyline, width: number, y: number): THREE.BufferGeometry {
-  const { left, right } = offsets(path, width / 2);
+  return strip(path, width, () => y, () => y);
+}
+
+/** Joint fans and segment quads shared by ribbons and decks: heights come from `top` and `bottom` per distance along. */
+function strip(path: Polyline, width: number, top: (along: number) => number, bottom: (along: number) => number): THREE.BufferGeometry {
+  const half = width / 2;
   const positions: number[] = [];
   const indices: number[] = [];
-  for (let i = 0; i < path.length; i++) {
-    positions.push(left[i]![0], y, left[i]![1], right[i]![0], y, right[i]![1]);
-    if (i > 0) {
-      const a = (i - 1) * 2;
-      indices.push(a, a + 2, a + 1, a + 1, a + 2, a + 3);
+  const push = (x: number, yy: number, z: number): number => { positions.push(x, yy, z); return positions.length / 3 - 1; };
+  const quad = (p: number, q: number, r: number, s: number) => indices.push(p, q, r, p, r, s);
+  let along = 0;
+  for (let i = 1; i < path.length; i++) {
+    const a = path[i - 1]!;
+    const b = path[i]!;
+    const len = dist(a, b);
+    if (len < 1e-6) continue;
+    const d = direction(a, b);
+    const n: Vec2 = [-d[1] * half, d[0] * half];
+    const a0 = along;
+    const a1 = along + len;
+    const closed = top(a0) !== bottom(a0) || top(a1) !== bottom(a1);
+    // top face
+    const tl0 = push(a[0] + n[0], top(a0), a[1] + n[1]);
+    const tr0 = push(a[0] - n[0], top(a0), a[1] - n[1]);
+    const tl1 = push(b[0] + n[0], top(a1), b[1] + n[1]);
+    const tr1 = push(b[0] - n[0], top(a1), b[1] - n[1]);
+    quad(tl0, tl1, tr1, tr0);
+    if (closed) {
+      // sides and bottom of a slab
+      const bl0 = push(a[0] + n[0], bottom(a0), a[1] + n[1]);
+      const br0 = push(a[0] - n[0], bottom(a0), a[1] - n[1]);
+      const bl1 = push(b[0] + n[0], bottom(a1), b[1] + n[1]);
+      const br1 = push(b[0] - n[0], bottom(a1), b[1] - n[1]);
+      quad(tr0, tr1, br1, br0);
+      quad(bl0, bl1, tl1, tl0);
+      quad(br0, br1, bl1, bl0);
     }
+    // round joint at the far end of every inner segment
+    if (i < path.length - 1) {
+      const c = push(b[0], top(a1), b[1]);
+      const ring: number[] = [];
+      for (let k = 0; k <= JOINT_SEGMENTS; k++) {
+        const t = (k / JOINT_SEGMENTS) * Math.PI * 2;
+        ring.push(push(b[0] + Math.cos(t) * half, top(a1), b[1] + Math.sin(t) * half));
+      }
+      for (let k = 0; k < JOINT_SEGMENTS; k++) indices.push(c, ring[k + 1]!, ring[k]!);
+      if (closed) {
+        const cb = push(b[0], bottom(a1), b[1]);
+        const ringB: number[] = [];
+        for (let k = 0; k <= JOINT_SEGMENTS; k++) {
+          const t = (k / JOINT_SEGMENTS) * Math.PI * 2;
+          ringB.push(push(b[0] + Math.cos(t) * half, bottom(a1), b[1] + Math.sin(t) * half));
+        }
+        for (let k = 0; k < JOINT_SEGMENTS; k++) {
+          indices.push(cb, ringB[k]!, ringB[k + 1]!);
+          quad(ring[k]!, ring[k + 1]!, ringB[k + 1]!, ringB[k]!);
+        }
+      }
+    }
+    along = a1;
   }
   const geometry = new THREE.BufferGeometry();
   geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
@@ -298,6 +376,8 @@ function ribbon(path: Polyline, width: number, y: number): THREE.BufferGeometry 
   geometry.computeVertexNormals();
   return geometry;
 }
+
+const JOINT_SEGMENTS = 12;
 
 /** The deck's height along the path: level in the middle, falling to the ground over a ramp at an open end. */
 function deckHeight(along: number, total: number, level: number, startRamp: number, endRamp: number): number {
@@ -309,36 +389,9 @@ function deckHeight(along: number, total: number, level: number, startRamp: numb
 
 /** A closed slab along a path: top, bottom and both side faces, height following the ramps. */
 function deck(path: Polyline, width: number, level: number, thickness: number, startRamp: number, endRamp: number): THREE.BufferGeometry {
-  const { left, right } = offsets(path, width / 2);
   const total = pathLength(path);
-  const tops: number[] = [];
-  let along = 0;
-  for (let i = 0; i < path.length; i++) {
-    if (i > 0) along += dist(path[i - 1]!, path[i]!);
-    tops.push(deckHeight(along, total, level, startRamp, endRamp));
-  }
-  const positions: number[] = [];
-  const indices: number[] = [];
-  // four rings of vertices per station: top-left, top-right, bottom-right, bottom-left
-  for (let i = 0; i < path.length; i++) {
-    const y1 = tops[i]!;
-    const y0 = Math.max(0, y1 - thickness);
-    positions.push(left[i]![0], y1, left[i]![1], right[i]![0], y1, right[i]![1], right[i]![0], y0, right[i]![1], left[i]![0], y0, left[i]![1]);
-    if (i > 0) {
-      const a = (i - 1) * 4;
-      const b = i * 4;
-      const quad = (p: number, q: number, r: number, s: number) => indices.push(p, q, r, p, r, s);
-      quad(a, b, b + 1, a + 1); // top
-      quad(a + 1, b + 1, b + 2, a + 2); // right side
-      quad(a + 2, b + 2, b + 3, a + 3); // bottom
-      quad(a + 3, b + 3, b, a); // left side
-    }
-  }
-  const geometry = new THREE.BufferGeometry();
-  geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
-  geometry.setIndex(indices);
-  geometry.computeVertexNormals();
-  return geometry;
+  const top = (along: number) => deckHeight(along, total, level, startRamp, endRamp);
+  return strip(path, width, top, (along) => Math.max(0, top(along) - thickness));
 }
 
 /** Columns under a deck, one every PIER_PITCH metres, none where it has ramped to the ground. */
