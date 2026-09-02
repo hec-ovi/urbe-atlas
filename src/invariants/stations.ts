@@ -29,6 +29,9 @@ function checkStation(st: Station): void {
   if (!pointInPolygon(st.position, st.platform)) {
     throw invariantFailure(`station ${st.id} platform does not cover its own position`);
   }
+  if (st.box.bottom !== st.level || st.box.top <= st.box.bottom) {
+    throw invariantFailure(`station ${st.id} box does not stand on its platform`, st.box);
+  }
   if (st.level >= LEVELS.ground) {
     // at grade the entrance is a place on the sidewalk beside the platform: no passage to build
     if (st.shafts.length > 0) throw invariantFailure(`station ${st.id} is at grade but publishes shafts`);

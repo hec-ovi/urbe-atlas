@@ -21,7 +21,7 @@ import type { PlannedDistrict } from '../districts/DistrictPlanner';
 import type { BuiltEdge, BuiltNode } from '../streets/Graph';
 import { closestOnSegment, dist, normalize, sub, add, scale } from '../geom/vec';
 import { directionAt, distanceTo, length as lineLength, offsetAt, pointAt } from '../geom/polyline';
-import { type EntrancePlace, platformOf, shaftsOf } from './stations';
+import { type EntrancePlace, boxOf, platformOf, shaftsOf } from './stations';
 import { carriagewayWidth } from '../streets/widths';
 import { LEVELS } from '../levels';
 import { bounds } from '../geom/polygon';
@@ -352,12 +352,14 @@ export class TransitPlanner {
     const places = this.entrancesNear(position);
     const fallback: EntrancePlace[] = [{ point: position, direction, sidewalk: 0 }];
     const entrances = places.length > 0 ? places : fallback;
-    const platform = platformOf(position, direction, level < 0 ? 'subway' : 'train');
+    const mode = level < LEVELS.ground ? 'subway' : 'train';
+    const platform = platformOf(position, direction, mode);
     return {
       id,
       position,
       districtId: `d${districtOfNode(node.id)}`,
       platform,
+      box: boxOf(level, mode),
       entrances: entrances.map((e) => e.point),
       shafts: shaftsOf(entrances, platform, level),
       level,

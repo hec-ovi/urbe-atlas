@@ -38,7 +38,7 @@ import { directionAt, length as lineLength, pointAt } from './geom/polyline';
 import { closestOnSegment, cross, dist, sub } from './geom/vec';
 import { LEVELS } from './levels';
 
-export const BLUEPRINT_VERSION = '0.6.0';
+export const BLUEPRINT_VERSION = '0.7.0';
 
 const SUBDIVISION: Record<DistrictKind, SubdivisionConfig> = {
   downtown: { minLotArea: 500, maxLotArea: 2600, chanceNoDivide: 0.12 },

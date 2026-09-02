@@ -285,6 +285,8 @@ describe('blueprint output', () => {
     for (const st of [...bp.transit.subwayStations, ...bp.transit.trainStations]) {
       expect(st.platform.length, `${st.id} platform`).toBeGreaterThanOrEqual(3);
       expect(pointInPolygon(st.position, st.platform), `${st.id} platform covers its position`).toBe(true);
+      expect(st.box.bottom, `${st.id} box floor`).toBe(st.level);
+      expect(st.box.top, `${st.id} box ceiling`).toBeGreaterThan(st.box.bottom);
       if (st.level >= 0) {
         expect(st.shafts, `${st.id} is at grade`).toEqual([]);
         continue;

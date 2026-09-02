@@ -16,8 +16,9 @@ import { LEVELS } from '../levels';
  * The shaft is a stair box on the sidewalk, the passage an egress corridor.
  */
 export const STATION = {
-  subway: { platformLength: 140, platformWidth: 8 },
-  train: { platformLength: 180, platformWidth: 6 },
+  /** `height` is the clear volume over the platform, the box a tunnel must miss. */
+  subway: { platformLength: 140, platformWidth: 8, height: 5 },
+  train: { platformLength: 180, platformWidth: 6, height: 3 },
   /** Stair box down from the sidewalk: this long along the street, this wide where the sidewalk allows. */
   shaft: { length: 8, maxWidth: 3, minWidth: 1.6 },
   /** Corridor from a shaft foot to the platform. */
@@ -49,11 +50,19 @@ export function rectangle(center: Vec2, direction: Vec2, length: number, width: 
   ];
 }
 
-/** The platform box of a station on this track direction. */
-export function platformOf(position: Vec2, direction: Vec2, mode: 'subway' | 'train'): Polygon {
+/** The platform footprint of a station on this track direction. */
+export function platformOf(position: Vec2, direction: Vec2, mode: StationMode): Polygon {
   const { platformLength, platformWidth } = STATION[mode];
   return rectangle(position, direction, platformLength, platformWidth);
 }
+
+/** The volume over that footprint: platform floor to ceiling. */
+export function boxOf(level: number, mode: StationMode): { bottom: number; top: number } {
+  return { bottom: level, top: level + STATION[mode].height };
+}
+
+/** Underground metro or regional rail at grade: the two shapes a station takes. */
+export type StationMode = 'subway' | 'train';
 
 /**
  * One shaft per entrance. A station at grade publishes none: its entrances open

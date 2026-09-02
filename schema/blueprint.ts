@@ -182,8 +182,10 @@ export interface Station {
   id: string;
   position: Vec2;
   districtId: string;
-  /** Platform footprint in plan, a straight box along the track through `position`, at `level`. */
+  /** Platform footprint in plan, a straight box along the track through `position`. */
   platform: Polygon;
+  /** Vertical extent of the station box over that footprint, meters on +Y: `bottom` is the platform floor (`level`), `top` its ceiling. Keep tunnels and links out of it. */
+  box: { bottom: number; top: number };
   /** Street-level entrance points, each on a sidewalk. */
   entrances: Vec2[];
   /** One shaft per entrance, in the same order: the way down to the platform. Empty for a station at grade, whose entrances open onto the platform itself. */
