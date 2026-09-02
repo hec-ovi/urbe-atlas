@@ -31,6 +31,7 @@ export class PreviewApp {
   private readonly map: MapView;
   private readonly map3d: Map3DView;
   private readonly tabs: ViewTabs;
+  private readonly modeSwitch: ViewModeSwitch;
   private mode: ViewMode = '2d';
   private readonly panel: ParamsPanel;
   private readonly parcelLink = new ParcelLink();
@@ -62,7 +63,7 @@ export class PreviewApp {
       onImport: (file) => void this.importParams(file),
     });
     const layers = new LayerToggles((next) => { this.map.setFilters(next); this.map3d.setFilters(next); });
-    const viewMode = new ViewModeSwitch((mode) => this.setMode(mode));
+    this.modeSwitch = new ViewModeSwitch((mode) => this.setMode(mode));
     const visualizationIntro = el('section', { class: 'visualization-intro' }, [
       el('p', { class: 'eyebrow', text: 'Map display' }),
       el('h2', { text: 'Visualization' }),
@@ -70,8 +71,11 @@ export class PreviewApp {
     ]);
     this.tabs = new ViewTabs(
       [this.panel.root],
-      [visualizationIntro, viewMode.root, this.overview.root, layers.root, this.inspector.root, this.parcelLink.root, new LegendWidget().root],
-      () => requestAnimationFrame(() => this.resize()),
+      [visualizationIntro, this.modeSwitch.root, this.overview.root, layers.root, this.inspector.root, this.parcelLink.root, new LegendWidget().root],
+      (active) => {
+        if (active === 'visualization') this.setMode('3d');
+        requestAnimationFrame(() => this.resize());
+      },
     );
     const sidebar = el('div', { class: 'sidebar' });
     sidebar.append(
@@ -137,6 +141,7 @@ export class PreviewApp {
   /** Flat map or the city in three dimensions; the 3D view starts drawing the first time it is shown. */
   setMode(mode: ViewMode): void {
     this.mode = mode;
+    this.modeSwitch.setMode(mode);
     this.map.canvas.hidden = mode !== '2d';
     this.map3d.canvas.hidden = mode !== '3d';
     if (mode === '3d') {

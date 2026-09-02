@@ -373,7 +373,7 @@ describe('PreviewApp', () => {
 });
 
 describe('sidebar tabs and view mode', () => {
-  it('keeps one control tab visible and switches the map to 3D', async () => {
+  it('opens Visualization in 3D and keeps the flat map selectable', async () => {
     const { PreviewApp } = await import('../src/ui/views/PreviewApp');
     const app = new PreviewApp();
     document.body.append(app.root);
@@ -386,12 +386,21 @@ describe('sidebar tabs and view mode', () => {
     expect(visualization.getAttribute('aria-pressed')).toBe('true');
     expect(creation.getAttribute('aria-pressed')).toBe('false');
     const threeD = getByLabelText(app.root, 'City in 3D');
-    await userEvent.click(threeD);
     expect(app.viewMode).toBe('3d');
+    expect((threeD as HTMLInputElement).checked).toBe(true);
     expect(app.root.querySelector('.map-view-3d')?.hidden).toBe(false);
 
+    const flat = getByLabelText(app.root, 'Flat map');
+    await userEvent.click(flat);
+    expect(app.viewMode).toBe('2d');
+    expect((flat as HTMLInputElement).checked).toBe(true);
+    expect(app.root.querySelector('.map-view')?.hidden).toBe(false);
+
+    await userEvent.click(creation);
     await userEvent.click(visualization);
     expect(visualization.getAttribute('aria-pressed')).toBe('true');
+    expect(app.viewMode).toBe('3d');
+    expect((threeD as HTMLInputElement).checked).toBe(true);
     expect(threeD.closest('.tab-pane')?.hidden).toBe(false);
     app.root.remove();
   });
