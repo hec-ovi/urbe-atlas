@@ -1,5 +1,7 @@
 # Changelog
 
+0.2.17: blueprint 0.12.0 publishes one continuous 3D access path per subway entrance. Four switchback stair flights stay inside the shaft, descend from grade to -12 m without a vertical edge, then a level passage reaches an explicit handoff inside the platform. Invariants reject missing, discontinuous, vertical or off-level paths.
+
 0.2.16: the 3D preview builds one envelope prism per parcel and traces the floor elevations on its facade. The previous floor stack extruded and triangulated a capped solid for every floor, leaving most of those caps hidden inside the building and sending them to the GPU whenever the whole city was visible.
 
 0.2.15: nested generator parameters now fail closed at runtime. Malformed size and district ranges, null maps, unknown district or wealth keys, unknown feature names, non-boolean toggles and non-finite numeric values return `E_INVALID_PARAMS` instead of leaking a TypeError or being silently accepted. Browser parameter import runs that same resolver before changing the form.

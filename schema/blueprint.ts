@@ -11,6 +11,7 @@
 import type { AtlasParams, DistrictKind, WealthTier } from './params';
 
 export type Vec2 = [x: number, z: number];
+export type Vec3 = [x: number, y: number, z: number];
 export type Polygon = Vec2[];
 export type Polyline = Vec2[];
 
@@ -261,8 +262,27 @@ export interface Station {
   entrances: Vec2[];
   /** One shaft per entrance, in the same order: the way down to the platform. Empty for a station at grade, whose entrances open onto the platform itself. */
   shafts: Shaft[];
+  /** One navigable route per underground entrance, in entrance order. Empty at grade. */
+  accessPaths: StationAccessPath[];
   /** Platform height above the ground plane: the line's level (src/levels.ts); entrances stay at grade. */
   level: number;
+}
+
+/** A continuous route from one street entrance to its platform handoff. */
+export interface StationAccessPath {
+  /** Index into Station.entrances and Station.shafts. */
+  entranceIndex: number;
+  /** Ordered traversal legs. The first is stairs; an underground passage follows when needed. */
+  segments: StationAccessSegment[];
+  /** Final point inside the platform footprint at the station level. */
+  platformHandoff: Vec3;
+}
+
+/** A typed 3D navigation leg. Consecutive legs share their endpoint exactly. */
+export interface StationAccessSegment {
+  kind: 'stairs' | 'passage';
+  /** Ordered centerline in [x, y, z], with at least two points. */
+  path: Vec3[];
 }
 
 /** The way underground from one street entrance: a vertical shaft, then a corridor to the platform. */

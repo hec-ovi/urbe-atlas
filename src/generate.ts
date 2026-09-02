@@ -42,7 +42,7 @@ import { LEVELS } from './levels';
 import { cityGridAngle } from './grid';
 import { RAIL, STATION } from './transit/stations';
 
-export const BLUEPRINT_VERSION = '0.11.0';
+export const BLUEPRINT_VERSION = '0.12.0';
 
 const SUBDIVISION: Record<DistrictKind, SubdivisionConfig> = {
   downtown: { minLotArea: 500, maxLotArea: 2600, chanceNoDivide: 0.12 },
