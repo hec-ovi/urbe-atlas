@@ -324,37 +324,55 @@ describe('PreviewApp', () => {
     });
   });
 
-  it('inspects a parcel before opening its configured link', async () => {
+  it('opens the right-clicked parcel while preserving the selected output', async () => {
     const app = mount();
     await app.generate(SMALL);
     app.resize();
     const canvas = app.root.querySelector('canvas') as HTMLCanvasElement;
     const opened = vi.spyOn(window, 'open').mockReturnValue(null);
-
-    const parcelSelected = () => app.root.querySelector('.inspector-open') !== null;
-    await inspectUntil(canvas, parcelSelected);
-    expect(parcelSelected()).toBe(true);
-    await userEvent.click(getByRole(app.root, 'button', { name: 'Open building view' }));
-    expect(String(opened.mock.calls[0][0])).toMatch(/^http:\/\/localhost:5306\/\?mode=building&parcel=p\d+&out=\/out\/preview$/);
-
-    // template cleared: the inspector reports the parcel and opens nothing
     const user = userEvent.setup();
-    await user.clear(getByLabelText(app.root, 'URL template'));
-    opened.mockClear();
-    await user.click(getByRole(app.root, 'button', { name: 'Open building view' }));
-    const reported = (): boolean => /p\d+: \w+/.test(getByRole(app.root, 'log').textContent ?? '');
-    expect(reported()).toBe(true);
-    expect(opened).not.toHaveBeenCalled();
+    const template = getByLabelText(app.root, 'URL template');
+    await user.clear(template);
+    await user.type(template, 'https://engine.test/?mode=city&parcel=p136&out=/out/selected');
 
-    await user.click(getByLabelText(app.root, 'URL template'));
-    await user.paste('https://engine.test/?seed={seed}&parcel={parcelId}');
-    await user.click(getByRole(app.root, 'button', { name: 'Open building view' }));
-    expect(opened).toHaveBeenCalledTimes(1);
-    expect(String(opened.mock.calls[0][0])).toMatch(/^https:\/\/engine\.test\/\?seed=preview&parcel=p\d+$/);
-    expect(getByRole(app.root, 'log').textContent).toContain('https://engine.test/?seed=preview&parcel=p');
+    await inspectUntil(canvas, () => opened.mock.calls.length > 0);
+    const selected = app.root.querySelector('.inspector-heading strong')!.textContent!.split(' · ')[0];
+    const first = new URL(String(opened.mock.calls[0][0]));
+    expect(first.searchParams.get('mode')).toBe('building');
+    expect(first.searchParams.get('parcel')).toBe(selected);
+    expect(first.searchParams.get('parcel')).not.toBe('p136');
+    expect(first.searchParams.get('out')).toBe('/out/selected');
+
+    let secondParcel = selected;
+    for (let x = 15; x < CANVAS && secondParcel === selected; x += 25) {
+      for (let z = 15; z < CANVAS && secondParcel === selected; z += 25) {
+        await user.pointer({ target: canvas, coords: { clientX: x, clientY: z }, keys: '[MouseRight]' });
+        const last = opened.mock.lastCall?.[0];
+        if (last) secondParcel = new URL(String(last)).searchParams.get('parcel') ?? selected;
+      }
+    }
+    expect(secondParcel).not.toBe(selected);
+    expect(app.root.querySelector('.inspector-heading strong')!.textContent).toContain(secondParcel);
 
     await user.click(getByRole(app.root, 'button', { name: 'Clear selection' }));
     expect(getByText(app.root, 'Hover to preview. Right-click a feature to keep its measurements here.')).toBeTruthy();
+    opened.mockRestore();
+  });
+
+  it('shows an actionable error instead of opening without an assembled output', async () => {
+    const app = mount();
+    await app.generate(SMALL);
+    app.resize();
+    const user = userEvent.setup();
+    const template = getByLabelText(app.root, 'URL template');
+    await user.clear(template);
+    await user.type(template, 'https://engine.test/?parcel=p136');
+    const opened = vi.spyOn(window, 'open').mockReturnValue(null);
+    const canvas = app.root.querySelector('canvas') as HTMLCanvasElement;
+    await inspectUntil(canvas, () => app.root.querySelector('.inspector-open') !== null);
+    expect(opened).not.toHaveBeenCalled();
+    expect(getByRole(app.root, 'log').textContent).toContain('No assembled output is selected');
+    expect(getByRole(app.root, 'log').textContent).toContain('out=');
     opened.mockRestore();
   });
 

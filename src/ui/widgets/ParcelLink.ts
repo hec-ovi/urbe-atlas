@@ -9,7 +9,11 @@ import { el } from '../components/dom';
 /** Where a building opens by default: the engine's building viewer on the preview stack, the assembled world of this seed. */
 const DEFAULT_TEMPLATE = 'http://localhost:5306/?mode=building&parcel={parcelId}&out=/out/{seed}';
 
-const HINT = 'empty means off. Tokens: {seed} {parcelId} {blockId} {districtId} {type} {tier} {x} {z}';
+const HINT = 'Requires an out= world output. Tokens: {seed} {parcelId} {blockId} {districtId} {type} {tier} {x} {z}';
+
+export type ParcelDestination =
+  | { url: string; error?: never }
+  | { url?: never; error: string };
 
 export class ParcelLink {
   readonly root: HTMLElement;
@@ -29,10 +33,12 @@ export class ParcelLink {
     ]);
   }
 
-  /** The link for this parcel, or null while the template is empty. */
-  linkFor(parcel: Parcel, seed: string): string | null {
+  /** Resolve a destination, forcing the selected parcel while retaining the chosen output. */
+  destinationFor(parcel: Parcel, seed: string): ParcelDestination {
     const template = this.input.value.trim();
-    if (template === '') return null;
+    if (template === '') {
+      return { error: 'No exterior viewer is configured. Set a URL template with an out= world output.' };
+    }
     const values: Record<string, string> = {
       seed,
       parcelId: parcel.id,
@@ -43,6 +49,20 @@ export class ParcelLink {
       x: String(parcel.access.point[0]),
       z: String(parcel.access.point[1]),
     };
-    return template.replace(/\{(\w+)\}/g, (token, key: string) => values[key] ?? token);
+    const resolved = template.replace(/\{(\w+)\}/g, (token, key: string) => values[key] ?? token);
+    let url: URL;
+    try {
+      url = new URL(resolved, window.location.href);
+    } catch {
+      return { error: 'The exterior viewer URL is invalid.' };
+    }
+    const output = url.searchParams.get('out')?.trim();
+    if (!output) {
+      return { error: 'No assembled output is selected. Add an out= world output to the URL template.' };
+    }
+    url.searchParams.set('mode', 'building');
+    url.searchParams.set('parcel', parcel.id);
+    url.searchParams.set('out', output);
+    return { url: url.toString() };
   }
 }

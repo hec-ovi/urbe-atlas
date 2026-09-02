@@ -327,18 +327,7 @@ export class Map3DView {
     }
   }
 
-  private popupNode: HTMLElement | null = null;
-
-  private popup(parcel: Parcel, x: number, y: number): void {
-    this.popupNode?.remove();
-    const node = popupFor(parcel, x, y, () => this.onParcelClick?.(parcel));
-    this.popupNode = node;
-    this.canvas.parentElement?.append(node);
-    const dismiss = (e: Event) => { if (e.target !== node && !node.contains(e.target as Node)) { node.remove(); document.removeEventListener('pointerdown', dismiss); } };
-    setTimeout(() => document.addEventListener('pointerdown', dismiss), 0);
-  }
-
-  /** The parcel under the pointer, offered in a popup; left clicks only orbit. */
+  /** The parcel under a right-click opens immediately; left clicks only orbit. */
   private pick(event: MouseEvent): void {
     if ((!this.onParcelClick && !this.onParcelInspect) || !this.renderer) return;
     const rect = this.canvas.getBoundingClientRect();
@@ -352,27 +341,9 @@ export class Map3DView {
     const parcel = this.parcels.find((p) => pointInPolygon([hit.point.x, hit.point.z], p.footprint));
     if (parcel) {
       this.onParcelInspect?.(parcel);
-      if (this.onParcelClick) this.popup(parcel, event.clientX, event.clientY);
+      this.onParcelClick?.(parcel);
     }
   }
-}
-
-/** The popup a right click opens over a building: what it is, and a way into its own view. */
-function popupFor(parcel: Parcel, x: number, y: number, open: () => void): HTMLElement {
-  const root = document.createElement('div');
-  root.className = 'parcel-popup';
-  root.style.left = `${x}px`;
-  root.style.top = `${y}px`;
-  const title = document.createElement('div');
-  title.className = 'parcel-popup-title';
-  title.textContent = `${parcel.id} · ${parcel.type} ${parcel.tier} · block ${parcel.blockId}`;
-  const button = document.createElement('button');
-  button.type = 'button';
-  button.className = 'button';
-  button.textContent = 'Open in new view';
-  button.addEventListener('click', () => { open(); root.remove(); });
-  root.append(title, button);
-  return root;
 }
 
 function shapeOf(polygon: Polygon): THREE.Shape {

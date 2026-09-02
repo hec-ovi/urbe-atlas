@@ -50,7 +50,11 @@ export class PreviewApp {
       () => this.map.clearSelection(),
     );
     this.map = new MapView(
-      (hit) => { this.inspector.select(hit); this.tabs.show('visualization'); },
+      (hit) => {
+        this.inspector.select(hit);
+        this.tabs.show('visualization');
+        if (hit.kind === 'parcel') this.openParcel(hit.parcel);
+      },
       (hit) => this.inspector.preview(hit),
     );
     this.map3d = new Map3DView(
@@ -185,13 +189,13 @@ export class PreviewApp {
   }
 
   private openParcel(parcel: Parcel): void {
-    const url = this.parcelLink.linkFor(parcel, this.blueprint?.meta.seed ?? '');
-    if (!url) {
-      this.notifications.info(`${parcel.id}: ${parcel.type} ${parcel.tier}, block ${parcel.blockId}`);
+    const destination = this.parcelLink.destinationFor(parcel, this.blueprint?.meta.seed ?? '');
+    if ('error' in destination) {
+      this.notifications.error(`${parcel.id}: ${destination.error}`);
       return;
     }
-    window.open(url, '_blank', 'noopener');
-    this.notifications.info(`${parcel.id} opened:`, { href: url, label: url });
+    window.open(destination.url, '_blank', 'noopener');
+    this.notifications.info(`${parcel.id} opened:`, { href: destination.url, label: destination.url });
   }
 }
 
