@@ -12,6 +12,8 @@ import { ParamsPanel } from '../src/ui/widgets/ParamsPanel';
 import { MapView, DEFAULT_LAYERS } from '../src/ui/views/MapView';
 import { PreviewApp } from '../src/ui/views/PreviewApp';
 import { Map3DView } from '../src/ui/views/Map3DView';
+import { streetSurfaceRegions } from '../src/ui/views/StreetSurfaceRegions';
+import { difference, intersection, offset } from '../src/geom/clip';
 
 /** A city small enough to build inside a test, big enough to have parcels. */
 const SMALL: AtlasParams = { seed: 'preview', size: { width: 600, depth: 600 } };
@@ -202,6 +204,20 @@ describe('MapView', () => {
     await inspectUntil(view.canvas, () => selected.mock.calls.length > 0);
     expect(selected).toHaveBeenCalled();
     expect(['parcel', 'street', 'station']).toContain(selected.mock.calls[0][0].kind);
+  });
+});
+
+describe('3D street surfaces', () => {
+  it('clips the reported city street classes to disjoint roadway regions', () => {
+    const blueprint = generateCity({ seed: 'urbe', size: { width: 1000, depth: 1000 } });
+    const regions = streetSurfaceRegions(blueprint);
+    const roadway = blueprint.volumetric.ground
+      .filter((surface) => surface.surface === 'roadway')
+      .map((surface) => surface.polygon);
+    expect(regions.street.length).toBeGreaterThan(0);
+    expect(regions.road.length).toBeGreaterThan(0);
+    expect(offset(difference([...regions.street, ...regions.road], roadway), -0.01)).toHaveLength(0);
+    expect(offset(intersection(regions.street, regions.road), -0.01)).toHaveLength(0);
   });
 });
 

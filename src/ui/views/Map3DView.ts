@@ -14,10 +14,12 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import type { CityBlueprint, ElevationPoint, Parcel, PlantingKind, Polygon, Polyline, Station, StreetEdge, TrafficSignal, Vec2 } from '../../../schema/blueprint';
 import { DIAGNOSTIC_COLORS, FURNITURE_COLORS, GROUND_COLORS, TRANSIT_COLORS, parcelHsl, streetColor } from '../components/colors';
 import { defaultFilters, type FilterKey, type Filters } from './filters';
+import { streetSurfaceRegions } from './StreetSurfaceRegions';
 
 const SKY = 0x0e1117;
 const FLOOR_GAP = 0.08;
-const UNDER_GROUND = -0.02;
+const ROADWAY_BASE = -0.02;
+const STREET_SURFACE = 0.01;
 const PLATFORM_THICKNESS = 1;
 const HEADHOUSE_HEIGHT = 3.2;
 const SIGNAL = { poleHeight: 6, poleSize: 0.28, mastSize: 0.2, headHeight: 0.9, headSize: 0.32 };
@@ -163,7 +165,7 @@ export class Map3DView {
     const parts: Record<string, THREE.BufferGeometry[]> = { roadway: [], curb: [], sidewalk: [], block: [], open: [] };
     for (const cover of bp.volumetric.ground) {
       if (cover.polygon.length < 3) continue;
-      parts[cover.surface]!.push(plate(cover.polygon, cover.surface === 'roadway' ? 0 : 0.05));
+      parts[cover.surface]!.push(plate(cover.polygon, cover.surface === 'roadway' ? ROADWAY_BASE : 0.05));
     }
     for (const surface of Object.keys(parts) as (keyof typeof GROUND_COLORS)[]) {
       this.merged(`ground.${surface}`, parts[surface]!, new THREE.MeshLambertMaterial({ color: GROUND_COLORS[surface] }));
@@ -218,10 +220,13 @@ export class Map3DView {
   private buildStreets(bp: CityBlueprint): void {
     const parts: Record<string, THREE.BufferGeometry[]> = { street: [], road: [], highway: [], alley: [] };
     const piers: THREE.BufferGeometry[] = [];
+    const surfaces = streetSurfaceRegions(bp);
+    parts.street.push(...surfaces.street.map((polygon) => plate(polygon, STREET_SURFACE)));
+    parts.road.push(...surfaces.road.map((polygon) => plate(polygon, STREET_SURFACE)));
     for (const edge of bp.streets.edges) {
-      if (edge.level > 0) continue; // highways are drawn as whole runs below
-      const width = Math.max(1.5, edge.width + edge.sidewalk.left + edge.sidewalk.right);
-      parts[edge.class]!.push(ribbon(edge.path, width, edge.level + UNDER_GROUND));
+      if (edge.class !== 'alley') continue;
+      const width = Math.max(1.5, edge.sidewalk.left + edge.sidewalk.right);
+      parts.alley.push(ribbon(edge.path, width, STREET_SURFACE));
     }
     // One deck per highway run, not per edge: a route is continuous through its
     // junctions and ramps to the ground only at a terminus, where it leaves the city.
