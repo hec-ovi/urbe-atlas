@@ -20,7 +20,8 @@ import { DistrictShapes } from './districts/DistrictShapes';
 import { StreetGrowth } from './streets/StreetGrowth';
 import { AlleyPlanner } from './streets/AlleyPlanner';
 import { StreetGraphBuilder } from './streets/Graph';
-import { demoteDeadEnds, HIGHWAY_DECK, highwayStructures } from './streets/Highways';
+import { applyHighwayElevationProfiles, demoteDeadEnds, HIGHWAY_DECK, highwayStructures } from './streets/Highways';
+import { streetNodesWithConnections } from './streets/Connections';
 import { FaceExtractor } from './streets/Faces';
 import type { Face } from './streets/Faces';
 import { Crossings } from './streets/Crossings';
@@ -42,7 +43,7 @@ import { LEVELS } from './levels';
 import { cityGridAngle } from './grid';
 import { RAIL, STATION } from './transit/stations';
 
-export const BLUEPRINT_VERSION = '0.12.0';
+export const BLUEPRINT_VERSION = '0.13.0';
 
 const SUBDIVISION: Record<DistrictKind, SubdivisionConfig> = {
   downtown: { minLotArea: 500, maxLotArea: 2600, chanceNoDivide: 0.12 },
@@ -153,8 +154,10 @@ export function generateCity(input: AtlasParams): CityBlueprint {
       sidewalk: { left: sw, right: sw },
       districtIds,
       level: e.class === 'highway' ? LEVELS.highway : LEVELS.ground,
+      elevationProfile: [],
     };
   });
+  applyHighwayElevationProfiles(streetEdges);
   const sidewalkOf = (edgeId: string): number => {
     const e = streetEdgeById.get(edgeId)!;
     return Math.max(e.sidewalk.left, e.sidewalk.right);
@@ -383,7 +386,8 @@ export function generateCity(input: AtlasParams): CityBlueprint {
 
   // --- crossings, ground, volumetric -------------------------------------
   const crossings = Crossings.build(graph.nodes, graph.edges, sidewalkOf);
-  const signals = Signals.build(graph.nodes, streetEdges);
+  const streetNodes = streetNodesWithConnections(graph.nodes, streetEdges);
+  const signals = Signals.build(streetNodes, streetEdges);
 
   // street furniture keeps clear of everything a person already uses on the sidewalk
   const obstacles = new Obstacles();
@@ -461,7 +465,7 @@ export function generateCity(input: AtlasParams): CityBlueprint {
       boundary,
     },
     districts,
-    streets: { nodes: graph.nodes, edges: streetEdges, crossings, signals, planting, highwayStructures: structures },
+    streets: { nodes: streetNodes, edges: streetEdges, crossings, signals, planting, highwayStructures: structures },
     blocks,
     parcels,
     transit,

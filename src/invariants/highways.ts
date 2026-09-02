@@ -5,7 +5,7 @@ import { area, bounds, isSimpleRing } from '../geom/polygon';
 import { bufferLine, intersection } from '../geom/clip';
 import { distanceTo, length as pathLength } from '../geom/polyline';
 import { dist, closestOnSegment } from '../geom/vec';
-import { HIGHWAY_DECK } from '../streets/Highways';
+import { HIGHWAY_DECK, highwayElevationProfile } from '../streets/Highways';
 
 const AREA_EPS = 1e-6;
 const POSITION_EPS = 0.002;
@@ -70,6 +70,10 @@ function checkRamps(structure: HighwayStructure): void {
   }
   if (structure.deckThickness <= 0 || structure.deckThickness >= structure.level) {
     throw invariantFailure(`highway ${structure.edgeIds[0]} has invalid deck thickness`);
+  }
+  const expected = highwayElevationProfile(total, structure.level, structure.ramps);
+  if (JSON.stringify(structure.elevationProfile) !== JSON.stringify(expected)) {
+    throw invariantFailure(`highway ${structure.edgeIds[0]} has an invalid elevation profile`);
   }
 }
 

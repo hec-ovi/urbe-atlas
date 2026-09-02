@@ -103,8 +103,16 @@ export interface HighwayStructure {
   deckThickness: number;
   /** Length over which each open end rises from grade. Zero at a junction or closed ring. */
   ramps: { start: number; end: number };
+  /** Height knots along path. Consumers interpolate linearly by distance. */
+  elevationProfile: ElevationPoint[];
   /** Columns supporting the flat deck, in path order. */
   supports: HighwaySupport[];
+}
+
+/** One height knot at an arc distance along a 2D path. */
+export interface ElevationPoint {
+  distance: number;
+  level: number;
 }
 
 /** One vertical highway column. Its footprint is reserved outside every building footprint. */
@@ -153,6 +161,14 @@ export interface StreetNode {
   id: string;
   position: Vec2;
   edgeIds: string[];
+  /** Level-separated edge groups. A vehicle may transfer only within one group. */
+  connections: StreetConnection[];
+}
+
+/** Edges that physically meet at one node and one elevation. */
+export interface StreetConnection {
+  level: number;
+  edgeIds: string[];
 }
 
 export interface StreetEdge {
@@ -167,8 +183,10 @@ export interface StreetEdge {
   /** Sidewalk width per side in meters, 0 = none (highways). Left/right relative to path direction. */
   sidewalk: { left: number; right: number };
   districtIds: string[];
-  /** Height of the carriageway above the ground plane: 0 at grade, the deck height on a highway (src/levels.ts). */
+  /** Flat or maximum carriageway height: 0 at grade, 8 on a highway deck (src/levels.ts). */
   level: number;
+  /** Exact carriageway height knots relative to this edge's own path direction. */
+  elevationProfile: ElevationPoint[];
 }
 
 export interface Crossing {

@@ -7,9 +7,11 @@
  * either a junction with another highway or a point at the city edge.
  */
 import type {
+  ElevationPoint,
   HighwayStructure,
   Polygon,
   Polyline,
+  StreetEdge,
   StreetClass,
   Vec2,
 } from '../../schema/blueprint';
@@ -18,7 +20,7 @@ import { distanceToOutline } from '../geom/polygon';
 import { intersection, snapPoint } from '../geom/clip';
 import { area, bounds } from '../geom/polygon';
 import { directionAt, length as pathLength, pointAt } from '../geom/polyline';
-import { add, scale } from '../geom/vec';
+import { add, dist, scale } from '../geom/vec';
 import { LEVELS } from '../levels';
 import { invariantFailure } from '../errors';
 
@@ -205,6 +207,7 @@ export function highwayStructures(edges: readonly ClassedEdge[], gradeObstacles:
       start: run.rampAtStart ? Math.min(HIGHWAY_DECK.rampLength, maxRamp) : 0,
       end: run.rampAtEnd ? Math.min(HIGHWAY_DECK.rampLength, maxRamp) : 0,
     };
+    const elevationProfile = highwayElevationProfile(total, level, ramps);
     const supports = [];
     const flatStart = ramps.start;
     const flatEnd = total - ramps.end;
@@ -235,9 +238,91 @@ export function highwayStructures(edges: readonly ClassedEdge[], gradeObstacles:
       level,
       deckThickness: HIGHWAY_DECK.thickness,
       ramps,
+      elevationProfile,
       supports,
     };
   });
+}
+
+/** Height knots for one highway run, including both grade-to-deck transitions. */
+export function highwayElevationProfile(
+  total: number,
+  level: number,
+  ramps: HighwayStructure['ramps'],
+): ElevationPoint[] {
+  const points: ElevationPoint[] = [{ distance: 0, level: ramps.start > 0 ? LEVELS.ground : level }];
+  if (ramps.start > 0) points.push({ distance: ramps.start, level });
+  if (ramps.end > 0) points.push({ distance: total - ramps.end, level });
+  points.push({ distance: total, level: ramps.end > 0 ? LEVELS.ground : level });
+  return points
+    .sort((a, b) => a.distance - b.distance)
+    .filter((point, i, sorted) => i === 0 || Math.abs(point.distance - sorted[i - 1].distance) > 1e-9);
+}
+
+/**
+ * Publishes the height of each routing edge in its own from-to direction.
+ * Ramp breakpoints that fall inside an edge are retained as explicit knots.
+ */
+export function applyHighwayElevationProfiles(edges: StreetEdge[]): void {
+  for (const edge of edges) {
+    const total = pathLength(edge.path);
+    edge.elevationProfile = [
+      { distance: 0, level: edge.level },
+      { distance: total, level: edge.level },
+    ];
+  }
+  const byId = new Map(edges.map((edge) => [edge.id, edge]));
+  for (const run of highwayRuns(edges)) {
+    const first = byId.get(run.edgeIds[0])!;
+    const total = pathLength(run.path);
+    const ends = (run.rampAtStart ? 1 : 0) + (run.rampAtEnd ? 1 : 0);
+    const maxRamp = total / (ends || 1);
+    const ramps = {
+      start: run.rampAtStart ? Math.min(HIGHWAY_DECK.rampLength, maxRamp) : 0,
+      end: run.rampAtEnd ? Math.min(HIGHWAY_DECK.rampLength, maxRamp) : 0,
+    };
+    const runProfile = highwayElevationProfile(total, first.level, ramps);
+    let runDistance = 0;
+    let position = run.path[0];
+    for (const edgeId of run.edgeIds) {
+      const edge = byId.get(edgeId)!;
+      const edgeLength = pathLength(edge.path);
+      const forward = dist(edge.path[0], position) <= 0.002;
+      const backward = dist(edge.path[edge.path.length - 1], position) <= 0.002;
+      if (!forward && !backward) {
+        throw invariantFailure(`highway run loses edge ${edge.id} at ${position.join(',')}`);
+      }
+      const far = forward ? edge.path[edge.path.length - 1] : edge.path[0];
+      const distances = [runDistance, runDistance + edgeLength];
+      for (const point of runProfile) {
+        if (point.distance > runDistance + 1e-9 && point.distance < runDistance + edgeLength - 1e-9) {
+          distances.push(point.distance);
+        }
+      }
+      edge.elevationProfile = distances
+        .map((distance) => ({
+          distance: forward ? distance - runDistance : runDistance + edgeLength - distance,
+          level: levelAt(runProfile, distance),
+        }))
+        .sort((a, b) => a.distance - b.distance);
+      runDistance += edgeLength;
+      position = far;
+    }
+  }
+}
+
+/** Linear interpolation between the two surrounding height knots. */
+export function levelAt(profile: readonly ElevationPoint[], distance: number): number {
+  if (distance <= profile[0].distance) return profile[0].level;
+  for (let i = 1; i < profile.length; i++) {
+    const next = profile[i];
+    if (distance > next.distance) continue;
+    const previous = profile[i - 1];
+    const span = next.distance - previous.distance;
+    const t = span <= 1e-9 ? 0 : (distance - previous.distance) / span;
+    return previous.level + (next.level - previous.level) * t;
+  }
+  return profile[profile.length - 1].level;
 }
 
 function clearSupportAt(
