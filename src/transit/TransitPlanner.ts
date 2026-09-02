@@ -22,6 +22,7 @@ import type { BuiltEdge, BuiltNode } from '../streets/Graph';
 import { dist, normalize, sub, add, scale } from '../geom/vec';
 import { distanceTo, length as lineLength, offsetAt, pointAt } from '../geom/polyline';
 import { carriagewayWidth } from '../streets/widths';
+import { LEVELS } from '../levels';
 
 interface Adj {
   edge: BuiltEdge;
@@ -190,7 +191,7 @@ export class TransitPlanner {
         // a line that cannot reach 2 stations is dropped, and takes the
         // stations it just created with it: no station outlives its line
         const before = transit.subwayStations.length;
-        const stationIds = this.placeStations(geometry, 950, 150, transit.subwayStations, 'ss', options.districtOfNode);
+        const stationIds = this.placeStations(geometry, 950, 150, transit.subwayStations, 'ss', options.districtOfNode, LEVELS.subway);
         if (stationIds.length < 2) {
           transit.subwayStations.length = before;
           continue;
@@ -200,6 +201,7 @@ export class TransitPlanner {
           stationIds,
           path: geometry,
           underground: true,
+          level: LEVELS.subway,
         } satisfies RailLine);
       }
     }
@@ -229,7 +231,7 @@ export class TransitPlanner {
       path.push(exit);
       const stationIds: string[] = [];
       for (const pos of stations) {
-        const st = this.makeStation(`ts${transit.trainStations.length}`, pos, options.districtOfNode);
+        const st = this.makeStation(`ts${transit.trainStations.length}`, pos, options.districtOfNode, LEVELS.train);
         transit.trainStations.push(st);
         stationIds.push(st.id);
       }
@@ -238,6 +240,7 @@ export class TransitPlanner {
         stationIds,
         path,
         underground: false,
+        level: LEVELS.train,
       } satisfies RailLine);
     }
 
@@ -305,6 +308,7 @@ export class TransitPlanner {
     all: Station[],
     prefix: 'ss' | 'ts',
     districtOfNode: (nodeId: string) => number,
+    level: number,
   ): string[] {
     const total = lineLength(geometry);
     const count = Math.max(2, Math.round(total / spacing) + 1);
@@ -316,14 +320,14 @@ export class TransitPlanner {
         if (ids[ids.length - 1] !== existing.id) ids.push(existing.id);
         continue;
       }
-      const st = this.makeStation(`${prefix}${all.length}`, pos, districtOfNode);
+      const st = this.makeStation(`${prefix}${all.length}`, pos, districtOfNode, level);
       all.push(st);
       ids.push(st.id);
     }
     return ids;
   }
 
-  private makeStation(id: string, position: Vec2, districtOfNode: (nodeId: string) => number): Station {
+  private makeStation(id: string, position: Vec2, districtOfNode: (nodeId: string) => number, level: number): Station {
     // entrances go mid-sidewalk, so anchor to the nearest node that offers one
     const node = this.nearestNode(position, (n) => this.entrancesAt(n).length > 0);
     const entrances = this.entrancesAt(node);
@@ -332,6 +336,7 @@ export class TransitPlanner {
       position,
       districtId: `d${districtOfNode(node.id)}`,
       entrances: entrances.length > 0 ? entrances : [position],
+      level,
     };
   }
 

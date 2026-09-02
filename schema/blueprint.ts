@@ -95,6 +95,8 @@ export interface StreetEdge {
   /** Sidewalk width per side in meters, 0 = none (highways). Left/right relative to path direction. */
   sidewalk: { left: number; right: number };
   districtIds: string[];
+  /** Height of the carriageway above the ground plane: 0 at grade, the deck height on a highway (src/levels.ts). */
+  level: number;
 }
 
 export interface Crossing {
@@ -180,6 +182,8 @@ export interface Station {
   districtId: string;
   /** Street-level entrance points, each on a sidewalk. */
   entrances: Vec2[];
+  /** Platform height above the ground plane: the line's level (src/levels.ts); entrances stay at grade. */
+  level: number;
 }
 
 export interface RailLine {
@@ -190,6 +194,8 @@ export interface RailLine {
   path: Polyline;
   /** True for subway lines and buried train segments. */
   underground: boolean;
+  /** Track height above the ground plane: negative under it (src/levels.ts). */
+  level: number;
 }
 
 /** Low poly city for map previews: one prism per parcel plus ground cover. */

@@ -26,10 +26,10 @@ Samples, committed and test-guaranteed to regenerate byte-identical:
 `CityBlueprint`: [schema/blueprint.ts](schema/blueprint.ts).
 - `meta`: schema version, seed, resolved params, bounds, irregular city boundary polygon.
 - `districts`: kind (downtown, commercial, residential, industrial, mixed), wealth tier, boundary, floor cap.
-- `streets`: planar graph of nodes and edges; each edge has class (`street` | `road` | `highway` | `alley`), centerline path (curves as polylines), carriageway width, per-side sidewalk widths; pedestrian crossings at intersections. An alley is pedestrian only: carriageway 0, 3 to 5 m of ground, all of it sidewalk, cut through long blocks (dense in poor and commercial districts, elsewhere only as a mid-block connector).
+- `streets`: planar graph of nodes and edges; each edge has class (`street` | `road` | `highway` | `alley`), centerline path (curves as polylines), carriageway width, per-side sidewalk widths, and `level` (meters above the ground plane: 0 at grade, 8 on a highway deck, [src/levels.ts](src/levels.ts)); pedestrian crossings at intersections. An alley is pedestrian only: carriageway 0, 3 to 5 m of ground, all of it sidewalk, cut through long blocks (dense in poor and commercial districts, elsewhere only as a mid-block connector).
 - `blocks`: street-bounded faces with sidewalk strip polygons, contained parcels, open areas. Curb corners at intersections carry a rounded return.
 - `parcels`: type (residential, hotel, offices, corpo, hospital, clinic, police, military, factory, commerce, mall, restaurant, coffee_shop), tier (poor, mid, rich, high_rich), lot polygon, footprint polygon (the lot inset by the type's setback and trimmed to the band the type needs), street access point, 3D envelope (min/max floors, nominal floor height and max height; real per-floor elevations are owned by exterior).
-- `transit`: bus stops and routes over street edges; train and subway stations (with street-level entrances) and lines.
+- `transit`: bus stops and routes over street edges; train and subway stations (with street-level entrances) and lines, each station and line with its `level` (trains at grade, subways at -12 m; entrances stay at grade).
 - `volumetric`: low poly city for map previews: one prism per parcel plus ground cover polygons (roadway, sidewalk, block, open).
 - `stats`: population estimate, parcel counts per type, per district.
 
@@ -40,6 +40,7 @@ Closed set, thrown as `AtlasError { code, message, details? }` ([schema/blueprin
 - `E_INVARIANT`: post-generation coherence check failed; atlas bug, report with seed and params.
 
 ## Invariants
+- Levels are the one place height lives for networks: a consumer stacks highway decks, tracks and platforms from `level`, never from class.
 - IDs are globally unique across the whole blueprint (disjoint prefixes per collection).
 - Street graph is connected; every parcel's access point lies on a sidewalk of its access edge.
 - Every edge is a real run of street: its two nodes differ, no path point repeats, and no vertex turns more than 120 degrees. A sharper turn would fold the edge's sidewalk band back over its own roadway.

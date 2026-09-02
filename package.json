@@ -1,6 +1,6 @@
 {
   "name": "atlas",
-  "version": "0.1.11",
+  "version": "0.2.0",
   "private": true,
   "description": "Deterministic 2D city map generator: seed plus params to a typed city blueprint",
   "type": "module",
@@ -23,6 +23,8 @@
     "esbuild@0.28.2": true
   },
   "dependencies": {
-    "clipper2-ts": "^2.0.1-18"
+    "@types/three": "^0.185.0",
+    "clipper2-ts": "^2.0.1-18",
+    "three": "^0.185.1"
   }
 }

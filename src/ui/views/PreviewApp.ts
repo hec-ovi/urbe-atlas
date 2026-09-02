@@ -9,6 +9,9 @@ import type { CityBlueprint, Parcel } from '../../../schema/blueprint';
 import { generateCity } from '../..';
 import { AtlasError } from '../../errors';
 import { MapView } from './MapView';
+import { Map3DView } from './Map3DView';
+import { ViewTabs } from '../widgets/ViewTabs';
+import { ViewModeSwitch, type ViewMode } from '../widgets/ViewModeSwitch';
 import { LayerToggles } from '../widgets/LayerToggles';
 import { LegendWidget } from '../widgets/LegendWidget';
 import { Notifications } from '../widgets/Notifications';
@@ -21,6 +24,8 @@ import { el } from '../components/dom';
 export class PreviewApp {
   readonly root: HTMLElement;
   private readonly map = new MapView((parcel) => this.openParcel(parcel));
+  private readonly map3d = new Map3DView((parcel) => this.openParcel(parcel));
+  private mode: ViewMode = '2d';
   private readonly panel: ParamsPanel;
   private readonly parcelLink = new ParcelLink();
   private readonly notifications = new Notifications();
@@ -35,11 +40,18 @@ export class PreviewApp {
       onExport: (params) => this.exportParams(params),
       onImport: (file) => void this.importParams(file),
     });
-    const layers = new LayerToggles((next) => this.map.setLayers(next));
+    const layers = new LayerToggles((next) => { this.map.setLayers(next); this.map3d.setLayers(next); });
+    const viewMode = new ViewModeSwitch((mode) => this.setMode(mode));
+    const tabs = new ViewTabs(
+      [this.panel.root],
+      [viewMode.root, layers.root, this.parcelLink.root, new LegendWidget().root],
+      () => requestAnimationFrame(() => this.resize()),
+    );
     const sidebar = el('div', { class: 'sidebar' });
-    sidebar.append(this.panel.root, layers.root, this.parcelLink.root, new LegendWidget().root);
+    sidebar.append(tabs.root);
     this.mapWrap = el('div', { class: 'map-wrap' });
-    this.mapWrap.append(this.map.canvas, this.progress.root, this.notifications.root);
+    this.map3d.canvas.hidden = true;
+    this.mapWrap.append(this.map.canvas, this.map3d.canvas, this.progress.root, this.notifications.root);
     this.root = el('div', { class: 'preview' });
     this.root.append(sidebar, this.mapWrap);
   }
@@ -57,6 +69,7 @@ export class PreviewApp {
       const blueprint = generateCity(params);
       this.blueprint = blueprint;
       this.map.setBlueprint(blueprint);
+      this.map3d.setBlueprint(blueprint);
       this.panel.setStatus(
         `${Math.round(performance.now() - started)} ms, pop ${blueprint.stats.population.toLocaleString()}, ` +
           `${blueprint.parcels.length} parcels, ${blueprint.districts.length} districts`,
@@ -74,6 +87,20 @@ export class PreviewApp {
   /** Fits the map to its pane. */
   resize(): void {
     this.map.resize(this.mapWrap.clientWidth, this.mapWrap.clientHeight);
+    this.map3d.resize(this.mapWrap.clientWidth, this.mapWrap.clientHeight);
+  }
+
+  /** Flat map or the city in three dimensions; the 3D view starts drawing the first time it is shown. */
+  setMode(mode: ViewMode): void {
+    this.mode = mode;
+    this.map.canvas.hidden = mode !== '2d';
+    this.map3d.canvas.hidden = mode !== '3d';
+    if (mode === '3d') this.map3d.shown();
+    this.resize();
+  }
+
+  get viewMode(): ViewMode {
+    return this.mode;
   }
 
   private exportParams(params: AtlasParams): void {

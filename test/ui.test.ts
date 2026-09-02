@@ -209,3 +209,28 @@ describe('PreviewApp', () => {
     opened.mockRestore();
   });
 });
+
+describe('sidebar tabs and view mode', () => {
+  it('shows creation first, switches to visualization, hides a tab clicked twice, and switches the map to 3D', async () => {
+    const { PreviewApp } = await import('../src/ui/views/PreviewApp');
+    const app = new PreviewApp();
+    document.body.append(app.root);
+    const creation = getByRole(app.root, 'button', { name: 'Creation' });
+    const visualization = getByRole(app.root, 'button', { name: 'Visualization' });
+    expect(creation.getAttribute('aria-pressed')).toBe('true');
+    expect(getByLabelText(app.root, 'City in 3D').closest('.tab-pane')?.hidden).toBe(true);
+
+    await userEvent.click(visualization);
+    expect(visualization.getAttribute('aria-pressed')).toBe('true');
+    expect(creation.getAttribute('aria-pressed')).toBe('false');
+    const threeD = getByLabelText(app.root, 'City in 3D');
+    await userEvent.click(threeD);
+    expect(app.viewMode).toBe('3d');
+    expect(app.root.querySelector('.map-view-3d')?.hidden).toBe(false);
+
+    await userEvent.click(visualization);
+    expect(visualization.getAttribute('aria-pressed')).toBe('false');
+    expect(threeD.closest('.tab-pane')?.hidden).toBe(true);
+    app.root.remove();
+  });
+});
