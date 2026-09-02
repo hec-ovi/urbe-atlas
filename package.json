@@ -1,6 +1,6 @@
 {
   "name": "atlas",
-  "version": "0.2.15",
+  "version": "0.2.16",
   "private": true,
   "description": "Deterministic 2D city map generator: seed plus params to a typed city blueprint",
   "type": "module",

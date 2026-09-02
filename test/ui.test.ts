@@ -170,6 +170,11 @@ describe('PreviewApp', () => {
     const blueprint = generateCity({ seed: 'preview-3d', size: { width: 1000, depth: 1000 } });
     expect(blueprint.transit.trainStations.length).toBeGreaterThan(0);
     view.setBlueprint(blueprint);
+    const layers = (view as unknown as {
+      layers: Map<string, { getObjectByName(name: string): unknown }>;
+    }).layers;
+    expect([...layers.entries()].some(([key, group]) =>
+      key.startsWith('zone.') && group.getObjectByName('floor-elevations') !== undefined)).toBe(true);
     expect(error.mock.calls.flat().join(' ')).not.toContain('mergeGeometries');
     error.mockRestore();
   });

@@ -1,6 +1,6 @@
 /**
- * The blueprint in three dimensions: every parcel as its envelope stacked
- * floor by floor in its type colour, ground cover as plates, streets as
+ * The blueprint in three dimensions: every parcel as one envelope prism with
+ * its floor elevations traced on the facade, ground cover as plates, streets as
  * ribbons under the ground plate at grade (they show when the ground is
  * hidden) and as decks with piers where a highway runs above it, rail as
  * tracks at grade and tunnels under it, stations as platforms with entrance
@@ -167,28 +167,46 @@ export class Map3DView {
   private buildParcels(bp: CityBlueprint): void {
     const byId = new Map(bp.parcels.map((p) => [p.id, p]));
     const buckets = new Map<string, { key: FilterKey; color: THREE.Color; parts: THREE.BufferGeometry[] }>();
+    const floorLines = new Map<FilterKey, THREE.Vector3[]>();
     for (const volume of bp.volumetric.buildings) {
       const parcel = byId.get(volume.parcelId);
       if (!parcel || volume.footprint.length < 3) continue;
       const floors = Math.max(1, Math.round(volume.height / parcel.envelope.floorHeight));
       const floorHeight = volume.height / floors;
-      const shape = shapeOf(volume.footprint);
-      for (let i = 0; i < floors; i++) {
-        const id = `${parcel.type}/${parcel.tier}/${i % 2}`;
-        let bucket = buckets.get(id);
-        if (!bucket) {
-          const [h, s, l] = parcelHsl(parcel.type, parcel.tier);
-          const color = new THREE.Color().setHSL(h / 360, s / 100, l / 100).multiplyScalar(i % 2 ? 0.92 : 1);
-          bucket = { key: `zone.${parcel.type}`, color, parts: [] };
-          buckets.set(id, bucket);
-        }
-        bucket.parts.push(
-          new THREE.ExtrudeGeometry(shape, { depth: Math.max(0.05, floorHeight - FLOOR_GAP), bevelEnabled: false })
-            .rotateX(-Math.PI / 2).translate(0, i * floorHeight, 0),
-        );
+      const id = `${parcel.type}/${parcel.tier}`;
+      let bucket = buckets.get(id);
+      if (!bucket) {
+        const [h, s, l] = parcelHsl(parcel.type, parcel.tier);
+        bucket = {
+          key: `zone.${parcel.type}`,
+          color: new THREE.Color().setHSL(h / 360, s / 100, l / 100),
+          parts: [],
+        };
+        buckets.set(id, bucket);
       }
+      bucket.parts.push(prism(volume.footprint, 0, Math.max(0.05, volume.height - FLOOR_GAP)));
+      const key: FilterKey = `zone.${parcel.type}`;
+      const points = floorLines.get(key) ?? [];
+      for (let floor = 1; floor < floors; floor++) {
+        const y = floor * floorHeight;
+        for (let i = 0; i < volume.footprint.length; i++) {
+          const a = volume.footprint[i];
+          const b = volume.footprint[(i + 1) % volume.footprint.length];
+          points.push(new THREE.Vector3(a[0], y, a[1]), new THREE.Vector3(b[0], y, b[1]));
+        }
+      }
+      floorLines.set(key, points);
     }
     for (const bucket of buckets.values()) this.merged(bucket.key, bucket.parts, new THREE.MeshLambertMaterial({ color: bucket.color }));
+    for (const [key, points] of floorLines) {
+      if (points.length === 0) continue;
+      const lines = new THREE.LineSegments(
+        new THREE.BufferGeometry().setFromPoints(points),
+        new THREE.LineBasicMaterial({ color: 0x1b1d22, transparent: true, opacity: 0.32 }),
+      );
+      lines.name = 'floor-elevations';
+      this.layer(key).add(lines);
+    }
   }
 
   private buildStreets(bp: CityBlueprint): void {
