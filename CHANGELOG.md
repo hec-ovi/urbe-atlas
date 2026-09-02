@@ -1,5 +1,7 @@
 # Changelog
 
+0.2.4: a highway is a through route. A streamline that stopped inside the city left its deck dead-ending over a block, so those chains are demoted to road before widths and blocks are read (the stretch gains sidewalks and parcels), and an invariant fails any highway end more than 30 m from the city edge. The 3D preview draws one deck per highway run, continuous through its junctions, ramping only where it leaves the city. Samples regenerated.
+
 0.2.3: the parcel link opens the engine's building viewer for the seed's assembled world by default; the subway shows inside a translucent earth slab under the city.
 0.2.2: preview 3D: streets and decks are segment quads with round joints inside their own width (no corner ever reaches a block), tunnels sit depth-tested under a ground that turns translucent while the subway shows, and a right click over a building opens a popup with a way into its own view; left clicks only orbit.
 0.2.1: one city grid angle for every gridded district (square, monotonous blocks), a radial downtown only from irregularity 0.4, boundary bending in proportion to irregularity; default size 1000 x 1000 m and default irregularity 0.35, so a default city is square throughout. Preview 3D: merged geometry (a few dozen draw calls), highway decks with thickness, ramps at their ends and piers, at-grade streets under the ground plate, subways as tunnels with platforms and surface entrances, train platforms, and one switch per ground surface, parcel type, street class and transit mode.
