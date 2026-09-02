@@ -198,13 +198,19 @@ describe('PreviewApp', () => {
     const canvas = app.root.querySelector('canvas') as HTMLCanvasElement;
     const opened = vi.spyOn(window, 'open').mockReturnValue(null);
 
-    // no template: a click reports the parcel and opens nothing
+    // default template: a click opens the engine's building viewer for this seed's world
+    await clickUntil(canvas, () => opened.mock.calls.length > 0);
+    expect(String(opened.mock.calls[0][0])).toMatch(/^http:\/\/localhost:5306\/\?mode=building&parcel=p\d+&out=\/out\/preview$/);
+
+    // template cleared: a click reports the parcel and opens nothing
+    const user = userEvent.setup();
+    await user.clear(getByLabelText(app.root, 'URL template'));
+    opened.mockClear();
     const reported = (): boolean => /p\d+: \w+/.test(getByRole(app.root, 'log').textContent ?? '');
     await clickUntil(canvas, reported);
     expect(reported()).toBe(true);
     expect(opened).not.toHaveBeenCalled();
 
-    const user = userEvent.setup();
     await user.click(getByLabelText(app.root, 'URL template'));
     await user.paste('https://engine.test/?seed={seed}&parcel={parcelId}');
     await clickUntil(canvas, () => opened.mock.calls.length > 0);

@@ -25,6 +25,7 @@ const TUNNEL_RADIUS = 3;
 const PLATFORM = { length: 24, width: 6, height: 1 };
 const ENTRANCE = { size: 2, height: 3 };
 const GROUND_SEE_THROUGH = 0.7;
+const EARTH_DEPTH = 30;
 
 export class Map3DView {
   readonly canvas: HTMLCanvasElement;
@@ -212,6 +213,16 @@ export class Map3DView {
         this.layer(key).add(new THREE.Mesh(ribbon(path, 4, level + 0.06), new THREE.MeshLambertMaterial({ color })));
       }
     };
+    // the earth the tunnels run through: a dark translucent slab under the whole city
+    if (t.subwayLines.length > 0) {
+      const b = boundsOf(bp.meta.boundary);
+      const earth = new THREE.Mesh(
+        new THREE.BoxGeometry(b.max[0] - b.min[0], EARTH_DEPTH, b.max[1] - b.min[1]),
+        new THREE.MeshLambertMaterial({ color: 0x2b2420, transparent: true, opacity: 0.35, depthWrite: false }),
+      );
+      earth.position.set((b.min[0] + b.max[0]) / 2, -EARTH_DEPTH / 2, (b.min[1] + b.max[1]) / 2);
+      this.layer('transit.subway').add(earth);
+    }
     for (const line of t.trainLines) rail('transit.train', line.path, line.level, TRANSIT_COLORS.train);
     for (const line of t.subwayLines) rail('transit.subway', line.path, line.level, TRANSIT_COLORS.subway);
 
@@ -461,4 +472,10 @@ function pointInPolygon([px, pz]: Vec2, poly: Polygon): boolean {
     if (zi > pz !== zj > pz && px < ((xj - xi) * (pz - zi)) / (zj - zi) + xi) inside = !inside;
   }
   return inside;
+}
+
+function boundsOf(polygon: Polygon): { min: Vec2; max: Vec2 } {
+  const xs = polygon.map((p) => p[0]);
+  const zs = polygon.map((p) => p[1]);
+  return { min: [Math.min(...xs), Math.min(...zs)], max: [Math.max(...xs), Math.max(...zs)] };
 }

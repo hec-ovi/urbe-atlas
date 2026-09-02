@@ -5,6 +5,9 @@
 import type { Parcel } from '../../../schema/blueprint';
 import { el } from '../components/dom';
 
+/** Where a building opens by default: the engine's building viewer on the preview stack, the assembled world of this seed. */
+const DEFAULT_TEMPLATE = 'http://localhost:5306/?mode=building&parcel={parcelId}&out=/out/{seed}';
+
 const HINT = 'empty means off. Tokens: {seed} {parcelId} {blockId} {districtId} {type} {tier} {x} {z}';
 
 export class ParcelLink {
@@ -16,7 +19,7 @@ export class ParcelLink {
       type: 'text',
       id: 'parcel-link',
       placeholder: 'off',
-      value: '',
+      value: DEFAULT_TEMPLATE,
     });
     this.root = el('div', { class: 'parcel-link' }, [
       el('h3', { text: 'Parcel link' }),
