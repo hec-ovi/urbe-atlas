@@ -189,13 +189,13 @@ export class Map3DView {
       parts[edge.class]!.push(ribbon(edge.path, width, edge.level + UNDER_GROUND));
     }
     // One deck per highway run, not per edge: a route is continuous through its
-    // junctions and ramps to the ground only where it leaves the city.
+    // junctions and ramps to the ground only at a terminus, where it leaves the city.
     const highwayWidth = bp.streets.edges.find((e) => e.class === 'highway')?.width ?? 15;
-    for (const run of highwayRuns(bp.streets.edges)) {
-      const closed = dist(run[0]!, run[run.length - 1]!) < 1e-6;
-      const ramp = closed ? 0 : RAMP_LENGTH;
-      parts.highway!.push(deck(run, highwayWidth, LEVELS.highway, DECK_THICKNESS, ramp, ramp));
-      piers.push(...piersAlong(run, highwayWidth, LEVELS.highway, ramp, ramp));
+    for (const { path, rampAtStart, rampAtEnd } of highwayRuns(bp.streets.edges)) {
+      const start = rampAtStart ? RAMP_LENGTH : 0;
+      const end = rampAtEnd ? RAMP_LENGTH : 0;
+      parts.highway!.push(deck(path, highwayWidth, LEVELS.highway, DECK_THICKNESS, start, end));
+      piers.push(...piersAlong(path, highwayWidth, LEVELS.highway, start, end));
     }
     for (const cls of Object.keys(parts) as (keyof typeof parts)[]) {
       this.merged(`street.${cls as StreetEdge['class']}`, parts[cls]!, new THREE.MeshLambertMaterial({ color: streetColor(cls as StreetEdge['class']) }));

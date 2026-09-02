@@ -44,6 +44,7 @@ Closed set, thrown as `AtlasError { code, message, details? }` ([schema/blueprin
 - Planar streets: when the traced network leaves two faces sharing ground, the streets grow again from the next seed in line (three tries), and a city that never planarizes refuses with `E_UNSATISFIABLE`.
 - Street pattern: every gridded district shares one city grid angle, so blocks stay square and monotonous across districts; a downtown turns radial only when `irregularity` is 0.4 or more, and the boundary bends streets only in proportion to `irregularity`. Default size is 1000 x 1000 m, default irregularity 0.35 (a square city; 0.4 and up rings the downtown).
 - Levels are the one place height lives for networks: a consumer stacks highway decks, tracks and platforms from `level`, never from class.
+- A highway is a through route: every highway chain ends either at a junction with other highway arms or within 30 m of the city boundary, so a deck never dead-ends over a block. A chain that stops inside the city is demoted to `road` before widths and blocks are read.
 - IDs are globally unique across the whole blueprint (disjoint prefixes per collection).
 - Street graph is connected; every parcel's access point lies on a sidewalk of its access edge.
 - Every edge is a real run of street: its two nodes differ, no path point repeats, and no vertex turns more than 120 degrees. A sharper turn would fold the edge's sidewalk band back over its own roadway.

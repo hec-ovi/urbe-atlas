@@ -83,11 +83,23 @@ export function demoteDeadEnds(edges: BuiltEdge[], nodes: readonly BuiltNode[], 
 }
 
 /**
- * The highway network as continuous polylines: consecutive edges join into one
- * run, so a consumer draws one deck per route instead of a slab per edge.
- * Every run is a maximal chain; a ring closes on itself.
+ * One continuous highway route. `path` runs end to end; the two ramp flags say
+ * whether that end is a terminus (the route leaves the city, so a deck ramps to
+ * the ground there) or a junction with other highway arms (the deck stays up).
  */
-export function highwayRuns(edges: readonly ClassedEdge[]): Polyline[] {
+export interface HighwayRun {
+  path: Polyline;
+  rampAtStart: boolean;
+  rampAtEnd: boolean;
+}
+
+/**
+ * The highway network as continuous routes: consecutive edges join into one
+ * run, so a consumer draws one deck per route instead of a slab per edge. A run
+ * is a maximal chain, grown both ways from its seed edge and cut only where the
+ * network ends or forks; a ring closes on itself and never ramps.
+ */
+export function highwayRuns(edges: readonly ClassedEdge[]): HighwayRun[] {
   const highways = edges.filter((e) => e.class === 'highway');
   const at = new Map<string, string[]>();
   for (const e of highways) {
@@ -99,35 +111,54 @@ export function highwayRuns(edges: readonly ClassedEdge[]): Polyline[] {
   }
   const byId = new Map(highways.map((e) => [e.id, e]));
   const used = new Set<string>();
-  const runs: Polyline[] = [];
 
-  const walk = (startNode: string, firstEdge: string): void => {
+  /** The next edge along, or undefined where the chain ends or forks. */
+  const onward = (node: string, from: string): string | undefined => {
+    const here = (at.get(node) ?? []).filter((id) => id !== from);
+    return here.length === 1 && !used.has(here[0]) ? here[0] : undefined;
+  };
+
+  /** Edge ids from `node` outward, in order, marking each used; `end` is where the chain stops. */
+  const chainFrom = (node: string, first: string | undefined): { ids: string[]; end: string } => {
+    const ids: string[] = [];
+    let end = node;
+    let id = first;
+    while (id) {
+      used.add(id);
+      ids.push(id);
+      const edge = byId.get(id)!;
+      end = edge.from === end ? edge.to : edge.from;
+      id = onward(end, id);
+    }
+    return { ids, end };
+  };
+
+  const runs: HighwayRun[] = [];
+  for (const seed of highways) {
+    if (used.has(seed.id)) continue;
+    used.add(seed.id);
+    const ahead = chainFrom(seed.to, onward(seed.to, seed.id));
+    const behind = chainFrom(seed.from, onward(seed.from, seed.id));
+    const ids = [...behind.ids.reverse(), seed.id, ...ahead.ids];
+
     const path: Vec2[] = [];
-    let node = startNode;
-    let edgeId: string | undefined = firstEdge;
-    while (edgeId && !used.has(edgeId)) {
-      const edge = byId.get(edgeId)!;
-      used.add(edgeId);
+    let node = behind.end;
+    for (const id of ids) {
+      const edge = byId.get(id)!;
       const forward = edge.from === node;
-      const segment = forward ? edge.path : [...edge.path].slice().reverse();
-      for (const point of segment) {
+      for (const point of forward ? edge.path : [...edge.path].reverse()) {
         const last = path[path.length - 1];
         if (!last || last[0] !== point[0] || last[1] !== point[1]) path.push(point);
       }
       node = forward ? edge.to : edge.from;
-      // a run continues only where exactly two highway edges meet: a fork ends it
-      const here = (at.get(node) ?? []).filter((id) => id !== edgeId);
-      edgeId = here.length === 1 ? here[0] : undefined;
     }
-    if (path.length >= 2) runs.push(path);
-  };
-
-  // open runs first, from every end, then whatever rings are left
-  for (const [nodeId, ids] of at) {
-    if (ids.length === 1 && !used.has(ids[0])) walk(nodeId, ids[0]);
-  }
-  for (const e of highways) {
-    if (!used.has(e.id)) walk(e.from, e.id);
+    if (path.length < 2) continue;
+    const ring = behind.end === ahead.end;
+    runs.push({
+      path,
+      rampAtStart: !ring && (at.get(behind.end) ?? []).length === 1,
+      rampAtEnd: !ring && (at.get(ahead.end) ?? []).length === 1,
+    });
   }
   return runs;
 }

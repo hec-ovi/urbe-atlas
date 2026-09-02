@@ -1,5 +1,7 @@
 # Changelog
 
+0.2.5: a highway deck is one slab per route, end to end. A run grows both ways from its seed edge, so a chain is cut only where the network ends or forks (15 decks on a 3 km city, 1 on a default one), and it ramps to the ground only at a terminus within 30 m of the city edge; a junction inside the city keeps the deck up.
+
 0.2.4: a highway is a through route. A streamline that stopped inside the city left its deck dead-ending over a block, so those chains are demoted to road before widths and blocks are read (the stretch gains sidewalks and parcels), and an invariant fails any highway end more than 30 m from the city edge. The 3D preview draws one deck per highway run, continuous through its junctions, ramping only where it leaves the city. Samples regenerated.
 
 0.2.3: the parcel link opens the engine's building viewer for the seed's assembled world by default; the subway shows inside a translucent earth slab under the city.
