@@ -7,6 +7,15 @@ import type { BuiltEdge, BuiltNode } from './Graph';
 import { length as lineLength, offsetAt } from '../geom/polyline';
 import { carriagewayWidth } from './widths';
 
+/**
+ * How far back from a junction the crossing line, and the signal that governs
+ * it, sit on an arm: clear of the roadway it crosses, never past a third of a
+ * short arm.
+ */
+export function approachSetback(carriageway: number, armLength: number): number {
+  return Math.min(carriageway / 2 + 3, armLength / 3);
+}
+
 export class Crossings {
   static build(nodes: BuiltNode[], edges: BuiltEdge[], sidewalkOf: (edgeId: string) => number): Crossing[] {
     const edgeById = new Map(edges.map((e) => [e.id, e]));
@@ -21,7 +30,7 @@ export class Crossings {
         if (edge.class === 'alley') continue; // no carriageway to cross
         const w = carriagewayWidth(edge.class);
         const l = lineLength(edge.path);
-        const back = Math.min(w / 2 + 3, l / 3);
+        const back = approachSetback(w, l);
         const arc = edge.from === node.id ? back : l - back;
         const side = w / 2 + sw / 2;
         segments.push({ from: offsetAt(edge.path, arc, side), to: offsetAt(edge.path, arc, -side) });

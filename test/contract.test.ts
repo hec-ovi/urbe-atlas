@@ -10,6 +10,7 @@ import { orientedBoundingBox } from '../src/geom/obb';
 import { intersection, offset } from '../src/geom/clip';
 import { area as polygonArea, bounds, pointInPolygon } from '../src/geom/polygon';
 import { CURB_WIDTH } from '../src/streets/widths';
+import { PLANTING_CLEARANCE, PLANTING_SPACING } from '../src/streets/Planting';
 import type { CityBlueprint, ParcelType, Polyline, Vec2 } from '../schema/blueprint';
 
 const PARCEL_TYPES: ParcelType[] = [
@@ -301,6 +302,66 @@ describe('blueprint output', () => {
         expect(pointInPolygon(st.entrances[i], shaft.footprint), `${st.id} shaft ${i} on its entrance`).toBe(true);
       });
     }
+  });
+});
+
+describe('street furniture', () => {
+  it('signals every arm of a signalled junction, with a mast square to the head', () => {
+    const bp = defaultCity();
+    expect(bp.streets.signals.length).toBeGreaterThan(0);
+    const nodeById = new Map(bp.streets.nodes.map((n) => [n.id, n]));
+    const edgeById = new Map(bp.streets.edges.map((e) => [e.id, e]));
+    const armsOf = new Map<string, string[]>();
+    for (const signal of bp.streets.signals) {
+      const node = nodeById.get(signal.nodeId);
+      const edge = edgeById.get(signal.edgeId);
+      expect(node, signal.nodeId).toBeDefined();
+      expect(edge, signal.edgeId).toBeDefined();
+      expect(node!.edgeIds).toContain(signal.edgeId);
+      // a deck overhead and a pedestrian cut are not arms of traffic
+      expect(['street', 'road']).toContain(edge!.class);
+      expect(Math.hypot(...signal.facing)).toBeCloseTo(1, 9);
+      expect(Math.hypot(...signal.mast.direction)).toBeCloseTo(1, 9);
+      expect(signal.facing[0] * signal.mast.direction[0] + signal.facing[1] * signal.mast.direction[1]).toBeCloseTo(0, 9);
+      // the mast reaches from the kerb to the centerline of the arm it stops
+      expect(signal.mast.length).toBeGreaterThan(edge!.width / 2);
+      armsOf.set(signal.nodeId, [...(armsOf.get(signal.nodeId) ?? []), signal.edgeId]);
+    }
+    for (const [nodeId, arms] of armsOf) {
+      const drivable = nodeById.get(nodeId)!.edgeIds.filter((id) => ['street', 'road'].includes(edgeById.get(id)!.class));
+      expect(arms.length, `${nodeId} heads`).toBe(drivable.length);
+      expect(arms.length).toBeGreaterThanOrEqual(3);
+      expect(drivable.some((id) => edgeById.get(id)!.class === 'road'), `${nodeId} carries a road`).toBe(true);
+    }
+  });
+
+  it('plants the sidewalks at the district spacing, clear of every way in', () => {
+    const bp = defaultCity();
+    expect(bp.streets.planting.length).toBeGreaterThan(0);
+    const edgeById = new Map(bp.streets.edges.map((e) => [e.id, e]));
+    const clear: Vec2[] = [
+      ...bp.streets.crossings.flatMap((c) => c.segments.flatMap((seg) => [seg.from, seg.to])),
+      ...bp.transit.busStops.map((s) => s.position),
+      ...[...bp.transit.trainStations, ...bp.transit.subwayStations].flatMap((s) => s.entrances),
+      ...bp.parcels.map((p) => p.access.point),
+    ];
+    for (const point of bp.streets.planting) {
+      const edge = edgeById.get(point.edgeId);
+      expect(edge, point.edgeId).toBeDefined();
+      // an alley has no kerb to furnish and a highway no sidewalk
+      expect(['street', 'road']).toContain(edge!.class);
+      expect(['tree', 'pole', 'bin']).toContain(point.kind);
+      expect([PLANTING_SPACING.dense, PLANTING_SPACING.rest]).toContain(point.spacing);
+    }
+    // the closest any piece of furniture stands to a crossing, a stop, an entrance or a door
+    let worst = { gap: Infinity, at: '' };
+    for (const point of bp.streets.planting) {
+      for (const other of clear) {
+        const gap = distance(point.position, other);
+        if (gap < worst.gap) worst = { gap, at: `${point.kind} on ${point.edgeId}` };
+      }
+    }
+    expect(worst.gap, worst.at).toBeGreaterThanOrEqual(PLANTING_CLEARANCE);
   });
 });
 

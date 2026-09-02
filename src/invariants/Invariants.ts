@@ -12,6 +12,7 @@ import { distanceTo } from '../geom/polyline';
 import { checkGroundCover } from './groundCover';
 import { checkStreetEdges } from './streetEdges';
 import { checkStations } from './stations';
+import { checkFurniture } from './furniture';
 
 /** Shortest run of kerb the generator ever publishes as its own piece, meters. */
 const MIN_CURB_RUN = 0.5;
@@ -171,6 +172,7 @@ export class Invariants {
     checkRailNetwork(bp.transit.subwayStations, bp.transit.subwayLines, 'subway');
     checkRailNetwork(bp.transit.trainStations, bp.transit.trainLines, 'train');
     checkStations(bp);
+    checkFurniture(bp);
 
     // feature toggles respected
     const f = bp.meta.params.features;

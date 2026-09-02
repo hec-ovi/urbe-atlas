@@ -1,7 +1,8 @@
 /**
  * What the visualization shows, one switch per thing: every ground surface,
- * every parcel type, every street class, every transit mode, the district
- * outlines. The flat map reads the coarse groups; the 3D view reads each key.
+ * every parcel type, every street class, every transit mode, every piece of
+ * street furniture, the district outlines. The flat map reads the coarse
+ * groups; the 3D view reads each key.
  */
 import type { ParcelType, StreetClass } from '../../../schema/blueprint';
 import type { Layers } from './MapView';
@@ -13,12 +14,14 @@ export const ZONE_KEYS: ParcelType[] = [
 ];
 export const STREET_KEYS: StreetClass[] = ['street', 'road', 'highway', 'alley'];
 export const TRANSIT_KEYS = ['bus', 'train', 'subway'] as const;
+export const FURNITURE_KEYS = ['signal', 'tree', 'pole', 'bin'] as const;
 
 export type FilterKey =
   | `ground.${(typeof GROUND_KEYS)[number]}`
   | `zone.${ParcelType}`
   | `street.${StreetClass}`
   | `transit.${(typeof TRANSIT_KEYS)[number]}`
+  | `furniture.${(typeof FURNITURE_KEYS)[number]}`
   | 'districts';
 
 export type Filters = Record<FilterKey, boolean>;
@@ -28,6 +31,7 @@ export const FILTER_GROUPS: { title: string; keys: FilterKey[] }[] = [
   { title: 'Zones', keys: ZONE_KEYS.map((k) => `zone.${k}` as FilterKey) },
   { title: 'Streets', keys: STREET_KEYS.map((k) => `street.${k}` as FilterKey) },
   { title: 'Transit', keys: TRANSIT_KEYS.map((k) => `transit.${k}` as FilterKey) },
+  { title: 'Furniture', keys: FURNITURE_KEYS.map((k) => `furniture.${k}` as FilterKey) },
   { title: 'Districts', keys: ['districts'] },
 ];
 

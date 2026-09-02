@@ -77,6 +77,40 @@ export interface StreetGraph {
   edges: StreetEdge[];
   /** Pedestrian crossings linking sidewalks across roadways at intersections. */
   crossings: Crossing[];
+  /** One traffic signal head per approach arm at signalled junctions. */
+  signals: TrafficSignal[];
+  /** Street furniture along the sidewalks of the whole city, one flat list. */
+  planting: PlantingPoint[];
+}
+
+/**
+ * A signal head over one approach arm. The pole stands on the kerb the
+ * approach keeps to (right-hand traffic) and the mast reaches over the lanes.
+ */
+export interface TrafficSignal {
+  /** The junction it controls. */
+  nodeId: string;
+  /** The approach arm it stops. */
+  edgeId: string;
+  /** Pole base, on the sidewalk of that arm. */
+  position: Vec2;
+  /** Unit direction the head looks: back down the arm, at the traffic it stops. */
+  facing: Vec2;
+  /** Mast arm from the pole: unit direction across the roadway, and how far it reaches. */
+  mast: { direction: Vec2; length: number };
+}
+
+/** What stands at a planting point. A consumer skips a kind it does not know rather than drawing it wrong. */
+export type PlantingKind = 'tree' | 'pole' | 'bin';
+
+/** One piece of street furniture, in the furnishing strip of a sidewalk beside the kerb. */
+export interface PlantingPoint {
+  position: Vec2;
+  /** The street edge whose sidewalk it stands on. */
+  edgeId: string;
+  kind: PlantingKind;
+  /** The spacing rule this stretch runs at, meters. */
+  spacing: number;
 }
 
 export interface StreetNode {

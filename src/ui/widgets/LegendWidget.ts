@@ -1,7 +1,7 @@
 /** Read-only color legend: parcel types by tier, street classes, transit modes. */
 import type { ParcelType, StreetClass } from '../../../schema/blueprint';
 import type { WealthTier } from '../../../schema/params';
-import { GROUND_COLORS, TRANSIT_COLORS, parcelColor, streetColor } from '../components/colors';
+import { FURNITURE_COLORS, GROUND_COLORS, TRANSIT_COLORS, parcelColor, streetColor } from '../components/colors';
 import { el } from '../components/dom';
 
 const TYPES: ParcelType[] = [
@@ -41,6 +41,8 @@ export class LegendWidget {
       ['curb', GROUND_COLORS.curb],
       ['sidewalk', GROUND_COLORS.sidewalk],
       ['open ground', GROUND_COLORS.open],
+      ['traffic signal', FURNITURE_COLORS.signal],
+      ['street tree', FURNITURE_COLORS.tree],
       ['bus', TRANSIT_COLORS.busRoute],
       ['subway', TRANSIT_COLORS.subway],
       ['train', TRANSIT_COLORS.train],

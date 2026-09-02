@@ -24,6 +24,8 @@ import { demoteDeadEnds } from './streets/Highways';
 import { FaceExtractor } from './streets/Faces';
 import type { Face } from './streets/Faces';
 import { Crossings } from './streets/Crossings';
+import { Signals } from './streets/Signals';
+import { Obstacles, Planting } from './streets/Planting';
 import { CURB_WIDTH, carriagewayWidth, sidewalkWidth } from './streets/widths';
 import { BlockBuilder, BuiltBlock } from './blocks/BlockBuilder';
 import { Buildability } from './blocks/Buildability';
@@ -39,7 +41,7 @@ import { closestOnSegment, cross, dist, sub } from './geom/vec';
 import { LEVELS } from './levels';
 import { cityGridAngle } from './grid';
 
-export const BLUEPRINT_VERSION = '0.8.0';
+export const BLUEPRINT_VERSION = '0.9.0';
 
 const SUBDIVISION: Record<DistrictKind, SubdivisionConfig> = {
   downtown: { minLotArea: 500, maxLotArea: 2600, chanceNoDivide: 0.12 },
@@ -337,6 +339,21 @@ export function generateCity(input: AtlasParams): CityBlueprint {
 
   // --- crossings, ground, volumetric -------------------------------------
   const crossings = Crossings.build(graph.nodes, graph.edges, sidewalkOf);
+  const signals = Signals.build(graph.nodes, streetEdges);
+
+  // street furniture keeps clear of everything a person already uses on the sidewalk
+  const obstacles = new Obstacles();
+  obstacles.add(crossings.flatMap((c) => c.segments.flatMap((s) => [s.from, s.to])));
+  obstacles.add(signals.map((s) => s.position));
+  obstacles.add(transit.busStops.map((s) => s.position));
+  obstacles.add([...transit.trainStations, ...transit.subwayStations].flatMap((s) => s.entrances));
+  obstacles.add(parcels.map((p) => p.access.point));
+  const planting = Planting.build(
+    streetEdges,
+    (edgeId) => planned[edgeDistrict.get(edgeId) ?? 0].kind,
+    obstacles,
+    Rng.from(seed, 'planting'),
+  );
 
   // face = its roadway part + block pieces + open pieces, so per-face
   // differences give hole-free roadway ground and exact coverage.
@@ -398,7 +415,7 @@ export function generateCity(input: AtlasParams): CityBlueprint {
       boundary,
     },
     districts,
-    streets: { nodes: graph.nodes, edges: streetEdges, crossings },
+    streets: { nodes: graph.nodes, edges: streetEdges, crossings, signals, planting },
     blocks,
     parcels,
     transit,

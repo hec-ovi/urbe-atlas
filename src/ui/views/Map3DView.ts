@@ -11,8 +11,8 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import type { CityBlueprint, Parcel, Polygon, Polyline, Station, StreetEdge, Vec2 } from '../../../schema/blueprint';
-import { GROUND_COLORS, TRANSIT_COLORS, parcelHsl, streetColor } from '../components/colors';
+import type { CityBlueprint, Parcel, PlantingKind, Polygon, Polyline, Station, StreetEdge, TrafficSignal, Vec2 } from '../../../schema/blueprint';
+import { FURNITURE_COLORS, GROUND_COLORS, TRANSIT_COLORS, parcelHsl, streetColor } from '../components/colors';
 import { defaultFilters, type FilterKey, type Filters } from './filters';
 import { highwayRuns } from '../../streets/Highways';
 import { LEVELS } from '../../levels';
@@ -26,6 +26,10 @@ const PIER_PITCH = 30;
 const TUNNEL_RADIUS = 3;
 const PLATFORM_THICKNESS = 1;
 const HEADHOUSE_HEIGHT = 3.2;
+const SIGNAL = { poleHeight: 6, poleSize: 0.28, mastSize: 0.2, headHeight: 0.9, headSize: 0.32 };
+const TREE = { trunk: 0.3, trunkHeight: 2.4, crown: 2.2, crownHeight: 3.6 };
+const LAMP = { height: 8, size: 0.24, headLength: 1.4 };
+const BIN = { size: 0.7, height: 1 };
 const GROUND_SEE_THROUGH = 0.7;
 const EARTH_DEPTH = 30;
 
@@ -70,6 +74,7 @@ export class Map3DView {
     this.buildParcels(bp);
     this.buildStreets(bp);
     this.buildTransit(bp);
+    this.buildFurniture(bp);
     this.buildDistricts(bp);
     this.applyFilters();
     this.resetView();
@@ -233,6 +238,20 @@ export class Map3DView {
     this.merged('transit.bus', stops, new THREE.MeshLambertMaterial({ color: TRANSIT_COLORS.busStop }));
   }
 
+  /** Signals on their masts and the furnishing strip: a tree, a lamp or a bin per point. */
+  private buildFurniture(bp: CityBlueprint): void {
+    this.merged(
+      'furniture.signal',
+      bp.streets.signals.flatMap(signalParts),
+      new THREE.MeshLambertMaterial({ color: FURNITURE_COLORS.signal }),
+    );
+    const byKind: Record<PlantingKind, THREE.BufferGeometry[]> = { tree: [], pole: [], bin: [] };
+    for (const point of bp.streets.planting) byKind[point.kind]?.push(...plantingParts(point.kind, point.position));
+    for (const kind of Object.keys(byKind) as PlantingKind[]) {
+      this.merged(`furniture.${kind}`, byKind[kind], new THREE.MeshLambertMaterial({ color: FURNITURE_COLORS[kind] }));
+    }
+  }
+
   private buildDistricts(bp: CityBlueprint): void {
     for (const d of bp.districts) {
       const points = d.boundary.map(([x, z]) => new THREE.Vector3(x, 0.3, z));
@@ -288,6 +307,40 @@ function popupFor(parcel: Parcel, x: number, y: number, open: () => void): HTMLE
 
 function shapeOf(polygon: Polygon): THREE.Shape {
   return new THREE.Shape(polygon.map(([x, z]) => new THREE.Vector2(x, -z)));
+}
+
+/** A signal: the pole on the kerb, the mast reaching over the lanes, the head hanging off its end. */
+function signalParts(signal: TrafficSignal): THREE.BufferGeometry[] {
+  const [x, z] = signal.position;
+  const { poleHeight, poleSize, mastSize, headHeight, headSize } = SIGNAL;
+  const [dx, dz] = signal.mast.direction;
+  const reach = signal.mast.length;
+  const mast = new THREE.BoxGeometry(reach, mastSize, mastSize)
+    .rotateY(-Math.atan2(dz, dx))
+    .translate(x + (dx * reach) / 2, poleHeight - mastSize / 2, z + (dz * reach) / 2);
+  return [
+    new THREE.BoxGeometry(poleSize, poleHeight, poleSize).translate(x, poleHeight / 2, z),
+    mast,
+    new THREE.BoxGeometry(headSize, headHeight, headSize)
+      .translate(x + dx * reach, poleHeight - mastSize - headHeight / 2, z + dz * reach),
+  ];
+}
+
+/** What stands at a planting point: a tree, a street lamp or a bin. */
+function plantingParts(kind: PlantingKind, [x, z]: Vec2): THREE.BufferGeometry[] {
+  if (kind === 'tree') {
+    return [
+      new THREE.CylinderGeometry(TREE.trunk / 2, TREE.trunk / 2, TREE.trunkHeight, 5).translate(x, TREE.trunkHeight / 2, z),
+      new THREE.ConeGeometry(TREE.crown / 2, TREE.crownHeight, 6).translate(x, TREE.trunkHeight + TREE.crownHeight / 2, z),
+    ];
+  }
+  if (kind === 'pole') {
+    return [
+      new THREE.BoxGeometry(LAMP.size, LAMP.height, LAMP.size).translate(x, LAMP.height / 2, z),
+      new THREE.BoxGeometry(LAMP.headLength, LAMP.size, LAMP.size).translate(x, LAMP.height, z),
+    ];
+  }
+  return [new THREE.BoxGeometry(BIN.size, BIN.height, BIN.size).translate(x, BIN.height / 2, z)];
 }
 
 /**

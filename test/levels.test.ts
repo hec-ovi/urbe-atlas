@@ -18,6 +18,6 @@ describe('levels', () => {
       // entrances stay on the sidewalk at grade: they are plain points, height implied 0
       expect(s.entrances.length).toBeGreaterThan(0);
     }
-    expect(bp.meta.version).toBe('0.8.0');
+    expect(bp.meta.version).toBe('0.9.0');
   });
 });

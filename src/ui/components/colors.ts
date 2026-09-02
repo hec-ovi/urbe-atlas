@@ -57,6 +57,13 @@ export const GROUND_COLORS = {
   open: '#cfe0c3',
 } as const;
 
+export const FURNITURE_COLORS = {
+  signal: '#2f3338',
+  tree: '#3f7a44',
+  pole: '#767c84',
+  bin: '#4a4f57',
+} as const;
+
 export const TRANSIT_COLORS = {
   busStop: '#0b7f3b',
   busRoute: '#0b7f3b',
