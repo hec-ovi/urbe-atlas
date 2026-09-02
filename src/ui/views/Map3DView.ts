@@ -136,8 +136,20 @@ export class Map3DView {
   /** Merged mesh of many geometries in one colour, into one layer. */
   private merged(key: FilterKey, parts: THREE.BufferGeometry[], material: THREE.Material): void {
     if (parts.length === 0) return;
-    const geometry = mergeGeometries(parts, false);
+    const hasIndex = parts.some((part) => part.index !== null);
+    const hasNoIndex = parts.some((part) => part.index === null);
+    const converted: THREE.BufferGeometry[] = [];
+    const compatible = hasIndex && hasNoIndex
+      ? parts.map((part) => {
+          if (part.index === null) return part;
+          const flat = part.toNonIndexed();
+          converted.push(flat);
+          return flat;
+        })
+      : parts;
+    const geometry = mergeGeometries(compatible, false);
     parts.forEach((p) => p.dispose());
+    converted.forEach((part) => part.dispose());
     if (geometry) this.layer(key).add(new THREE.Mesh(geometry, material));
   }
 

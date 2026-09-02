@@ -11,6 +11,7 @@ import { LayerToggles } from '../src/ui/widgets/LayerToggles';
 import { ParamsPanel } from '../src/ui/widgets/ParamsPanel';
 import { MapView, DEFAULT_LAYERS } from '../src/ui/views/MapView';
 import { PreviewApp } from '../src/ui/views/PreviewApp';
+import { Map3DView } from '../src/ui/views/Map3DView';
 
 /** A city small enough to build inside a test, big enough to have parcels. */
 const SMALL: AtlasParams = { seed: 'preview', size: { width: 600, depth: 600 } };
@@ -153,6 +154,26 @@ describe('MapView', () => {
 });
 
 describe('PreviewApp', () => {
+  it('defers 3D geometry until that view is selected', async () => {
+    const built3d = vi.spyOn(Map3DView.prototype, 'setBlueprint');
+    const app = mount();
+    await app.generate(SMALL);
+    expect(built3d).not.toHaveBeenCalled();
+    app.setMode('3d');
+    expect(built3d).toHaveBeenCalledTimes(1);
+    built3d.mockRestore();
+  });
+
+  it('merges indexed station posts with non-indexed platforms without a geometry error', () => {
+    const error = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const view = new Map3DView();
+    const blueprint = generateCity({ seed: 'preview-3d', size: { width: 1000, depth: 1000 } });
+    expect(blueprint.transit.trainStations.length).toBeGreaterThan(0);
+    view.setBlueprint(blueprint);
+    expect(error.mock.calls.flat().join(' ')).not.toContain('mergeGeometries');
+    error.mockRestore();
+  });
+
   it('blocks the form behind a progress cover while generating', async () => {
     const app = mount();
     const running = app.generate(SMALL);

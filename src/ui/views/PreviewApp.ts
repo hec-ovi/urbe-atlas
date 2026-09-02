@@ -33,6 +33,7 @@ export class PreviewApp {
   private readonly progress = new ProgressOverlay();
   private readonly mapWrap: HTMLElement;
   private blueprint: CityBlueprint | null = null;
+  private pending3d: CityBlueprint | null = null;
   private busy = false;
 
   constructor() {
@@ -70,7 +71,8 @@ export class PreviewApp {
       const blueprint = generateCity(params);
       this.blueprint = blueprint;
       this.map.setBlueprint(blueprint);
-      this.map3d.setBlueprint(blueprint);
+      if (this.mode === '3d') this.map3d.setBlueprint(blueprint);
+      else this.pending3d = blueprint;
       this.panel.setStatus(
         `${Math.round(performance.now() - started)} ms, pop ${blueprint.stats.population.toLocaleString()}, ` +
           `${blueprint.parcels.length} parcels, ${blueprint.districts.length} districts`,
@@ -96,7 +98,13 @@ export class PreviewApp {
     this.mode = mode;
     this.map.canvas.hidden = mode !== '2d';
     this.map3d.canvas.hidden = mode !== '3d';
-    if (mode === '3d') this.map3d.shown();
+    if (mode === '3d') {
+      if (this.pending3d) {
+        this.map3d.setBlueprint(this.pending3d);
+        this.pending3d = null;
+      }
+      this.map3d.shown();
+    }
     this.resize();
   }
 
