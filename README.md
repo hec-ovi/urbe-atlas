@@ -11,7 +11,7 @@ npm run preview                             # browser map: pan, zoom, legend, la
 npm run generate -- --seed urbe --out city.json
 ```
 
-The preview generates cities from a form: parameter sets export and import as JSON files, generation runs behind a progress cover with failures shown as notifications, and a parcel click can open that building elsewhere through a URL template (`{seed}`, `{parcelId}`, `{type}`, ...), off until you set one.
+The preview generates cities from a form: parameter sets export and import as JSON files, and generation reports its progress or failure. Right-click a visible parcel, street, highway or station to keep its measurements in the inspector. A selected parcel can open in the configured engine viewer; the default targets the local engine, and an empty URL template disables it.
 
 Generator flags: `--size N`, `--irregularity X`, `--max-floors N`, `--no-highways`, `--no-trains`, `--no-subways`, `--no-alleys`. Only `--seed` is required; everything else has a documented default in `schema/params.ts`.
 

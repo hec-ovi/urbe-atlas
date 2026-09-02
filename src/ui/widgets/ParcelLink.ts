@@ -1,6 +1,7 @@
 /**
- * URL template a parcel click opens, so the map can hand a building to the
- * engine viewer. Empty template (the default) means clicks open nothing.
+ * URL template used by a selected parcel's open action, so the map can hand a
+ * building to the engine viewer. The default targets the local engine; empty
+ * means off.
  */
 import type { Parcel } from '../../../schema/blueprint';
 import { el } from '../components/dom';

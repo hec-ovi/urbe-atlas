@@ -1,5 +1,7 @@
 # Changelog
 
+0.2.20: the browser preview has a dark creation and inspection workspace. The complete parameter contract is editable with presets, synchronized sliders and exact values, inline validation, seed randomization, and painted preparing, generating, rendering and error states. Visualization adds exact filters for ground, zones, streets, transit, furniture and diagnostic layers, layer isolation, a map legend and summary, fit and blueprint download actions, and hover plus right-click measurements for parcels, streets, highway ramps, supports and stations. The 3D highway deck reads every published elevation-profile breakpoint.
+
 0.2.19: blueprint 0.13.1 treats every curb and sidewalk polygon as a highway-column exclusion. A blocked column moves laterally under its deck or shifts backward while retaining a 30 m maximum span. Generation fails with `E_INVARIANT` when no valid support fits.
 
 0.2.18: blueprint 0.13.0 publishes exact distance-to-height profiles on every street edge and highway structure. A city-edge highway ramp rises linearly from grade to the 8 m deck over its computed run, retaining a breakpoint inside an edge when needed. Each street node groups incident edges by endpoint height, so routing cannot turn between a grade street and an elevated crossing.
