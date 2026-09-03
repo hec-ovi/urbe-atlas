@@ -71,4 +71,8 @@ Closed set, thrown as `AtlasError { code, message, details? }` ([schema/blueprin
 - Every envelope admits at least one floor at the minimum floor height of its type's family, mirrored from exterior's floor constants: 2.6 residential, 2.8 hotel, 3.4 offices, 3.6 corpo, 3.8 hospital and clinic, 3.0 police and military, 4.5 factory, 3.0 commerce, mall, restaurant and coffee shop.
 
 ## Depends on
-None.
+
+- [Interior](../interior/CONTRACT.md): the mirrored [core-feasibility constants](../interior/schemas/core-feasibility.json) constrain parcel footprints and floor caps.
+- [Exterior](../exterior/CONTRACT.md): the mirrored [floor constants](../exterior/schemas/floor-constants.json) constrain envelope floor heights.
+
+Atlas imports no sibling runtime data. These compatibility edges keep every generated parcel buildable by the published building contracts.
