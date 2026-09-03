@@ -2,7 +2,7 @@
 
 Purpose: deterministically generates the 2D city blueprint (districts, streets with sidewalks, typed parcels with 3D envelopes, transit and optional hydrology) from a seed and parameters.
 
-Status: blueprint v0.15.0 is implemented and tested when hydrology is requested. An omitted hydrology input retains the byte-identical v0.14.0 blueprint shape used by existing samples; breaking changes go through the orchestrator.
+Status: package v0.2.22. Blueprint v0.15.0 is implemented and tested when hydrology is requested. An omitted hydrology input retains the byte-identical v0.14.0 blueprint shape used by existing samples; breaking changes go through the orchestrator.
 
 ## Conventions
 - Units: meters. Ground plane XZ, +Y up. 2D points are `[x, z]`; heights along +Y.
