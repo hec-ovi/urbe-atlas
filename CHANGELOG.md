@@ -1,5 +1,7 @@
 # Changelog
 
+0.2.27: highway deck meshes omit zero-area triangles where a ramp slab closes at grade, while retaining the shared miter and continuous top, side, and underside faces.
+
 0.2.26: station-access diagnostics remain visible through the subway shaft and platform, so the full route from each street entrance to its platform handoff can be inspected in the 3D preview.
 
 0.2.25: rail paths advance through each route once. Subway terminal platforms and their access paths are built from that canonical line, so each endpoint reaches its own terminal without a reciprocal overlap.

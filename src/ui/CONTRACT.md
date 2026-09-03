@@ -16,7 +16,7 @@ Purpose: presents Atlas creation and blueprint inspection in a dark browser work
 - `PreviewApp.root` is the mountable element. `viewMode` reports the active map mode. `generate` resolves after the generated blueprint is rendered or its error is shown.
 - The Creation tab renders every Atlas parameter, presets, import and export. The Visualization tab renders the summary, filters, inspector, parcel link, legend, and 2D or 3D map.
 - The 2D canvas renders blueprint polygons and supports left-drag pan, cursor-anchored wheel zoom, hover preview, and right-click selection.
-- The WebGL2 canvas renders parcel envelopes and floor marks, partitioned ground, crossings, street furniture, highway structures, transit, water surfaces, shoreline bands, and optional diagnostics. Station-access diagnostics remain visible through the structures whose internal route they trace. Drag orbits, wheel zooms, and right-click selects a visible parcel.
+- The WebGL2 canvas renders parcel envelopes and floor marks, partitioned ground, crossings, street furniture, highway structures, transit, water surfaces, shoreline bands, and optional diagnostics. Highway deck faces share their mitered cross-sections and omit zero-area triangles at grade ramp tips. Station-access diagnostics remain visible through the structures whose internal route they trace. Drag orbits, wheel zooms, and right-click selects a visible parcel.
 - Downloads return the current parameter set or the current CityBlueprint unchanged as JSON.
 - `ParamsPanel` emits `onGenerate(params)`, `onExport(params)`, and `onImport(file)`.
 - `LayerToggles` emits `onChange(filters)`; `ViewModeSwitch` emits `onChange(mode)`; `ViewTabs` emits `onChange(tab)`.

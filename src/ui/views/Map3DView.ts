@@ -584,7 +584,19 @@ function strip(
   const positions: number[] = [];
   const indices: number[] = [];
   const push = (x: number, yy: number, z: number): number => { positions.push(x, yy, z); return positions.length / 3 - 1; };
-  const quad = (p: number, q: number, r: number, s: number) => indices.push(p, q, r, p, r, s);
+  const triangle = (a: number, b: number, c: number): void => {
+    const ax = positions[a * 3]!, ay = positions[a * 3 + 1]!, az = positions[a * 3 + 2]!;
+    const abx = positions[b * 3]! - ax, aby = positions[b * 3 + 1]! - ay, abz = positions[b * 3 + 2]! - az;
+    const acx = positions[c * 3]! - ax, acy = positions[c * 3 + 1]! - ay, acz = positions[c * 3 + 2]! - az;
+    const crossX = aby * acz - abz * acy;
+    const crossY = abz * acx - abx * acz;
+    const crossZ = abx * acy - aby * acx;
+    if (crossX * crossX + crossY * crossY + crossZ * crossZ > 1e-18) indices.push(a, b, c);
+  };
+  const quad = (p: number, q: number, r: number, s: number): void => {
+    triangle(p, q, r);
+    triangle(p, r, s);
+  };
   const levels = sections.map((section, index) => ({
     top: top(section.along, index),
     bottom: bottom(section.along, index),

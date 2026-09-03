@@ -43,6 +43,22 @@ function mount(fetchManifest: ManifestFetcher = async () => ({ ok: false, json: 
   return app;
 }
 
+function expectUniqueNondegenerateFaces(mesh: THREE.Mesh): void {
+  const position = mesh.geometry.getAttribute('position');
+  const index = mesh.geometry.index!;
+  const point = (vertex: number): THREE.Vector3 => new THREE.Vector3(
+    position.getX(vertex), position.getY(vertex), position.getZ(vertex),
+  );
+  const faces = new Set<string>();
+  for (let offset = 0; offset < index.count; offset += 3) {
+    const vertices = [index.getX(offset), index.getX(offset + 1), index.getX(offset + 2)].map(point);
+    expect(new THREE.Triangle(vertices[0], vertices[1], vertices[2]).getArea()).toBeGreaterThan(1e-9);
+    const key = vertices.map((vertex) => vertex.toArray().join(',')).sort().join('|');
+    expect(faces.has(key)).toBe(false);
+    faces.add(key);
+  }
+}
+
 describe('LegendWidget', () => {
   it('shows every parcel type with all four tier swatches', () => {
     const legend = new LegendWidget();
@@ -298,7 +314,7 @@ describe('PreviewApp', () => {
     built3d.mockRestore();
   });
 
-  it('merges indexed station posts with non-indexed platforms without a geometry error', () => {
+  it('builds the published 3D systems without invalid geometry', () => {
     const error = vi.spyOn(console, 'error').mockImplementation(() => undefined);
     const view = new Map3DView();
     const blueprint = generateCity({ seed: 'urbe', size: { width: 1000, depth: 1000 } });
@@ -321,6 +337,7 @@ describe('PreviewApp', () => {
     expect(subway?.getObjectByName('station-assemblies')).toBeTruthy();
     expect(subway?.getObjectByName('terminal-gates')).toBeTruthy();
     expect(layers.get('ground.roadway')?.getObjectByName('crossing-markings')).toBeTruthy();
+    expectUniqueNondegenerateFaces(layers.get('street.highway')!.children[0] as THREE.Mesh);
     expect(error.mock.calls.flat().join(' ')).not.toContain('mergeGeometries');
     error.mockRestore();
   });
