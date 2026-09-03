@@ -8,16 +8,36 @@ export class LayerToggles {
   private readonly filters: Filters = defaultFilters();
   private readonly inputs = new Map<FilterKey, HTMLInputElement>();
   private readonly masters = new Map<string, HTMLInputElement>();
+  private readonly interiorsOnly: HTMLInputElement;
+  private readonly interiorStatus: HTMLElement;
 
   constructor(onChange: (filters: Filters) => void) {
     this.root = el('div', { class: 'layer-toggles' });
     const notify = () => { this.syncMasters(); onChange({ ...this.filters }); };
+    const resetConstraint = () => {
+      this.filters.interiorsOnly = false;
+      this.interiorsOnly.checked = false;
+    };
     const actions = el('div', { class: 'layer-actions' }, [
-      action('Show all', () => { for (const key of this.inputs.keys()) this.setKey(key, true); notify(); }),
-      action('Hide all', () => { for (const key of this.inputs.keys()) this.setKey(key, false); notify(); }),
-      action('Defaults', () => { const defaults = defaultFilters(); for (const key of this.inputs.keys()) this.setKey(key, defaults[key]); notify(); }),
+      action('Show all', () => { for (const key of this.inputs.keys()) this.setKey(key, true); resetConstraint(); notify(); }),
+      action('Hide all', () => { for (const key of this.inputs.keys()) this.setKey(key, false); resetConstraint(); notify(); }),
+      action('Defaults', () => { const defaults = defaultFilters(); for (const key of this.inputs.keys()) this.setKey(key, defaults[key]); resetConstraint(); notify(); }),
     ]);
-    this.root.append(actions);
+    this.interiorsOnly = el('input', { type: 'checkbox', id: 'layer-interiors-only' });
+    this.interiorsOnly.setAttribute('aria-label', 'Only buildings with interiors');
+    this.interiorsOnly.checked = false;
+    this.interiorsOnly.addEventListener('change', () => {
+      this.filters.interiorsOnly = this.interiorsOnly.checked;
+      notify();
+    });
+    this.interiorStatus = el('small', { text: 'Assembled interior list unavailable' });
+    const interiorFilter = el('section', { class: 'layer-constraint' }, [
+      el('label', { for: 'layer-interiors-only' }, [
+        this.interiorsOnly,
+        el('span', {}, [el('strong', { text: 'Only buildings with interiors' }), this.interiorStatus]),
+      ]),
+    ]);
+    this.root.append(actions, interiorFilter);
     for (const group of FILTER_GROUPS) {
       const master = el('input', { type: 'checkbox', id: `layer-group-${group.id}`, 'aria-label': group.title });
       master.checked = group.keys.every((k) => this.filters[k]);
@@ -38,6 +58,7 @@ export class LayerToggles {
         this.inputs.set(key, input);
         const isolate = action(`Only ${filterLabel(key)}`, () => {
           for (const candidate of this.inputs.keys()) this.setKey(candidate, candidate === key);
+          resetConstraint();
           notify();
         });
         isolate.className = 'layer-item-only';
@@ -61,6 +82,7 @@ export class LayerToggles {
       rows.hidden = !group.open;
       const only = action('Only', () => {
         for (const key of this.inputs.keys()) this.setKey(key, group.keys.includes(key));
+        resetConstraint();
         notify();
       });
       only.className = 'layer-only';
@@ -79,6 +101,13 @@ export class LayerToggles {
       );
     }
     this.syncMasters();
+  }
+
+  /** Reports the exact interior count loaded from the assembled world manifest. */
+  setInteriorCount(count: number | null): void {
+    this.interiorStatus.textContent = count === null
+      ? 'Assembled interior list unavailable'
+      : `${count} ${count === 1 ? 'building has' : 'buildings have'} interiors`;
   }
 
   private setKey(key: FilterKey, visible: boolean): void {

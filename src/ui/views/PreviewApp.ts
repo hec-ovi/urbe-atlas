@@ -1,11 +1,11 @@
 /**
  * The preview: params, layers, parcel link and legend on the left, map on the
  * right. Owns the generation flow: the form locks behind a progress cover
- * while a city builds, failures land in the notification stack, and a parcel
- * click opens the configured link.
+ * while a city builds, failures land in the notification stack, and the last
+ * selected parcel keeps its configured building link in the inspector.
  */
 import type { AtlasParams } from '../../../schema/params';
-import type { CityBlueprint, Parcel } from '../../../schema/blueprint';
+import type { CityBlueprint } from '../../../schema/blueprint';
 import { generateCity } from '../..';
 import { AtlasError } from '../../errors';
 import { MapView } from './MapView';
@@ -34,7 +34,8 @@ export class PreviewApp {
   private readonly modeSwitch: ViewModeSwitch;
   private mode: ViewMode = '2d';
   private readonly panel: ParamsPanel;
-  private readonly parcelLink = new ParcelLink();
+  private readonly parcelLink: ParcelLink;
+  private readonly layers: LayerToggles;
   private readonly notifications = new Notifications();
   private readonly progress = new ProgressOverlay();
   private readonly overview = new BlueprintOverview();
@@ -43,22 +44,23 @@ export class PreviewApp {
   private blueprint: CityBlueprint | null = null;
   private pending3d: CityBlueprint | null = null;
   private busy = false;
+  private manifestRequest = 0;
+  private manifestTimer: ReturnType<typeof setTimeout> | null = null;
 
-  constructor() {
+  constructor(private readonly fetchManifest: ManifestFetcher = (url) => fetch(url)) {
+    this.parcelLink = new ParcelLink();
     this.inspector = new InspectorPanel(
-      (parcel) => this.openParcel(parcel),
+      (parcel) => this.parcelLink.destinationFor(parcel, this.blueprint?.meta.seed ?? ''),
       () => this.map.clearSelection(),
     );
     this.map = new MapView(
       (hit) => {
         this.inspector.select(hit);
         this.tabs.show('visualization');
-        if (hit.kind === 'parcel') this.openParcel(hit.parcel);
       },
       (hit) => this.inspector.preview(hit),
     );
     this.map3d = new Map3DView(
-      (parcel) => this.openParcel(parcel),
       (parcel) => { this.inspector.select({ kind: 'parcel', parcel }); this.tabs.show('visualization'); },
     );
     this.panel = new ParamsPanel({
@@ -66,7 +68,11 @@ export class PreviewApp {
       onExport: (params) => this.exportParams(params),
       onImport: (file) => void this.importParams(file),
     });
-    const layers = new LayerToggles((next) => { this.map.setFilters(next); this.map3d.setFilters(next); });
+    this.layers = new LayerToggles((next) => { this.map.setFilters(next); this.map3d.setFilters(next); });
+    this.parcelLink.onChange(() => {
+      this.inspector.refresh();
+      this.scheduleManifestLoad();
+    });
     this.modeSwitch = new ViewModeSwitch((mode) => this.setMode(mode));
     const visualizationIntro = el('section', { class: 'visualization-intro' }, [
       el('p', { class: 'eyebrow', text: 'Map display' }),
@@ -75,7 +81,7 @@ export class PreviewApp {
     ]);
     this.tabs = new ViewTabs(
       [this.panel.root],
-      [visualizationIntro, this.modeSwitch.root, this.overview.root, layers.root, this.inspector.root, this.parcelLink.root, new LegendWidget().root],
+      [visualizationIntro, this.modeSwitch.root, this.overview.root, this.layers.root, this.inspector.root, this.parcelLink.root, new LegendWidget().root],
       (active) => {
         if (active === 'visualization') this.setMode('3d');
         requestAnimationFrame(() => this.resize());
@@ -118,6 +124,7 @@ export class PreviewApp {
       else this.pending3d = blueprint;
       this.overview.setBlueprint(blueprint);
       this.toolbar.setBlueprint(blueprint);
+      void this.loadInteriorManifest(blueprint);
       this.panel.setStatus(
         `${Math.round(performance.now() - started)} ms, pop ${blueprint.stats.population.toLocaleString()}, ` +
           `${blueprint.parcels.length} parcels, ${blueprint.districts.length} districts`,
@@ -162,6 +169,16 @@ export class PreviewApp {
     return this.mode;
   }
 
+  /** Applies exact assembled interior ids to both map renderers and the filter label. */
+  setInteriorParcels(parcelIds: readonly string[]): void {
+    const valid = this.blueprint
+      ? parcelIds.filter((id) => this.blueprint!.parcels.some((parcel) => parcel.id === id))
+      : [...parcelIds];
+    this.map.setInteriorParcels(valid);
+    this.map3d.setInteriorParcels(valid);
+    this.layers.setInteriorCount(valid.length);
+  }
+
   private fitView(): void {
     if (this.mode === '2d') this.map.resetView();
     else this.map3d.resetView();
@@ -188,15 +205,67 @@ export class PreviewApp {
     }
   }
 
-  private openParcel(parcel: Parcel): void {
-    const destination = this.parcelLink.destinationFor(parcel, this.blueprint?.meta.seed ?? '');
-    if ('error' in destination) {
-      this.notifications.error(`${parcel.id}: ${destination.error}`);
-      return;
-    }
-    window.open(destination.url, '_blank', 'noopener');
-    this.notifications.info(`${parcel.id} opened:`, { href: destination.url, label: destination.url });
+  private scheduleManifestLoad(): void {
+    if (this.manifestTimer !== null) clearTimeout(this.manifestTimer);
+    this.manifestTimer = setTimeout(() => {
+      this.manifestTimer = null;
+      if (this.blueprint) void this.loadInteriorManifest(this.blueprint);
+    }, 200);
   }
+
+  private async loadInteriorManifest(blueprint: CityBlueprint): Promise<void> {
+    const request = ++this.manifestRequest;
+    this.map.setInteriorParcels([]);
+    this.map3d.setInteriorParcels([]);
+    this.layers.setInteriorCount(null);
+    const parcel = blueprint.parcels[0];
+    if (!parcel) return;
+    const destination = this.parcelLink.manifestFor(parcel, blueprint.meta.seed);
+    if ('error' in destination) return;
+    try {
+      const response = await this.fetchManifest(destination.url);
+      if (!response.ok) return;
+      const manifest = await response.json();
+      if (request !== this.manifestRequest || this.blueprint !== blueprint || !isWorldManifest(manifest)) return;
+      this.setInteriorParcels(manifest.interiors);
+    } catch {
+      // An assembled output is optional. The filter fails closed until one is available.
+    }
+  }
+}
+
+export type ManifestFetcher = (url: string) => Promise<Pick<Response, 'ok' | 'json'>>;
+
+interface WorldManifest {
+  contractVersion: '1.0.0';
+  seed: string;
+  atlasVersion: string;
+  named: boolean;
+  namingTheme: string | null;
+  parcels: string[];
+  interiors: string[];
+  floors: Record<string, string[]>;
+}
+
+function isWorldManifest(value: unknown): value is WorldManifest {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  const manifest = value as Record<string, unknown>;
+  const fields = new Set(['contractVersion', 'seed', 'atlasVersion', 'named', 'namingTheme', 'parcels', 'interiors', 'floors']);
+  if (Object.keys(manifest).some((key) => !fields.has(key))) return false;
+  const strings = (candidate: unknown): candidate is string[] =>
+    Array.isArray(candidate) && candidate.every((item) => typeof item === 'string' && item.length > 0)
+      && new Set(candidate).size === candidate.length;
+  if (manifest.contractVersion !== '1.0.0'
+    || typeof manifest.seed !== 'string' || manifest.seed.length === 0
+    || typeof manifest.atlasVersion !== 'string' || manifest.atlasVersion.length === 0
+    || typeof manifest.named !== 'boolean'
+    || (manifest.namingTheme !== null && typeof manifest.namingTheme !== 'string')
+    || !strings(manifest.parcels) || !strings(manifest.interiors)
+    || !manifest.floors || typeof manifest.floors !== 'object' || Array.isArray(manifest.floors)) return false;
+  const parcelIds = new Set(manifest.parcels);
+  if (!manifest.interiors.every((id) => parcelIds.has(id))) return false;
+  return Object.entries(manifest.floors).every(([parcelId, floors]) =>
+    parcelIds.has(parcelId) && strings(floors) && floors.length > 0 && floors.every((floor) => /^-?[0-9]{3}$/.test(floor)));
 }
 
 function nextFrame(): Promise<void> {

@@ -18,6 +18,7 @@ export type ParcelDestination =
 export class ParcelLink {
   readonly root: HTMLElement;
   private readonly input: HTMLInputElement;
+  private readonly listeners = new Set<() => void>();
 
   constructor() {
     this.input = el('input', {
@@ -31,6 +32,12 @@ export class ParcelLink {
       el('label', { class: 'field field-wide', for: 'parcel-link' }, ['URL template', this.input]),
       el('p', { class: 'hint', text: HINT }),
     ]);
+    this.input.addEventListener('input', () => this.listeners.forEach((listener) => listener()));
+  }
+
+  onChange(listener: () => void): () => void {
+    this.listeners.add(listener);
+    return () => this.listeners.delete(listener);
   }
 
   /** Resolve a destination, forcing the selected parcel while retaining the chosen output. */
@@ -64,5 +71,19 @@ export class ParcelLink {
     url.searchParams.set('parcel', parcel.id);
     url.searchParams.set('out', output);
     return { url: url.toString() };
+  }
+
+  /** Resolve the manifest beside the assembled output selected by the building URL. */
+  manifestFor(parcel: Parcel, seed: string): ParcelDestination {
+    const destination = this.destinationFor(parcel, seed);
+    if ('error' in destination) return destination;
+    const buildingUrl = new URL(destination.url);
+    const output = buildingUrl.searchParams.get('out')!;
+    try {
+      const outputBase = new URL(`${output.replace(/\/$/, '')}/`, `${buildingUrl.origin}/`);
+      return { url: new URL('manifest.json', outputBase).toString() };
+    } catch {
+      return { error: 'The assembled output path is invalid.' };
+    }
   }
 }

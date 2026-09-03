@@ -11,7 +11,7 @@ import { defaultFilters } from '../src/ui/views/filters';
 import { LayerToggles } from '../src/ui/widgets/LayerToggles';
 import { ParamsPanel } from '../src/ui/widgets/ParamsPanel';
 import { MapView, DEFAULT_LAYERS } from '../src/ui/views/MapView';
-import { PreviewApp } from '../src/ui/views/PreviewApp';
+import { PreviewApp, type ManifestFetcher } from '../src/ui/views/PreviewApp';
 import { Map3DView } from '../src/ui/views/Map3DView';
 import { streetSurfaceRegions } from '../src/ui/views/StreetSurfaceRegions';
 import { difference, intersection, offset } from '../src/geom/clip';
@@ -34,8 +34,8 @@ async function inspectUntil(canvas: HTMLElement, hit: () => boolean): Promise<vo
   }
 }
 
-function mount(): PreviewApp {
-  const app = new PreviewApp();
+function mount(fetchManifest: ManifestFetcher = async () => ({ ok: false, json: async () => ({}) })): PreviewApp {
+  const app = new PreviewApp(fetchManifest);
   document.body.append(app.root);
   const wrap = app.root.querySelector('.map-wrap') as HTMLElement;
   Object.defineProperty(wrap, 'clientWidth', { value: CANVAS });
@@ -83,6 +83,19 @@ describe('LayerToggles', () => {
     expect(isolated['transit.bus']).toBe(true);
     expect(isolated['transit.train']).toBe(true);
     expect(isolated['street.highway']).toBe(false);
+  });
+
+  it('exposes an independent assembled-interiors constraint and its exact count', async () => {
+    const onChange = vi.fn();
+    const toggles = new LayerToggles(onChange);
+    document.body.append(toggles.root);
+    toggles.setInteriorCount(5);
+    expect(getByText(toggles.root, '5 buildings have interiors')).toBeTruthy();
+    await userEvent.click(getByLabelText(toggles.root, 'Only buildings with interiors'));
+    expect(onChange.mock.lastCall![0].interiorsOnly).toBe(true);
+    expect(onChange.mock.lastCall![0]['street.highway']).toBe(true);
+    await userEvent.click(getByRole(toggles.root, 'button', { name: 'Defaults' }));
+    expect(onChange.mock.lastCall![0].interiorsOnly).toBe(false);
   });
 });
 
@@ -206,6 +219,24 @@ describe('MapView', () => {
     expect(selected).toHaveBeenCalled();
     expect(['parcel', 'street', 'station']).toContain(selected.mock.calls[0][0].kind);
   });
+
+  it('removes shell parcels from hit testing when the interiors-only filter is active', () => {
+    const blueprint = generateCity(SMALL);
+    const view = new MapView();
+    const target = blueprint.parcels[0];
+    view.setBlueprint(blueprint);
+    view.setInteriorParcels([target.id]);
+    const filters = Object.fromEntries(Object.keys(defaultFilters()).map((key) => [key, false])) as ReturnType<typeof defaultFilters>;
+    filters[`zone.${target.type}`] = true;
+    filters.interiorsOnly = true;
+    view.setFilters(filters);
+    const centre = target.lot.reduce<[number, number]>((sum, point) => [sum[0] + point[0], sum[1] + point[1]], [0, 0])
+      .map((value) => value / target.lot.length) as [number, number];
+    const featureAt = (view as unknown as { featureAt(point: [number, number]): { kind: string; parcel?: { id: string } } | null }).featureAt.bind(view);
+    expect(featureAt(centre)?.parcel?.id).toBe(target.id);
+    view.setInteriorParcels([]);
+    expect(featureAt(centre)).toBeNull();
+  });
 });
 
 describe('3D street surfaces', () => {
@@ -256,6 +287,21 @@ describe('PreviewApp', () => {
     expect(layers.get('ground.roadway')?.getObjectByName('crossing-markings')).toBeTruthy();
     expect(error.mock.calls.flat().join(' ')).not.toContain('mergeGeometries');
     error.mockRestore();
+  });
+
+  it('shows only assembled interior building batches in the 3D constraint', () => {
+    const view = new Map3DView();
+    const blueprint = generateCity(SMALL);
+    const interiorId = blueprint.volumetric.buildings[0].parcelId;
+    view.setBlueprint(blueprint);
+    view.setInteriorParcels([interiorId]);
+    view.setFilters({ ...defaultFilters(), interiorsOnly: true });
+    const layers = (view as unknown as { layers: Map<string, THREE.Group> }).layers;
+    const visible = [...layers.entries()]
+      .filter(([key]) => key.startsWith('zone.'))
+      .flatMap(([, group]) => group.children.filter((child) => child.visible));
+    expect(visible.length).toBeGreaterThan(0);
+    expect(visible.every((child) => child.userData.hasInterior === true)).toBe(true);
   });
 
   it('inserts highway profile breakpoints into a 3D deck', () => {
@@ -377,7 +423,7 @@ describe('PreviewApp', () => {
     });
   });
 
-  it('opens the right-clicked parcel while preserving the selected output', async () => {
+  it('keeps the selected building link in the inspector without opening from map clicks', async () => {
     const app = mount();
     await app.generate(SMALL);
     app.resize();
@@ -388,31 +434,40 @@ describe('PreviewApp', () => {
     await user.clear(template);
     await user.type(template, 'https://engine.test/?mode=city&parcel=p136&out=/out/selected');
 
-    await inspectUntil(canvas, () => opened.mock.calls.length > 0);
+    await user.click(canvas);
+    expect(opened).not.toHaveBeenCalled();
+    await inspectUntil(canvas, () => app.root.querySelector('.inspector-open') !== null);
     const selected = app.root.querySelector('.inspector-heading strong')!.textContent!.split(' · ')[0];
-    const first = new URL(String(opened.mock.calls[0][0]));
+    const firstLink = getByRole(app.root, 'link', { name: 'Open building view' }) as HTMLAnchorElement;
+    const first = new URL(firstLink.href);
     expect(first.searchParams.get('mode')).toBe('building');
     expect(first.searchParams.get('parcel')).toBe(selected);
     expect(first.searchParams.get('parcel')).not.toBe('p136');
     expect(first.searchParams.get('out')).toBe('/out/selected');
 
+    await user.clear(template);
+    await user.type(template, 'https://engine.test/?out=/out/revised');
+    expect(new URL((getByRole(app.root, 'link', { name: 'Open building view' }) as HTMLAnchorElement).href).searchParams.get('out'))
+      .toBe('/out/revised');
+
     let secondParcel = selected;
     for (let x = 15; x < CANVAS && secondParcel === selected; x += 25) {
       for (let z = 15; z < CANVAS && secondParcel === selected; z += 25) {
         await user.pointer({ target: canvas, coords: { clientX: x, clientY: z }, keys: '[MouseRight]' });
-        const last = opened.mock.lastCall?.[0];
-        if (last) secondParcel = new URL(String(last)).searchParams.get('parcel') ?? selected;
+        const last = app.root.querySelector<HTMLAnchorElement>('.inspector-open')?.href;
+        if (last) secondParcel = new URL(last).searchParams.get('parcel') ?? selected;
       }
     }
     expect(secondParcel).not.toBe(selected);
     expect(app.root.querySelector('.inspector-heading strong')!.textContent).toContain(secondParcel);
+    expect(opened).not.toHaveBeenCalled();
 
     await user.click(getByRole(app.root, 'button', { name: 'Clear selection' }));
     expect(getByText(app.root, 'Hover to preview. Right-click a feature to keep its measurements here.')).toBeTruthy();
     opened.mockRestore();
   });
 
-  it('shows an actionable error instead of opening without an assembled output', async () => {
+  it('keeps an actionable link error in the inspector when no output is assembled', async () => {
     const app = mount();
     await app.generate(SMALL);
     app.resize();
@@ -422,11 +477,49 @@ describe('PreviewApp', () => {
     await user.type(template, 'https://engine.test/?parcel=p136');
     const opened = vi.spyOn(window, 'open').mockReturnValue(null);
     const canvas = app.root.querySelector('canvas') as HTMLCanvasElement;
-    await inspectUntil(canvas, () => app.root.querySelector('.inspector-open') !== null);
+    await inspectUntil(canvas, () => app.root.querySelector('.inspector-link-error') !== null);
     expect(opened).not.toHaveBeenCalled();
-    expect(getByRole(app.root, 'log').textContent).toContain('No assembled output is selected');
-    expect(getByRole(app.root, 'log').textContent).toContain('out=');
+    expect(getByRole(app.root, 'status').textContent).toContain('No assembled output is selected');
+    expect(getByRole(app.root, 'status').textContent).toContain('out=');
+    expect(getByRole(app.root, 'log').textContent).not.toContain('No assembled output is selected');
     opened.mockRestore();
+  });
+
+  it('loads exact interior ids from the selected assembled manifest', async () => {
+    const fetchManifest = vi.fn<ManifestFetcher>(async () => ({
+      ok: true,
+      json: async () => ({
+        contractVersion: '1.0.0',
+        seed: 'assembled',
+        atlasVersion: '0.2.21',
+        named: false,
+        namingTheme: null,
+        parcels: ['p0', 'p1'],
+        interiors: ['p0'],
+        floors: { p0: ['000'] },
+      }),
+    }));
+    const mapIds = vi.spyOn(MapView.prototype, 'setInteriorParcels');
+    const map3dIds = vi.spyOn(Map3DView.prototype, 'setInteriorParcels');
+    const app = mount(fetchManifest);
+    await app.generate(SMALL);
+    await waitFor(() => expect(getByText(app.root, '1 building has interiors')).toBeTruthy());
+    expect(fetchManifest).toHaveBeenCalledWith('http://localhost:5306/out/preview/manifest.json');
+    expect(mapIds).toHaveBeenLastCalledWith(['p0']);
+    expect(map3dIds).toHaveBeenLastCalledWith(['p0']);
+    mapIds.mockRestore();
+    map3dIds.mockRestore();
+  });
+
+  it('fails closed when the assembled manifest is invalid', async () => {
+    const app = mount(async () => ({
+      ok: true,
+      json: async () => ({ contractVersion: '1.0.0', interiors: ['p0'] }),
+    }));
+    await app.generate(SMALL);
+    await waitFor(() => expect(getByText(app.root, 'Assembled interior list unavailable')).toBeTruthy());
+    await userEvent.click(getByLabelText(app.root, 'Only buildings with interiors'));
+    expect((getByLabelText(app.root, 'Only buildings with interiors') as HTMLInputElement).checked).toBe(true);
   });
 
   it('uses the dark workspace and exposes generated geometry diagnostics', async () => {

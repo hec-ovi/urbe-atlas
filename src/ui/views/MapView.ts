@@ -32,6 +32,7 @@ export class MapView {
   readonly canvas: HTMLCanvasElement;
   private blueprint: CityBlueprint | null = null;
   private filters: Filters = defaultFilters();
+  private interiorParcels = new Set<string>();
   private selected: MapHit | null = null;
   private scale = 0.25;
   private offsetX = 0;
@@ -108,6 +109,12 @@ export class MapView {
     this.render();
   }
 
+  /** Exact parcel ids whose interiors exist in the assembled world manifest. */
+  setInteriorParcels(parcelIds: readonly string[]): void {
+    this.interiorParcels = new Set(parcelIds);
+    this.render();
+  }
+
   clearSelection(): void {
     this.selected = null;
     this.render();
@@ -157,7 +164,9 @@ export class MapView {
       if (this.filters[`ground.${ground.surface}`]) this.polygon(context, ground.polygon, GROUND_COLORS[ground.surface]);
     }
     for (const parcel of blueprint.parcels) {
-      if (this.filters[`zone.${parcel.type}`]) this.polygon(context, parcel.lot, parcelColor(parcel.type, parcel.tier), '#0b1118', 0.5);
+      if (this.filters[`zone.${parcel.type}`] && this.parcelVisible(parcel)) {
+        this.polygon(context, parcel.lot, parcelColor(parcel.type, parcel.tier), '#0b1118', 0.5);
+      }
     }
     for (const edge of blueprint.streets.edges) {
       if (!this.filters[`street.${edge.class}`]) continue;
@@ -240,7 +249,7 @@ export class MapView {
   private drawSelection(context: CanvasRenderingContext2D): void {
     if (!this.selected) return;
     if (this.selected.kind === 'parcel') {
-      if (!this.filters[`zone.${this.selected.parcel.type}`]) return;
+      if (!this.filters[`zone.${this.selected.parcel.type}`] || !this.parcelVisible(this.selected.parcel)) return;
       this.polygon(context, this.selected.parcel.lot, null, '#ffffff', 3);
     } else if (this.selected.kind === 'street') {
       if (!this.filters[`street.${this.selected.edge.class}`]) return;
@@ -281,9 +290,15 @@ export class MapView {
       return { kind: 'street', edge, ...(structure ? { structure } : {}) };
     }
     for (const parcel of this.blueprint.parcels) {
-      if (this.filters[`zone.${parcel.type}`] && contains(point, parcel.lot)) return { kind: 'parcel', parcel };
+      if (this.filters[`zone.${parcel.type}`] && this.parcelVisible(parcel) && contains(point, parcel.lot)) {
+        return { kind: 'parcel', parcel };
+      }
     }
     return null;
+  }
+
+  private parcelVisible(parcel: Parcel): boolean {
+    return !this.filters.interiorsOnly || this.interiorParcels.has(parcel.id);
   }
 
   private tx(point: Vec2): [number, number] {

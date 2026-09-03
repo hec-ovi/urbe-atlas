@@ -1,6 +1,7 @@
 /** Persistent details for the feature selected from the map. */
 import type { Parcel, Polygon, Polyline } from '../../../schema/blueprint';
 import type { MapHit } from '../views/MapView';
+import type { ParcelDestination } from './ParcelLink';
 import { el } from '../components/dom';
 
 export class InspectorPanel {
@@ -10,7 +11,7 @@ export class InspectorPanel {
   private pinned: MapHit | null = null;
 
   constructor(
-    private readonly onOpenParcel: (parcel: Parcel) => void,
+    private readonly destinationFor: (parcel: Parcel) => ParcelDestination,
     private readonly onClear?: () => void,
   ) {
     this.content = el('div', { class: 'inspector-content' });
@@ -42,6 +43,11 @@ export class InspectorPanel {
     this.render(hit, true);
   }
 
+  /** Re-resolves a selected building after its URL template changes. */
+  refresh(): void {
+    if (this.pinned) this.render(this.pinned, true);
+  }
+
   private render(hit: MapHit | null, pinned: boolean): void {
     this.content.replaceChildren();
     if (!hit) {
@@ -65,9 +71,22 @@ export class InspectorPanel {
         ]),
       );
       if (pinned) {
-        const open = el('button', { type: 'button', class: 'inspector-open', text: 'Open building view' });
-        open.addEventListener('click', () => this.onOpenParcel(parcel));
-        this.content.append(open);
+        const destination = this.destinationFor(parcel);
+        if (!destination.url) {
+          this.content.append(el('p', {
+            class: 'inspector-link-error',
+            role: 'status',
+            text: destination.error ?? 'The building viewer is unavailable.',
+          }));
+        } else {
+          this.content.append(el('a', {
+            class: 'inspector-open',
+            href: destination.url,
+            target: '_blank',
+            rel: 'noopener',
+            text: 'Open building view',
+          }));
+        }
       }
       return;
     }

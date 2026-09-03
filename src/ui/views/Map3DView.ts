@@ -42,14 +42,13 @@ export class Map3DView {
   private readonly camera = new THREE.PerspectiveCamera(45, 1, 1, 20000);
   private controls: OrbitControls | null = null;
   private readonly layers = new Map<FilterKey, THREE.Group>();
+  private blueprint: CityBlueprint | null = null;
   private parcels: Parcel[] = [];
+  private interiorParcels = new Set<string>();
   private filters: Filters = defaultFilters();
   private frame = 0;
 
-  constructor(
-    private readonly onParcelClick?: (parcel: Parcel) => void,
-    private readonly onParcelInspect?: (parcel: Parcel) => void,
-  ) {
+  constructor(private readonly onParcelInspect?: (parcel: Parcel) => void) {
     this.canvas = document.createElement('canvas');
     this.canvas.className = 'map-view map-view-3d';
     this.canvas.setAttribute('aria-label', '3D city blueprint. Drag to orbit, use the wheel to zoom, and right-click a building to inspect.');
@@ -74,8 +73,12 @@ export class Map3DView {
   }
 
   setBlueprint(bp: CityBlueprint): void {
-    for (const group of this.layers.values()) this.scene.remove(group);
+    for (const group of this.layers.values()) {
+      disposeGroup(group);
+      this.scene.remove(group);
+    }
     this.layers.clear();
+    this.blueprint = bp;
     this.parcels = bp.parcels;
     this.buildGround(bp);
     this.buildParcels(bp);
@@ -91,6 +94,21 @@ export class Map3DView {
 
   setFilters(filters: Filters): void {
     this.filters = { ...filters };
+    this.applyFilters();
+    this.render();
+  }
+
+  /** Rebuilds only building batches when assembled interior availability changes. */
+  setInteriorParcels(parcelIds: readonly string[]): void {
+    this.interiorParcels = new Set(parcelIds);
+    if (!this.blueprint) return;
+    for (const [key, group] of [...this.layers]) {
+      if (!key.startsWith('zone.')) continue;
+      disposeGroup(group);
+      this.scene.remove(group);
+      this.layers.delete(key);
+    }
+    this.buildParcels(this.blueprint);
     this.applyFilters();
     this.render();
   }
@@ -133,6 +151,13 @@ export class Map3DView {
 
   private applyFilters(): void {
     for (const [key, group] of this.layers) group.visible = this.filters[key] ?? true;
+    for (const [key, group] of this.layers) {
+      if (!key.startsWith('zone.')) continue;
+      group.traverse((node) => {
+        if (node === group) return;
+        node.visible = !this.filters.interiorsOnly || node.userData.hasInterior === true;
+      });
+    }
     // the ground goes translucent while the subway shows, so the tunnels read as under it, not floating
     const seeThrough = this.filters['transit.subway'];
     for (const [key, group] of this.layers) {
@@ -148,7 +173,13 @@ export class Map3DView {
   }
 
   /** Merged mesh of many geometries in one colour, into one layer. */
-  private merged(key: FilterKey, parts: THREE.BufferGeometry[], material: THREE.Material, name?: string): void {
+  private merged(
+    key: FilterKey,
+    parts: THREE.BufferGeometry[],
+    material: THREE.Material,
+    name?: string,
+    hasInterior?: boolean,
+  ): void {
     if (parts.length === 0) return;
     const hasIndex = parts.some((part) => part.index !== null);
     const hasNoIndex = parts.some((part) => part.index === null);
@@ -167,6 +198,7 @@ export class Map3DView {
     if (geometry) {
       const mesh = new THREE.Mesh(geometry, material);
       if (name) mesh.name = name;
+      if (hasInterior !== undefined) mesh.userData.hasInterior = hasInterior;
       this.layer(key).add(mesh);
     }
   }
@@ -194,14 +226,15 @@ export class Map3DView {
 
   private buildParcels(bp: CityBlueprint): void {
     const byId = new Map(bp.parcels.map((p) => [p.id, p]));
-    const buckets = new Map<string, { key: FilterKey; color: THREE.Color; parts: THREE.BufferGeometry[] }>();
-    const floorLines = new Map<FilterKey, THREE.Vector3[]>();
+    const buckets = new Map<string, { key: FilterKey; color: THREE.Color; parts: THREE.BufferGeometry[]; hasInterior: boolean }>();
+    const floorLines = new Map<string, { key: FilterKey; points: THREE.Vector3[]; hasInterior: boolean }>();
     for (const volume of bp.volumetric.buildings) {
       const parcel = byId.get(volume.parcelId);
       if (!parcel || volume.footprint.length < 3) continue;
       const floors = Math.max(1, Math.round(volume.height / parcel.envelope.floorHeight));
       const floorHeight = volume.height / floors;
-      const id = `${parcel.type}/${parcel.tier}`;
+      const hasInterior = this.interiorParcels.has(parcel.id);
+      const id = `${parcel.type}/${parcel.tier}/${hasInterior ? 'interior' : 'shell'}`;
       let bucket = buckets.get(id);
       if (!bucket) {
         const [h, s, l] = parcelHsl(parcel.type, parcel.tier);
@@ -209,30 +242,34 @@ export class Map3DView {
           key: `zone.${parcel.type}`,
           color: new THREE.Color().setHSL(h / 360, s / 100, l / 100),
           parts: [],
+          hasInterior,
         };
         buckets.set(id, bucket);
       }
       bucket.parts.push(prism(volume.footprint, 0, Math.max(0.05, volume.height - FLOOR_GAP)));
       const key: FilterKey = `zone.${parcel.type}`;
-      const points = floorLines.get(key) ?? [];
+      const lineBucket = floorLines.get(id) ?? { key, points: [], hasInterior };
       for (let floor = 1; floor < floors; floor++) {
         const y = floor * floorHeight;
         for (let i = 0; i < volume.footprint.length; i++) {
           const a = volume.footprint[i];
           const b = volume.footprint[(i + 1) % volume.footprint.length];
-          points.push(new THREE.Vector3(a[0], y, a[1]), new THREE.Vector3(b[0], y, b[1]));
+          lineBucket.points.push(new THREE.Vector3(a[0], y, a[1]), new THREE.Vector3(b[0], y, b[1]));
         }
       }
-      floorLines.set(key, points);
+      floorLines.set(id, lineBucket);
     }
-    for (const bucket of buckets.values()) this.merged(bucket.key, bucket.parts, new THREE.MeshLambertMaterial({ color: bucket.color }));
-    for (const [key, points] of floorLines) {
+    for (const bucket of buckets.values()) {
+      this.merged(bucket.key, bucket.parts, new THREE.MeshLambertMaterial({ color: bucket.color }), undefined, bucket.hasInterior);
+    }
+    for (const { key, points, hasInterior } of floorLines.values()) {
       if (points.length === 0) continue;
       const lines = new THREE.LineSegments(
         new THREE.BufferGeometry().setFromPoints(points),
         new THREE.LineBasicMaterial({ color: 0x1b1d22, transparent: true, opacity: 0.32 }),
       );
       lines.name = 'floor-elevations';
+      lines.userData.hasInterior = hasInterior;
       this.layer(key).add(lines);
     }
   }
@@ -388,9 +425,9 @@ export class Map3DView {
     }
   }
 
-  /** The parcel under a right-click opens immediately; left clicks only orbit. */
+  /** The parcel under a right-click becomes the persistent selection; left clicks only orbit. */
   private pick(event: MouseEvent): void {
-    if ((!this.onParcelClick && !this.onParcelInspect) || !this.renderer) return;
+    if (!this.onParcelInspect || !this.renderer) return;
     const rect = this.canvas.getBoundingClientRect();
     const pointer = new THREE.Vector2(((event.clientX - rect.left) / rect.width) * 2 - 1, -((event.clientY - rect.top) / rect.height) * 2 + 1);
     const raycaster = new THREE.Raycaster();
@@ -399,12 +436,20 @@ export class Map3DView {
     const hit = raycaster.intersectObjects(zones, true)[0];
     if (!hit) return;
     // the merged mesh does not know its parcels; the footprint under the hit does
-    const parcel = this.parcels.find((p) => pointInPolygon([hit.point.x, hit.point.z], p.footprint));
-    if (parcel) {
-      this.onParcelInspect?.(parcel);
-      this.onParcelClick?.(parcel);
-    }
+    const parcel = this.parcels.find((p) =>
+      (!this.filters.interiorsOnly || this.interiorParcels.has(p.id))
+      && pointInPolygon([hit.point.x, hit.point.z], p.footprint));
+    if (parcel) this.onParcelInspect(parcel);
   }
+}
+
+function disposeGroup(group: THREE.Group): void {
+  group.traverse((node) => {
+    const mesh = node as THREE.Mesh;
+    mesh.geometry?.dispose();
+    const materials = Array.isArray(mesh.material) ? mesh.material : mesh.material ? [mesh.material] : [];
+    materials.forEach((material) => material.dispose());
+  });
 }
 
 function shapeOf(polygon: Polygon): THREE.Shape {

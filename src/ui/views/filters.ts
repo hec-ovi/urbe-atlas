@@ -23,7 +23,8 @@ export type FilterKey =
   | `transit.${(typeof TRANSIT_KEYS)[number]}`
   | `furniture.${(typeof FURNITURE_KEYS)[number]}`
   | `diagnostic.${(typeof DIAGNOSTIC_KEYS)[number]}`
-  | 'districts';
+  | 'districts'
+  | 'interiorsOnly';
 
 export type Filters = Record<FilterKey, boolean>;
 
@@ -52,6 +53,7 @@ export function defaultFilters(): Filters {
       out[key] = key !== 'districts' && !key.startsWith('diagnostic.') && !key.startsWith('furniture.');
     }
   }
+  out.interiorsOnly = false;
   return out;
 }
 
