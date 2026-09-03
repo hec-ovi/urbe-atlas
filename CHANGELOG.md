@@ -1,5 +1,7 @@
 # Changelog
 
+0.2.26: station-access diagnostics remain visible through the subway shaft and platform, so the full route from each street entrance to its platform handoff can be inspected in the 3D preview.
+
 0.2.25: rail paths advance through each route once. Subway terminal platforms and their access paths are built from that canonical line, so each endpoint reaches its own terminal without a reciprocal overlap.
 
 0.2.24: right-clicking a parcel in either Atlas map opens that exact parcel in the configured building viewer while preserving the assembled output selection. The inspector keeps the same destination as a fallback and shows configuration errors when no output is available.

@@ -14,7 +14,7 @@ npm run generate -- --seed urbe --out city.json
 
 `npm run build:cli` prepares `dist/cli.mjs` for a host that invokes Atlas as a subprocess. `npm run generate` executes that artifact without writing inside the Atlas checkout. Preview startup prepares it too. The production browser files live under `dist/preview/`, so either build can run without deleting the other.
 
-The preview generates cities from a form: parameter sets export and import as JSON files, hydrology can reserve a lagoon, river or sea coast, and generation reports its progress or failure. Right-click a visible feature to keep its measurements in the inspector. A parcel also opens immediately in the configured engine building viewer; its inspector link remains available as a fallback. The default targets the local engine, and an empty URL template disables it.
+The preview generates cities from a form: parameter sets export and import as JSON files, hydrology can reserve a lagoon, river or sea coast, and generation reports its progress or failure. Optional station-access diagnostics stay visible through their shafts and platforms. Right-click a visible feature to keep its measurements in the inspector. A parcel also opens immediately in the configured engine building viewer; its inspector link remains available as a fallback. The default targets the local engine, and an empty URL template disables it.
 
 Generator flags: `--size N`, `--irregularity X`, `--max-floors N`, `--no-highways`, `--no-trains`, `--no-subways`, `--no-alleys`. Only `--seed` is required; everything else has a documented default in `schema/params.ts`.
 

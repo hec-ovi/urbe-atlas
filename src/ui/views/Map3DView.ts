@@ -437,7 +437,7 @@ export class Map3DView {
           const points = segment.path.map(([x, y, z]) => new THREE.Vector3(x, y + 0.2, z));
           this.layer('diagnostic.stationAccess').add(new THREE.Line(
             new THREE.BufferGeometry().setFromPoints(points),
-            new THREE.LineBasicMaterial({ color: DIAGNOSTIC_COLORS.stationAccess }),
+            new THREE.LineBasicMaterial({ color: DIAGNOSTIC_COLORS.stationAccess, depthTest: false }),
           ));
         }
       }

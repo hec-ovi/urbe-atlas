@@ -313,6 +313,8 @@ describe('PreviewApp', () => {
     expect(layers.has('diagnostic.highwayCenterlines')).toBe(blueprint.streets.highwayStructures.length > 0);
     expect(layers.has('diagnostic.highwaySupports')).toBe(blueprint.streets.highwayStructures.some((item) => item.supports.length > 0));
     expect(layers.has('diagnostic.stationAccess')).toBe(blueprint.transit.subwayStations.some((item) => item.accessPaths.length > 0));
+    const accessOverlay = layers.get('diagnostic.stationAccess')?.children[0] as THREE.Line | undefined;
+    expect((accessOverlay?.material as THREE.LineBasicMaterial).depthTest).toBe(false);
     const subway = layers.get('transit.subway');
     expect(subway?.getObjectByName('subway-corridor')).toBeTruthy();
     expect(subway?.getObjectByName('subway-track')).toBeTruthy();
