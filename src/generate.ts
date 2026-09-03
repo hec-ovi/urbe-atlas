@@ -45,8 +45,8 @@ import { RAIL, STATION } from './transit/stations';
 import { GROUND_LEVELS, type GroundSurfaceKind } from './streets/surfaces';
 import { planHydrology, withHydrologyStructures } from './hydro/Hydrology';
 
-export const BLUEPRINT_VERSION = '0.14.0';
-export const HYDROLOGY_BLUEPRINT_VERSION = '0.15.0';
+export const BLUEPRINT_VERSION = '0.14.1';
+export const HYDROLOGY_BLUEPRINT_VERSION = '0.15.1';
 
 const SUBDIVISION: Record<DistrictKind, SubdivisionConfig> = {
   downtown: { minLotArea: 500, maxLotArea: 2600, chanceNoDivide: 0.12 },

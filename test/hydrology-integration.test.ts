@@ -9,7 +9,7 @@ const TYPES: HydrologyType[] = ['lagoon', 'river', 'sea-coast'];
 describe('city hydrology integration', () => {
   it.each(TYPES)('generates one coherent %s city from the public API', (type) => {
     const city = generateCity({ seed: `hydro-${type}`, size: { width: 900, depth: 900 }, hydrology: { type } });
-    expect(city.meta.version).toBe('0.15.0');
+    expect(city.meta.version).toBe('0.15.1');
     expect(city.meta.params.hydrology).toEqual({ type });
     expect(city.hydrology).toMatchObject({ type, bodies: [{ type }] });
     const body = city.hydrology!.bodies[0];
@@ -29,7 +29,7 @@ describe('city hydrology integration', () => {
 
   it('keeps the no-water output shape backward compatible', () => {
     const city = generateCity({ seed: 'no-water', size: { width: 800, depth: 800 } });
-    expect(city.meta.version).toBe('0.14.0');
+    expect(city.meta.version).toBe('0.14.1');
     expect('hydrology' in city).toBe(false);
     expect('hydrology' in city.meta.params).toBe(false);
   });

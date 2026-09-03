@@ -1,5 +1,7 @@
 # Changelog
 
+0.2.25: rail paths advance through each route once. Subway terminal platforms and their access paths are built from that canonical line, so each endpoint reaches its own terminal without a reciprocal overlap.
+
 0.2.24: right-clicking a parcel in either Atlas map opens that exact parcel in the configured building viewer while preserving the assembled output selection. The inspector keeps the same destination as a fallback and shows configuration errors when no output is available.
 
 0.2.23: the production build publishes the reusable generator CLI at `dist/cli.mjs` and the browser preview under `dist/preview/`. Preview startup prepares the CLI before serving. The public generate command executes the prepared artifact without modifying Atlas.

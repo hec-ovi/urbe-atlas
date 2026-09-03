@@ -21,7 +21,7 @@ import type { Rng } from '../core/rng';
 import type { PlannedDistrict } from '../districts/DistrictPlanner';
 import type { BuiltNode } from '../streets/Graph';
 import { closestOnSegment, dist, normalize, sub, add, scale } from '../geom/vec';
-import { directionAt, distanceTo, length as lineLength, offsetAt, pointAt } from '../geom/polyline';
+import { directionAt, distanceTo, length as lineLength, offsetAt, pointAt, removeDoubleBacks } from '../geom/polyline';
 import { type EntrancePlace, RAIL, STATION, boxOf, platformOf, rectangle, stationAccessOf } from './stations';
 import { carriagewayWidth } from '../streets/widths';
 import { LEVELS } from '../levels';
@@ -213,7 +213,10 @@ export class TransitPlanner {
         const leg1 = this.shortestPath(a.id, hubNode.id, subCost);
         const leg2 = this.shortestPath(hubNode.id, b.id, subCost);
         if (!leg1 || !leg2) continue;
-        const geometry = [...this.pathGeometry(a.id, leg1), ...this.pathGeometry(hubNode.id, leg2).slice(1)];
+        const geometry = removeDoubleBacks(
+          [...this.pathGeometry(a.id, leg1), ...this.pathGeometry(hubNode.id, leg2).slice(1)],
+          -0.999999,
+        );
         if (geometry.length < 2) continue;
         // a line that cannot reach 2 stations is dropped, and takes the
         // stations it just created with it: no station outlives its line

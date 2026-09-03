@@ -8,7 +8,7 @@ import { ALLEY_WIDTH, CURB_WIDTH } from '../streets/widths';
 import { HIGHWAY_EXIT_TOLERANCE } from '../streets/Highways';
 import { bandWidth, hostsBand } from '../geom/band';
 import { area, distanceToOutline, isSimpleRing, pointInPolygon } from '../geom/polygon';
-import { distanceTo } from '../geom/polyline';
+import { distanceTo, doubleBackAt } from '../geom/polyline';
 import { checkGroundCover } from './groundCover';
 import { checkStreetEdges } from './streetEdges';
 import { checkStations } from './stations';
@@ -263,6 +263,9 @@ function checkRailNetwork(
     if (!inLine.has(s.id)) throw invariantFailure(`${label} station ${s.id} is on no line`);
   }
   for (const l of lines) {
+    if (doubleBackAt(l.path, -0.999999) >= 0) {
+      throw invariantFailure(`${label} line ${l.id} doubles back over its own route`);
+    }
     for (const id of l.stationIds) {
       if (!stations.some((s) => s.id === id)) throw invariantFailure(`${label} line ${l.id} references missing station ${id}`);
     }
