@@ -1,35 +1,67 @@
 # CONTRACT: atlas/ui
 
-Purpose: dark browser workspace for creating and inspecting a CityBlueprint in a flat map or a 3D city view. Presentation only, no generation logic.
+Purpose: presents Atlas creation and blueprint inspection in a dark browser workspace. It contains no generation logic.
 
 ## In
-- A `CityBlueprint` ([schema](../../schema/blueprint.ts)). The app generates one locally through `generateCity` from the params panel.
-- An optional assembled world manifest ([schema](../../../engine/src/assembly/schema/world-manifest.schema.json)), resolved from the configured `out=` path. Its seed, Atlas version and complete parcel set must match the displayed blueprint. Its exact `interiors` parcel ids drive the interiors-only filter. Missing, invalid or mismatched manifests fail closed.
+
+`new PreviewApp(fetchManifest?) -> PreviewApp`
+
+- `generate(params)` takes [AtlasParams](../../schema/params.ts) and delegates to the root `generateCity` entry point.
+- `setMode(mode)` takes `2d | 3d`; `resize()` fits both canvases; `setInteriorParcels(parcelIds)` applies an exact parcel subset.
+- Parameter files are JSON AtlasParams. Unknown top-level fields are dropped, defaults are resolved, and the root runtime validation runs before the form changes.
+- The optional assembled-world [manifest](../../../engine/src/assembly/schema/world-manifest.schema.json) is fetched beside the non-empty `out=` path in the parcel URL template. It must be contract 1.0.0 and match the displayed seed, Atlas version, complete parcel-id set, interior subset, and floor tags.
+
+## Out and events
+
+- `PreviewApp.root` is the mountable element. `viewMode` reports the active map mode. `generate` resolves after the generated blueprint is rendered or its error is shown.
+- The Creation tab renders every Atlas parameter, presets, import and export. The Visualization tab renders the summary, filters, inspector, parcel link, legend, and 2D or 3D map.
+- The 2D canvas renders blueprint polygons and supports left-drag pan, cursor-anchored wheel zoom, hover preview, and right-click selection.
+- The WebGL2 canvas renders parcel envelopes and floor marks, partitioned ground, crossings, street furniture, highway structures, transit, water surfaces, shoreline bands, and optional diagnostics. Drag orbits, wheel zooms, and right-click selects a visible parcel.
+- Downloads return the current parameter set or the current CityBlueprint unchanged as JSON.
+- `ParamsPanel` emits `onGenerate(params)`, `onExport(params)`, and `onImport(file)`.
+- `LayerToggles` emits `onChange(filters)`; `ViewModeSwitch` emits `onChange(mode)`; `ViewTabs` emits `onChange(tab)`.
+- `MapView` emits `onSelect(hit)` and `onHover(hit | null)`; `Map3DView` emits `onParcelInspect(parcel)`.
+- `MapToolbar` emits `onFit()` and `onDownload()`; `ParcelLink.onChange(listener)` observes template edits.
 
 ## Components
-- views/PreviewApp: the preview itself, sidebar plus map. Methods: `generate(params)` (resolves once the city is on screen, or its failure reported), `resize()`, `setInteriorParcels(parcelIds)`. While a city builds, the form is locked behind a progress cover that reports preparing, generating, rendering and ready stages. Failures and file results land in the notification stack. The 3D geometry is deferred until 3D is selected. Right-clicking a 2D feature or 3D building selects it and opens the Visualization tab. Selection never navigates automatically.
-- views/Map3DView: WebGL2 renderer of the city in three dimensions. `new Map3DView(onParcelInspect?)`. Methods: `shown()`, `setBlueprint(bp)`, `setFilters(filters)`, `setInteriorParcels(parcelIds)`, `resize(w, h)`, `resetView()`. Each parcel is one envelope prism with its floor elevations drawn across the facade, avoiding hidden floor caps inside the building. Hydrology renders the exact published surface polygons at each body's elevation using its material key, plus the exact shoreline bands on an independently toggleable layer. Street and road materials are clipped to the same roadway partition used by ground cover, with roads owning shared junction regions; the class meshes never overlap or project beyond the junction boundary. Ground plates read their published top level, curbs extrude through their published 0.15 m rise, and published crossing stripes sit 0.012 m above roadway without sharing a plane. A highway is one closed, mitered deck per published run with end caps, continuous edge barriers, and supports drawn with a base, narrower shaft and widened head. Deck and barriers read the same exact elevation profile, with no coplanar bend patches. Underground rail shows a subdued translucent corridor around a narrow track surface, so opaque platforms, shafts and passages remain legible. Every subway endpoint carries a portal at its terminal platform end face. Optional diagnostic layers show highway centerlines, support volumes and station access paths. Geometry is normalized and merged per material and interior availability. Drag orbits, wheel zooms, and a right click over a visible building inspects it without opening another page.
-- views/filters: `defaultFilters()` and the `FilterKey` set, one switch per water surface, shoreline band, ground surface, parcel type, street class, transit mode, furniture type, district outlines and diagnostic overlay, plus the independent `interiorsOnly` building constraint.
-- widgets/ViewModeSwitch: flat map or city in 3D. Event: `onChange(mode)`.
-- widgets/ViewTabs: creation and visualization tabs. One control pane always remains visible. Opening Visualization selects the 3D city by default; Flat map remains selectable inside that pane.
-- views/MapView: dark canvas renderer. `new MapView(onSelect?, onHover?)`. Methods: `setBlueprint(bp)`, `setFilters(filters)`, `setInteriorParcels(parcelIds)`, `setLayers(layers)`, `clearSelection()`, `resize(w, h)`, `resetView()`. Pan: left drag. Zoom: wheel, cursor-anchored. Hover previews a parcel, street, highway or station. Right click selects it without navigation. Each individual filter is honored, including the assembled-interiors constraint, street furniture and geometry diagnostics.
-- widgets/ParamsPanel: complete AtlasParams editor. It exposes seed, width, depth, irregularity, optional lagoon, river or sea-coast hydrology, district range, global and per-district floor caps, wealth weights and every feature toggle. Range values have an exact numeric input. Compact, city and metro presets retain the current seed; Reset restores defaults; Random seed changes only the seed. Invalid values disable Generate city and show the reason. Events: `onGenerate(params)`, `onExport(params)`, `onImport(file)`. Methods: `read()`, `setParams(params)`, `setStatus(text)`, `setBusy(busy)`.
-- widgets/LayerToggles: grouped checkboxes for every ground surface, zone type, street class, transit mode, furniture type, districts and diagnostic overlay. An independent Only buildings with interiors constraint reports the exact manifest count. Each item and group has an Only action. Show all, Hide all and Defaults reset the constraint and act on the complete visibility set. Event: `onChange(filters)`. Method: `setInteriorCount(count)`.
-- widgets/LegendWidget: color swatches per parcel type and tier, ground, street, transit and diagnostic layer. Read-only.
-- widgets/BlueprintOverview: current population, parcel, district and block totals plus highway ramp/support and transit counts. Method: `setBlueprint(bp)`.
-- widgets/InspectorPanel: hover preview and pinned measurements for parcels, streets, highway structures and stations. Right-click pins a feature; Clear selection releases it. A selected parcel keeps a persistent building-view link or actionable configuration error. Map selection itself never opens the link.
-- widgets/MapToolbar: persistent map help, current seed and dimensions, Fit city and Download blueprint actions. Method: `setBlueprint(bp)`.
-- widgets/ParcelLink: URL template used by Open building view. The default points at the local engine viewer. `destinationFor(parcel, seed)` returns either a validated URL or an actionable error; `manifestFor(parcel, seed)` resolves the manifest beside the selected `out=` directory; `onChange(listener)` observes template edits. The selected parcel always replaces any fixed or stale `parcel` query value, `mode` is always `building`, and the template's non-empty `out` selection is preserved. Tokens: `{seed} {parcelId} {blockId} {districtId} {type} {tier} {x} {z}`.
-- widgets/Notifications: dismissible message stack. `error(message)`, `info(message, link?)`.
-- widgets/ProgressOverlay: blocking stage display over the map. `show(stage, detail)`, `update(stage, detail)`, `hide()`. Stages are preparing, generating, rendering, ready and error.
-- components/paramsFile: `parseParams(text)` (drops unknown top-level fields, resolves defaults and applies the generator's nested runtime validation, then throws with the reason on failure), `paramsFileName(seed)`, `downloadParams(params, filename)`.
-- components/blueprintFile: `downloadBlueprint(bp)` writes the current CityBlueprint unchanged as JSON.
-- components/rangeField: synchronized range and exact numeric input used by creation parameters.
-- components/colors: `parcelColor(type, tier)`, `streetColor(class)`, transit and ground palette constants.
-- components/dom: `el(tag, attrs, children)` helper.
+
+- `views/PreviewApp`: owns the mounted workspace, generation flow, view state, manifest load, selection, downloads, and notifications.
+- `views/MapView`: 2D canvas. Methods: `setBlueprint`, `setFilters`, `setInteriorParcels`, `setLayers`, `clearSelection`, `resize`, `resetView`, `render`.
+- `views/Map3DView`: WebGL2 city view. Methods: `shown`, `setBlueprint`, `setFilters`, `setInteriorParcels`, `resize`, `resetView`, `render`.
+- `views/StreetSurfaceRegions`: clips street and road meshes into disjoint regions inside the published roadway partition.
+- `views/filters`: complete `FilterKey` set and deterministic `defaultFilters()` for hydrology, ground, zones, streets, transit, furniture, districts, diagnostics, and `interiorsOnly`.
+- `widgets/ParamsPanel`: validated AtlasParams form. Methods: `read`, `setParams`, `setStatus`, `setBusy`.
+- `widgets/ViewTabs` and `widgets/ViewModeSwitch`: creation or visualization pane and flat or 3D map selection.
+- `widgets/LayerToggles`: grouped visibility controls with item and group isolation, global resets, and `setInteriorCount(count)`.
+- `widgets/InspectorPanel` and `widgets/ParcelLink`: hover or pinned measurements and the selected parcel's building URL or inline reason it is unavailable.
+- `widgets/MapToolbar`: seed and size, fit action, and blueprint download. `widgets/BlueprintOverview` renders totals; `widgets/LegendWidget` renders the full color key.
+- `widgets/Notifications` and `widgets/ProgressOverlay`: message log and blocking generation stages (`preparing | generating | rendering | ready | error`).
+- `components/paramsFile`, `blueprintFile`, `rangeField`, `colors`, and `dom`: validated file exchange, synchronized numeric input, palettes, and element creation.
 
 ## Errors
-An AtlasError from generation becomes a notification carrying its code; a file that is not a parameter set becomes one carrying the reason. No throw escapes the UI.
+
+The mounted UI exposes this closed failure set:
+
+- Generation: root `E_INVALID_PARAMS`, `E_UNSATISFIABLE`, or `E_INVARIANT`, shown in the notification log. The progress cover always closes and the form unlocks.
+- Parameter file: invalid JSON, non-object input, missing seed, or root parameter validation failure, shown in the notification log. The current form stays unchanged.
+- Parcel link: disabled template, invalid URL, missing `out=`, or invalid output path, returned as `ParcelDestination.error` and shown in the inspector.
+- Manifest: missing, failed, malformed, stale, or mismatched input leaves the interior list empty and reports it unavailable. It never widens the filter.
+
+No failure escapes a `PreviewApp` event handler.
+
+## Invariants
+
+- Presentation only: CityBlueprint generation and validation stay in the root box.
+- One valid parameter set produces the same blueprint as the root entry point. Import never changes a valid field before the complete set validates.
+- The form is disabled for the complete generation interval. Progress moves through named stages and notifications preserve file and generation results.
+- 3D geometry is deferred until the 3D view is first selected. Both views apply the same filters and exact interior parcel subset.
+- Renderers consume published geometry and elevations. Water and shoreline layers stay independent; street and road surfaces stay disjoint and inside roadway ground.
+- A normal click never pins or navigates. Right-click pins; opening a building requires an explicit link action, always forces `mode=building` and the selected parcel id, and preserves the configured `out=` value.
+- An optional manifest affects the UI only after exact seed, version, parcel-set, subset, and floor-shape validation.
+- Downloaded blueprints are unchanged. Downloaded parameter files hold the full resolved form state.
+- All controls and panels have square corners.
 
 ## Depends on
-- root box contract (schema/blueprint.ts, schema/params.ts, generateCity).
+
+- [Atlas root contract](../../CONTRACT.md): AtlasParams, CityBlueprint, `generateCity`, and AtlasError.
+- [Engine assembly contract](../../../engine/src/assembly/CONTRACT.md): optional world manifest 1.0.0.
