@@ -39,11 +39,11 @@ export function parcelColor(type: ParcelType, tier: WealthTier): string {
 export function streetColor(cls: StreetClass): string {
   switch (cls) {
     case 'highway':
-      return '#f2b84b';
+      return '#505963';
     case 'road':
-      return '#dce6ef';
+      return '#384653';
     case 'street':
-      return '#93a6b8';
+      return '#465867';
     case 'alley':
       return '#c08b5a';
   }

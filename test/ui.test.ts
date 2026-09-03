@@ -264,17 +264,20 @@ describe('PreviewApp', () => {
     ];
     structure.supports = [];
     view.setBlueprint(blueprint);
-    const layers = (view as unknown as { layers: Map<string, { traverse(visitor: (node: unknown) => void): void }> }).layers;
-    let hasPeak = false;
-    layers.get('street.highway')!.traverse((node) => {
-      const geometry = (node as { geometry?: { getAttribute(name: string): { count: number; getX(index: number): number; getY(index: number): number; getZ(index: number): number } } }).geometry;
-      const position = geometry?.getAttribute('position');
-      if (!position) return;
-      for (let index = 0; index < position.count; index++) {
-        if (Math.abs(position.getX(index) - 10) < 0.01 && position.getY(index) > 7.99 && Math.abs(position.getZ(index)) < 0.01) hasPeak = true;
-      }
-    });
-    expect(hasPeak).toBe(true);
+    const layers = (view as unknown as { layers: Map<string, { children: { geometry?: {
+      getAttribute(name: string): { count: number; getX(index: number): number; getY(index: number): number; getZ(index: number): number };
+    } }[] }> }).layers;
+    const position = layers.get('street.highway')!.children[0]!.geometry!.getAttribute('position');
+    let peakVertices = 0;
+    let bendVertices = 0;
+    for (let index = 0; index < position.count; index++) {
+      if (Math.abs(position.getX(index) - 10) >= 0.01) continue;
+      if (Math.abs(Math.abs(position.getZ(index)) - structure.width / 2) >= 0.01) continue;
+      bendVertices++;
+      if (Math.abs(position.getY(index) - 8) < 0.01) peakVertices++;
+    }
+    expect(peakVertices).toBe(2);
+    expect(bendVertices).toBe(4);
   });
 
   it('blocks the form behind a progress cover while generating', async () => {

@@ -28,6 +28,13 @@ const LAMP = { height: 8, size: 0.24, headLength: 1.4 };
 const BIN = { size: 0.7, height: 1 };
 const GROUND_SEE_THROUGH = 0.7;
 const EARTH_DEPTH = 30;
+const HIGHWAY_RENDER = {
+  barrierWidth: 0.35,
+  barrierHeight: 0.9,
+  supportBaseHeight: 0.35,
+  supportHeadDepth: 0.6,
+  supportShaftScale: 0.62,
+} as const;
 
 export class Map3DView {
   readonly canvas: HTMLCanvasElement;
@@ -220,6 +227,7 @@ export class Map3DView {
   private buildStreets(bp: CityBlueprint): void {
     const parts: Record<string, THREE.BufferGeometry[]> = { street: [], road: [], highway: [], alley: [] };
     const piers: THREE.BufferGeometry[] = [];
+    const barriers: THREE.BufferGeometry[] = [];
     const surfaces = streetSurfaceRegions(bp);
     parts.street.push(...surfaces.street.map((polygon) => plate(polygon, STREET_SURFACE)));
     parts.road.push(...surfaces.road.map((polygon) => plate(polygon, STREET_SURFACE)));
@@ -237,13 +245,19 @@ export class Map3DView {
         structure.elevationProfile,
         structure.deckThickness,
       ));
-      piers.push(...structure.supports.map((support) =>
-        prism(support.footprint, support.bottom, support.top - support.bottom)));
+      barriers.push(...highwayBarriers(structure.path, structure.width, structure.elevationProfile));
+      piers.push(...structure.supports.flatMap((support) => supportParts(
+        support.footprint,
+        support.position,
+        support.bottom,
+        support.top,
+      )));
     }
     for (const cls of Object.keys(parts) as (keyof typeof parts)[]) {
       this.merged(`street.${cls as StreetEdge['class']}`, parts[cls]!, new THREE.MeshLambertMaterial({ color: streetColor(cls as StreetEdge['class']) }));
     }
     this.merged('street.highway', piers, new THREE.MeshLambertMaterial({ color: 0x4a4f57 }));
+    this.merged('street.highway', barriers, new THREE.MeshLambertMaterial({ color: 0x737b84 }));
   }
 
   private buildTransit(bp: CityBlueprint): void {
@@ -422,71 +436,50 @@ function direction(a: Vec2, b: Vec2): Vec2 {
 }
 
 /**
- * A flat strip along a polyline at height y, facing up: one quad per segment,
- * exactly half the width to each side, plus a round joint at every bend so
- * the strip never reaches past its own width on a corner.
+ * A flat strip along a polyline at height y, facing up: one quad per segment
+ * and one shared cross-section per bend.
  */
 function ribbon(path: Polyline, width: number, y: number): THREE.BufferGeometry {
   return strip(path, width, () => y, () => y);
 }
 
-/** Joint fans and segment quads shared by ribbons and decks: heights come from `top` and `bottom` per distance along. */
-function strip(path: Polyline, width: number, top: (along: number) => number, bottom: (along: number) => number): THREE.BufferGeometry {
-  const half = width / 2;
+/** Mitered segment quads shared by ribbons and decks, with no coplanar joint patches. */
+function strip(
+  path: Polyline,
+  width: number,
+  top: (along: number, index: number) => number,
+  bottom: (along: number, index: number) => number,
+): THREE.BufferGeometry {
+  const sections = crossSections(path, width);
   const positions: number[] = [];
   const indices: number[] = [];
   const push = (x: number, yy: number, z: number): number => { positions.push(x, yy, z); return positions.length / 3 - 1; };
   const quad = (p: number, q: number, r: number, s: number) => indices.push(p, q, r, p, r, s);
-  let along = 0;
-  for (let i = 1; i < path.length; i++) {
-    const a = path[i - 1]!;
-    const b = path[i]!;
-    const len = dist(a, b);
-    if (len < 1e-6) continue;
-    const d = direction(a, b);
-    const n: Vec2 = [-d[1] * half, d[0] * half];
-    const a0 = along;
-    const a1 = along + len;
-    const closed = top(a0) !== bottom(a0) || top(a1) !== bottom(a1);
-    // top face
-    const tl0 = push(a[0] + n[0], top(a0), a[1] + n[1]);
-    const tr0 = push(a[0] - n[0], top(a0), a[1] - n[1]);
-    const tl1 = push(b[0] + n[0], top(a1), b[1] + n[1]);
-    const tr1 = push(b[0] - n[0], top(a1), b[1] - n[1]);
-    quad(tl0, tl1, tr1, tr0);
-    if (closed) {
-      // sides and bottom of a slab
-      const bl0 = push(a[0] + n[0], bottom(a0), a[1] + n[1]);
-      const br0 = push(a[0] - n[0], bottom(a0), a[1] - n[1]);
-      const bl1 = push(b[0] + n[0], bottom(a1), b[1] + n[1]);
-      const br1 = push(b[0] - n[0], bottom(a1), b[1] - n[1]);
-      quad(tr0, tr1, br1, br0);
-      quad(bl0, bl1, tl1, tl0);
-      quad(br0, br1, bl1, bl0);
-    }
-    // round joint at the far end of every inner segment
-    if (i < path.length - 1) {
-      const c = push(b[0], top(a1), b[1]);
-      const ring: number[] = [];
-      for (let k = 0; k <= JOINT_SEGMENTS; k++) {
-        const t = (k / JOINT_SEGMENTS) * Math.PI * 2;
-        ring.push(push(b[0] + Math.cos(t) * half, top(a1), b[1] + Math.sin(t) * half));
-      }
-      for (let k = 0; k < JOINT_SEGMENTS; k++) indices.push(c, ring[k + 1]!, ring[k]!);
-      if (closed) {
-        const cb = push(b[0], bottom(a1), b[1]);
-        const ringB: number[] = [];
-        for (let k = 0; k <= JOINT_SEGMENTS; k++) {
-          const t = (k / JOINT_SEGMENTS) * Math.PI * 2;
-          ringB.push(push(b[0] + Math.cos(t) * half, bottom(a1), b[1] + Math.sin(t) * half));
-        }
-        for (let k = 0; k < JOINT_SEGMENTS; k++) {
-          indices.push(cb, ringB[k]!, ringB[k + 1]!);
-          quad(ring[k]!, ring[k + 1]!, ringB[k + 1]!, ringB[k]!);
-        }
-      }
-    }
-    along = a1;
+  const levels = sections.map((section, index) => ({
+    top: top(section.along, index),
+    bottom: bottom(section.along, index),
+  }));
+  const closed = levels.some((level) => Math.abs(level.top - level.bottom) > 1e-9);
+  const vertices = sections.map((section, index) => ({
+    lt: push(section.left[0], levels[index]!.top, section.left[1]),
+    rt: push(section.right[0], levels[index]!.top, section.right[1]),
+    lb: closed ? push(section.left[0], levels[index]!.bottom, section.left[1]) : -1,
+    rb: closed ? push(section.right[0], levels[index]!.bottom, section.right[1]) : -1,
+  }));
+  for (let index = 1; index < vertices.length; index++) {
+    const before = vertices[index - 1]!;
+    const after = vertices[index]!;
+    quad(before.lt, after.lt, after.rt, before.rt);
+    if (!closed) continue;
+    quad(before.rt, after.rt, after.rb, before.rb);
+    quad(before.lb, after.lb, after.lt, before.lt);
+    quad(before.rb, after.rb, after.lb, before.lb);
+  }
+  if (closed && vertices.length >= 2) {
+    const first = vertices[0]!;
+    const last = vertices[vertices.length - 1]!;
+    quad(first.lt, first.rt, first.rb, first.lb);
+    quad(last.rt, last.lt, last.lb, last.rb);
   }
   const geometry = new THREE.BufferGeometry();
   geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
@@ -495,13 +488,80 @@ function strip(path: Polyline, width: number, top: (along: number) => number, bo
   return geometry;
 }
 
-const JOINT_SEGMENTS = 12;
+interface CrossSection {
+  left: Vec2;
+  right: Vec2;
+  along: number;
+}
+
+/** Intersect adjacent offset edges at each vertex, clamped at the 120 degree path limit. */
+function crossSections(path: Polyline, width: number): CrossSection[] {
+  if (path.length < 2) return [];
+  const half = width / 2;
+  const directions = path.slice(1).map((point, index) => direction(path[index]!, point));
+  const along = [0];
+  for (let index = 1; index < path.length; index++) along.push(along[index - 1]! + dist(path[index - 1]!, path[index]!));
+  return path.map((point, index) => {
+    const before = directions[Math.max(0, index - 1)]!;
+    const after = directions[Math.min(directions.length - 1, index)]!;
+    const beforeNormal: Vec2 = [-before[1], before[0]];
+    const afterNormal: Vec2 = [-after[1], after[0]];
+    const sum: Vec2 = [beforeNormal[0] + afterNormal[0], beforeNormal[1] + afterNormal[1]];
+    const sumLength = Math.hypot(sum[0], sum[1]);
+    const miter: Vec2 = sumLength > 1e-6 ? [sum[0] / sumLength, sum[1] / sumLength] : afterNormal;
+    const denominator = Math.max(0.5, miter[0] * afterNormal[0] + miter[1] * afterNormal[1]);
+    const reach = Math.min(half / denominator, half * 2);
+    const offset: Vec2 = [miter[0] * reach, miter[1] * reach];
+    return {
+      left: [point[0] + offset[0], point[1] + offset[1]],
+      right: [point[0] - offset[0], point[1] - offset[1]],
+      along: along[index]!,
+    };
+  });
+}
 
 /** A closed slab along a path whose height is read from the blueprint profile. */
 function deck(path: Polyline, width: number, profile: ElevationPoint[], thickness: number): THREE.BufferGeometry {
   const profiledPath = pathWithBreakpoints(path, profile);
   const top = (along: number) => profileLevel(profile, along);
   return strip(profiledPath, width, top, (along) => Math.max(0, top(along) - thickness));
+}
+
+/** Two continuous concrete barriers derived from the same deck cross-sections and height knots. */
+function highwayBarriers(path: Polyline, width: number, profile: ElevationPoint[]): THREE.BufferGeometry[] {
+  const profiledPath = pathWithBreakpoints(path, profile);
+  const centres = crossSections(profiledPath, width - HIGHWAY_RENDER.barrierWidth);
+  const levels = centres.map((section) => profileLevel(profile, section.along));
+  return [
+    centres.map((section) => section.left),
+    centres.map((section) => section.right),
+  ].map((barrierPath) => strip(
+    barrierPath,
+    HIGHWAY_RENDER.barrierWidth,
+    (_along, index) => levels[index]! + HIGHWAY_RENDER.barrierHeight,
+    (_along, index) => levels[index]!,
+  ));
+}
+
+/** A support's published footprint is its maximum plan extent; shaft, base and head stay inside it. */
+function supportParts(footprint: Polygon, center: Vec2, bottom: number, top: number): THREE.BufferGeometry[] {
+  const height = top - bottom;
+  if (height <= HIGHWAY_RENDER.supportBaseHeight + HIGHWAY_RENDER.supportHeadDepth) {
+    return [prism(footprint, bottom, height)];
+  }
+  const shaft = footprint.map(([x, z]): Vec2 => [
+    center[0] + (x - center[0]) * HIGHWAY_RENDER.supportShaftScale,
+    center[1] + (z - center[1]) * HIGHWAY_RENDER.supportShaftScale,
+  ]);
+  return [
+    prism(footprint, bottom, HIGHWAY_RENDER.supportBaseHeight),
+    prism(
+      shaft,
+      bottom + HIGHWAY_RENDER.supportBaseHeight,
+      height - HIGHWAY_RENDER.supportBaseHeight - HIGHWAY_RENDER.supportHeadDepth,
+    ),
+    prism(footprint, top - HIGHWAY_RENDER.supportHeadDepth, HIGHWAY_RENDER.supportHeadDepth),
+  ];
 }
 
 function profileLevel(profile: ElevationPoint[], distanceAlong: number): number {
