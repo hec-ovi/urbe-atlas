@@ -148,6 +148,7 @@ export class TransitPlanner {
     features: { trains: boolean; subways: boolean };
     trainPlan?: TrainPlan;
     entranceObstacles?: Polygon[];
+    stationExclusion?: Polygon[];
     rng: Rng;
   }): Transit {
     const { districts, cityCenter, population, rng } = options;
@@ -226,6 +227,7 @@ export class TransitPlanner {
           options.districtOfNode,
           LEVELS.subway,
           options.entranceObstacles ?? [],
+          options.stationExclusion ?? [],
         );
         if (stationIds.length < 2) {
           transit.subwayStations.length = before;
@@ -387,6 +389,7 @@ export class TransitPlanner {
     districtOfNode: (nodeId: string) => number,
     level: number,
     entranceObstacles: Polygon[],
+    stationExclusion: Polygon[],
   ): string[] {
     const total = lineLength(geometry);
     const count = Math.max(2, Math.round(total / spacing) + 1);
@@ -404,12 +407,15 @@ export class TransitPlanner {
         desired,
         terminal ? platformHalf : spacing / 3,
         entranceObstacles,
-        terminal
-          ? (candidate) => covers(
+        (candidate) => !hitsAny(
+          platformOf(candidate.point, directionAt(geometry, candidate.along), 'subway'),
+          stationExclusion,
+        ) && (terminal
+          ? covers(
             platformOf(candidate.point, directionAt(geometry, candidate.along), 'subway'),
             terminal,
           )
-          : undefined,
+          : true),
       );
       if (!placed) continue; // nowhere along here that a street can reach: no station
       const existing = terminal ? undefined : all.find((s) => dist(s.position, placed.point) < mergeRadius);

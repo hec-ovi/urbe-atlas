@@ -18,6 +18,8 @@ import { checkTransitClearance } from './transitClearance';
 import { checkStreetElevations } from './elevations';
 import { checkBusRouteTopology } from './routes';
 import { checkCrossings } from './crossings';
+import { checkCityHydrology } from '../hydro/CityHydrologyInvariants';
+import { intersection } from '../geom/clip';
 
 /** Shortest run of kerb the generator ever publishes as its own piece, meters. */
 const MIN_CURB_RUN = 0.5;
@@ -39,6 +41,13 @@ export class Invariants {
     for (const r of bp.transit.busRoutes) claim(r.id);
     for (const s of [...bp.transit.trainStations, ...bp.transit.subwayStations]) claim(s.id);
     for (const l of [...bp.transit.trainLines, ...bp.transit.subwayLines]) claim(l.id);
+    if (bp.hydrology) {
+      for (const body of bp.hydrology.bodies) {
+        claim(body.id);
+        for (const shoreline of body.shorelines) claim(shoreline.id);
+      }
+      for (const structure of bp.hydrology.structures) claim(structure.id);
+    }
 
     // street graph connected
     const parent = new Map<string, string>();
@@ -183,6 +192,7 @@ export class Invariants {
     checkStations(bp);
     checkTransitClearance(bp);
     checkFurniture(bp);
+    checkCityHydrology(bp);
 
     // feature toggles respected
     const f = bp.meta.params.features;
@@ -199,11 +209,15 @@ export class Invariants {
 
     // ground coverage: surfaces fill the city with no gaps beyond tolerance
     const cityArea = area(bp.meta.boundary);
+    const waterArea = bp.hydrology
+      ? intersectionArea([bp.meta.boundary], bp.hydrology.bodies.flatMap((body) => body.surfaces))
+      : 0;
+    const landArea = cityArea - waterArea;
     let covered = 0;
     for (const g of bp.volumetric.ground) covered += area(g.polygon);
-    if (covered < cityArea * 0.96) {
-      throw invariantFailure(`ground covers ${(100 * covered) / cityArea | 0}% of the city (<96%)`, {
-        cityArea,
+    if (covered < landArea * 0.96) {
+      throw invariantFailure(`ground covers ${(100 * covered) / landArea | 0}% of city land (<96%)`, {
+        cityArea, waterArea, landArea,
         covered,
       });
     }
@@ -232,6 +246,10 @@ export class Invariants {
       }
     }
   }
+}
+
+function intersectionArea(left: CityBlueprint['meta']['boundary'][], right: CityBlueprint['meta']['boundary'][]): number {
+  return intersection(left, right).reduce((total, polygon) => total + area(polygon), 0);
 }
 
 function checkRailNetwork(

@@ -36,15 +36,17 @@ import { hostingProfiles } from './zoning/profiles';
 import { TransitPlanner } from './transit/TransitPlanner';
 import { Invariants } from './invariants/Invariants';
 import { bufferLine, difference, intersection, offset, snapPoint, union } from './geom/clip';
-import { area, bounds, centroid, pointInPolygon } from './geom/polygon';
+import { area, bounds, centroid, distanceToOutline, pointInPolygon } from './geom/polygon';
 import { directionAt, length as lineLength, pointAt } from './geom/polyline';
 import { closestOnSegment, cross, dist, sub } from './geom/vec';
 import { LEVELS } from './levels';
 import { cityGridAngle } from './grid';
 import { RAIL, STATION } from './transit/stations';
 import { GROUND_LEVELS, type GroundSurfaceKind } from './streets/surfaces';
+import { planHydrology, withHydrologyStructures } from './hydro/Hydrology';
 
 export const BLUEPRINT_VERSION = '0.14.0';
+export const HYDROLOGY_BLUEPRINT_VERSION = '0.15.0';
 
 const SUBDIVISION: Record<DistrictKind, SubdivisionConfig> = {
   downtown: { minLotArea: 500, maxLotArea: 2600, chanceNoDivide: 0.12 },
@@ -60,6 +62,8 @@ export function generateCity(input: AtlasParams): CityBlueprint {
 
   // --- boundary, districts, streets -------------------------------------
   const boundary = CityBoundary.generate(Rng.from(seed, 'boundary'), params.size, params.irregularity);
+  const plannedHydrology = planHydrology({ seed, size: params.size, boundary, config: params.hydrology });
+  const waterSurfaces = plannedHydrology?.bodies.flatMap((body) => body.surfaces) ?? [];
   const planned = DistrictPlanner.plan(Rng.from(seed, 'districts'), boundary, params);
   const gridAngle = cityGridAngle(Rng.from(seed, 'grid'));
   const field = StreetGrowth.buildField(boundary, params, planned, gridAngle);
@@ -174,8 +178,8 @@ export function generateCity(input: AtlasParams): CityBlueprint {
       .filter((edge) => edge.class === 'highway')
       .flatMap((edge) => bufferLine(edge.path, edge.width + HIGHWAY_DECK.buildingClearance * 2)),
   );
-  const trainStationExclusion = union(
-    streetEdges
+  const trainStationExclusion = union([
+    ...streetEdges
       .filter((edge) => edge.class === 'highway')
       .flatMap((edge) => bufferLine(
         edge.path,
@@ -183,7 +187,8 @@ export function generateCity(input: AtlasParams): CityBlueprint {
           + Math.hypot(STATION.train.platformLength, STATION.train.platformWidth)
           + RAIL.buildingClearance * 2,
       )),
-  );
+    ...offset(waterSurfaces, Math.hypot(STATION.train.platformLength, STATION.train.platformWidth) / 2 + 1),
+  ]);
   // Transit runs on the driveable graph. The train is planned now because its
   // grade-level right-of-way must be removed before parcels are subdivided.
   const vehicleEdges = streetEdges.filter((edge) => edge.class !== 'alley');
@@ -257,9 +262,10 @@ export function generateCity(input: AtlasParams): CityBlueprint {
     const districtIndex = blockDistrict[blockIndex];
     const cfg = SUBDIVISION[planned[districtIndex].kind];
     const rng = lotRng.fork(blockIndex);
-    const reserved = intersection(block.interior, infrastructureNoBuild);
+    const landInterior = waterSurfaces.length > 0 ? difference(block.interior, waterSurfaces) : block.interior;
+    const reserved = intersection(landInterior, infrastructureNoBuild);
     blockOpenAreas[blockIndex].push(...reserved);
-    for (const interior of difference(block.interior, infrastructureNoBuild)) {
+    for (const interior of difference(landInterior, infrastructureNoBuild)) {
       // a block reachable only via highways gets no parcels: open ground instead
       if (sidewalkedEdges[blockIndex].length === 0) {
         blockOpenAreas[blockIndex].push(interior);
@@ -320,7 +326,7 @@ export function generateCity(input: AtlasParams): CityBlueprint {
     // capacity follows the final lot, which a merge may have grown
     if (z.type === 'residential') z.residents = Zoning.residentsFor(area(lot.polygon), envelope);
     // access: the block sidewalk point nearest the lot, then the edge serving it
-    const accessPoint = snapPoint(closestSidewalkPoint(lot.polygon, block.sidewalk));
+    const accessPoint = snapPoint(closestSidewalkPoint(lot.polygon, block.sidewalk, waterSurfaces));
     let bestEdge = sidewalkedEdges[raw.blockIndex][0];
     let bestD = Infinity;
     for (const edgeId of sidewalkedEdges[raw.blockIndex]) {
@@ -381,10 +387,12 @@ export function generateCity(input: AtlasParams): CityBlueprint {
     anchors,
     features: params.features,
     trainPlan,
-    entranceObstacles: parcels.map((parcel) => parcel.footprint),
+    entranceObstacles: [...parcels.map((parcel) => parcel.footprint), ...waterSurfaces],
+    stationExclusion: offset(waterSurfaces, Math.hypot(STATION.subway.platformLength, STATION.subway.platformWidth) / 2 + 1),
     rng: transitRng,
   });
   pruneUnusedStops(transit.busStops, transit.busRoutes.flatMap((r) => r.stopIds));
+  if (waterSurfaces.length > 0) pruneWaterStops(transit, waterSurfaces);
 
   // --- crossings, ground, volumetric -------------------------------------
   const crossings = Crossings.build(graph.nodes, graph.edges, sidewalkOf);
@@ -403,7 +411,7 @@ export function generateCity(input: AtlasParams): CityBlueprint {
     (edgeId) => planned[edgeDistrict.get(edgeId) ?? 0].kind,
     obstacles,
     Rng.from(seed, 'planting'),
-  );
+  ).filter((item) => !waterSurfaces.some((surface) => pointInPolygon(item.position, surface)));
   const subwayShafts = transit.subwayStations.flatMap((station) => station.shafts.map((shaft) => shaft.footprint));
   const pedestrianPaving = builtBlocks.flatMap((block) => [...block.curb, ...block.sidewalk]);
   const structures = highwayStructures(streetEdges, [...trainNoBuild, ...subwayShafts, ...pedestrianPaving]);
@@ -413,7 +421,8 @@ export function generateCity(input: AtlasParams): CityBlueprint {
   const ground: GroundSurface[] = [];
   const addGround = (surface: GroundSurfaceKind, polygon: Polygon): void => {
     const levels = GROUND_LEVELS[surface];
-    ground.push({ surface, polygon, bottom: levels.bottom, top: levels.top });
+    const pieces = waterSurfaces.length > 0 ? difference([polygon], waterSurfaces) : [polygon];
+    for (const piece of pieces) ground.push({ surface, polygon: piece, bottom: levels.bottom, top: levels.top });
   };
   const piecesByFace = new Map<number, Polygon[]>();
   builtBlocks.forEach((b) => {
@@ -445,6 +454,18 @@ export function generateCity(input: AtlasParams): CityBlueprint {
     ground,
   };
 
+  const hydrology = withHydrologyStructures(plannedHydrology, [
+    ...streetEdges.map((edge) => ({
+      network: 'street' as const,
+      refId: edge.id,
+      path: edge.path,
+      width: edge.width + edge.sidewalk.left + edge.sidewalk.right,
+      level: edge.level,
+    })).filter((edge) => edge.width > 0),
+    ...transit.trainLines.map((line) => ({ network: 'train' as const, refId: line.id, path: line.path, width: line.width, level: line.level })),
+    ...transit.subwayLines.map((line) => ({ network: 'subway' as const, refId: line.id, path: line.path, width: line.width, level: line.level })),
+  ]);
+
   // --- stats --------------------------------------------------------------
   const emptyCounts = (): Record<string, number> =>
     Object.fromEntries(
@@ -463,7 +484,7 @@ export function generateCity(input: AtlasParams): CityBlueprint {
 
   const blueprint: CityBlueprint = {
     meta: {
-      version: BLUEPRINT_VERSION,
+      version: hydrology ? HYDROLOGY_BLUEPRINT_VERSION : BLUEPRINT_VERSION,
       seed,
       params: params as CityBlueprint['meta']['params'],
       bounds: bounds(boundary),
@@ -476,6 +497,7 @@ export function generateCity(input: AtlasParams): CityBlueprint {
     blocks,
     parcels,
     transit,
+    ...(hydrology ? { hydrology } : {}),
     volumetric,
     stats: {
       population,
@@ -509,17 +531,29 @@ function adoptFlankingSidewalks(edge: StreetEdge, blocks: BuiltBlock[]): void {
 }
 
 /** Point on the block's sidewalk band closest to any vertex of the lot. */
-function closestSidewalkPoint(lot: Polygon, sidewalk: Polygon[]): Vec2 {
+function closestSidewalkPoint(lot: Polygon, sidewalk: Polygon[], water: Polygon[] = []): Vec2 {
   let best: Vec2 = lot[0];
   let bestD = Infinity;
   for (const v of lot) {
     for (const ring of sidewalk) {
       for (let i = 0; i < ring.length; i++) {
-        const { point } = closestOnSegment(v, ring[i], ring[(i + 1) % ring.length]);
-        const d = dist(v, point);
-        if (d < bestD) {
-          bestD = d;
-          best = point;
+        const start = ring[i];
+        const end = ring[(i + 1) % ring.length];
+        const projected = closestOnSegment(v, start, end).point;
+        const projectedIsClear = !water.some((surface) => pointInPolygon(projected, surface) || distanceToOutline(projected, surface) < 0.001);
+        const candidates = water.length === 0 || projectedIsClear
+          ? [projected]
+          : Array.from({ length: 17 }, (_, step): Vec2 => [
+              start[0] + (end[0] - start[0]) * step / 16,
+              start[1] + (end[1] - start[1]) * step / 16,
+            ]);
+        for (const candidate of candidates) {
+          if (water.some((surface) => pointInPolygon(candidate, surface) || distanceToOutline(candidate, surface) < 0.001)) continue;
+          const d = dist(v, candidate);
+          if (d < bestD) {
+            bestD = d;
+            best = candidate;
+          }
         }
       }
     }
@@ -532,6 +566,15 @@ function pruneUnusedStops(stops: BusStop[], usedIds: string[]): void {
   for (let i = stops.length - 1; i >= 0; i--) {
     if (!used.has(stops[i].id)) stops.splice(i, 1);
   }
+}
+
+function pruneWaterStops(transit: CityBlueprint['transit'], water: Polygon[]): void {
+  const removed = new Set(transit.busStops.filter((stop) => water.some((surface) => pointInPolygon(stop.position, surface))).map((stop) => stop.id));
+  transit.busStops = transit.busStops.filter((stop) => !removed.has(stop.id));
+  transit.busRoutes = transit.busRoutes
+    .map((route) => ({ ...route, stopIds: route.stopIds.filter((id) => !removed.has(id)) }))
+    .filter((route) => route.stopIds.length >= 2);
+  pruneUnusedStops(transit.busStops, transit.busRoutes.flatMap((route) => route.stopIds));
 }
 
 /** How many fresh street seeds a city tries before refusing a non-planar network. */

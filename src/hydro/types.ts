@@ -39,6 +39,8 @@ export interface HydrologyCrossingInput {
   network: HydrologyNetwork;
   refId: string;
   path: HydroPoint[];
+  /** Full constructed width whose contact with water requires a structure. */
+  width: number;
   level: number;
 }
 
@@ -49,6 +51,7 @@ export interface WaterStructure {
   refId: string;
   waterBodyId: string;
   path: HydroPoint[];
+  width: number;
   level: number;
 }
 

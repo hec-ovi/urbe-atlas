@@ -23,13 +23,22 @@ describe('hydrology contract', () => {
     expect(left.seedId).not.toBe(right.seedId);
   });
 
+  it('keeps every hydrology type valid and deterministic across seed streams', () => {
+    for (const fixture of HYDROLOGY_FIXTURES) for (let seed = 0; seed < 16; seed++) {
+      const request = { ...fixture, seed: `property-${seed}` };
+      const first = planHydrology(request)!;
+      expect(JSON.stringify(planHydrology(request))).toBe(JSON.stringify(first));
+      expect(() => checkHydrology(first, request.size)).not.toThrow();
+    }
+  });
+
   it('publishes exact in-water bridge and tunnel portions', () => {
     const plan = planHydrology(HYDROLOGY_FIXTURES[0])!;
     const center = plan.bodies[0].surfaces[0].reduce<[number, number]>((sum, p) => [sum[0] + p[0], sum[1] + p[1]], [0, 0])
       .map((value) => value / plan.bodies[0].surfaces[0].length) as [number, number];
     const crossed = withHydrologyStructures(plan, [
-      { network: 'street', refId: 'e0', path: [[0, center[1]], [800, center[1]]], level: 0 },
-      { network: 'subway', refId: 'sl0', path: [[center[0], 0], [center[0], 800]], level: -12 },
+      { network: 'street', refId: 'e0', path: [[0, center[1]], [800, center[1]]], width: 14, level: 0 },
+      { network: 'subway', refId: 'sl0', path: [[center[0], 0], [center[0], 800]], width: 6, level: -12 },
     ])!;
     expect(crossed.structures.map((item) => item.kind)).toEqual(['bridge', 'tunnel']);
     expect(crossed.structures.every((item) => item.path.length >= 2)).toBe(true);

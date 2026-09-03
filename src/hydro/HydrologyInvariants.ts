@@ -24,7 +24,8 @@ export function checkHydrology(plan: HydrologyPlan, size: { width: number; depth
     claim(ids, structure.id);
     if (!['bridge', 'tunnel'].includes(structure.kind) || !['street', 'train', 'subway'].includes(structure.network)
       || !plan.bodies.some((body) => body.id === structure.waterBodyId)
-      || structure.path.length < 2 || !structure.path.every(validPoint) || !Number.isFinite(structure.level)) fail(`invalid water structure ${structure.id}`);
+      || structure.path.length < 2 || !structure.path.every(validPoint) || !(structure.width > 0)
+      || !Number.isFinite(structure.level)) fail(`invalid water structure ${structure.id}`);
   }
 }
 

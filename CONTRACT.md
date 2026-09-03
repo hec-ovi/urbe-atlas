@@ -1,19 +1,19 @@
 # CONTRACT: atlas
 
-Purpose: deterministically generates the 2D city blueprint (districts, streets with sidewalks, typed parcels with 3D envelopes, transit) from a seed and parameters.
+Purpose: deterministically generates the 2D city blueprint (districts, streets with sidewalks, typed parcels with 3D envelopes, transit and optional hydrology) from a seed and parameters.
 
-Status: draft v0.14.0. Shapes are stable enough to build against; additive fields may come, breaking changes go through the orchestrator.
+Status: draft v0.15.0 when hydrology is requested. An omitted hydrology input retains the byte-identical v0.14.0 blueprint shape used by existing samples; breaking changes go through the orchestrator.
 
 ## Conventions
 - Units: meters. Ground plane XZ, +Y up. 2D points are `[x, z]`; heights along +Y.
 - Polygons: CCW rings, first point not repeated.
 - Determinism: same seed + params, byte-identical blueprint JSON.
-- IDs: deterministic strings with a disjoint prefix per collection: `d` district, `n` street node, `e` street edge, `b` block, `p` parcel, `bs` bus stop, `br` bus route, `ts` train station, `tl` train line, `ss` subway station, `sl` subway line.
+- IDs: deterministic strings with a disjoint prefix per collection: `d` district, `n` street node, `e` street edge, `b` block, `p` parcel, `bs` bus stop, `br` bus route, `ts` train station, `tl` train line, `ss` subway station, `sl` subway line, `w` water body, `sh` shoreline and `ws` water structure.
 
 ## In
 `generateCity(params: AtlasParams): CityBlueprint`
 
-Params: [schema/params.ts](schema/params.ts). Only `seed` is required; every other field has a documented default (size, irregularity, district count range, max floors global and per district kind, wealth tier weights, feature toggles for highways, trains, subways, alleys, air and underground tunnels).
+Params: [schema/params.ts](schema/params.ts). Only `seed` is required; every other field has a documented default (size, irregularity, district count range, max floors global and per district kind, wealth tier weights, feature toggles for highways, trains, subways, alleys, air and underground tunnels). `hydrology: { type }` optionally selects `lagoon`, `river`, or `sea-coast`; omission means no water and adds no output field.
 Nested parameter objects and arrays are validated at runtime. Unknown district kinds, wealth tiers and feature names, non-boolean toggles, malformed ranges and non-finite numbers fail with `E_INVALID_PARAMS`. Browser parameter imports apply the same validation before changing the form.
 
 CLI: `npm run generate -- --seed <seed> --out <file.json> [--size N] [--irregularity X] [--max-floors N] [--no-highways] [--no-trains] [--no-subways] [--no-alleys]` writes the blueprint JSON. Exit 1 on AtlasError (code printed), 2 on usage error.
@@ -31,13 +31,14 @@ Samples, committed and test-guaranteed to regenerate byte-identical:
 - `blocks`: street-bounded faces with a curb strip, sidewalk strip polygons, contained parcels, open areas. Curb corners at intersections carry a rounded return.
 - `parcels`: type (residential, hotel, offices, corpo, hospital, clinic, police, military, factory, commerce, mall, restaurant, coffee_shop), tier (poor, mid, rich, high_rich), lot polygon, footprint polygon (the lot inset by the type's setback and trimmed to the band the type needs), street access point, 3D envelope (min/max floors, nominal floor height and max height; real per-floor elevations are owned by exterior).
 - `transit`: bus stops and routes over street edges; train and subway stations and lines, each with its `level` (trains at grade, subways at -12 m) and full corridor `width` (4 m train bed, 6 m subway tunnel diameter). A station publishes its platform footprint in plan with the vertical extent of its box (`box.bottom` the platform floor, `box.top` its ceiling: 5 m of headroom underground, 3 m at grade), its street-level entrances on the sidewalk beside it, and, underground, one shaft and one `accessPath` per entrance. A subway line starts and ends inside its terminal platforms; each terminal center sits inward from the route endpoint. An access path is ordered 3D centerline data in `[x, y, z]`: switchback stairs descend inside the shaft, then a level passage ends at a handoff inside the platform. A station at grade publishes neither shafts nor access paths.
-- `volumetric`: low poly city for map previews: one prism per parcel plus ground cover polygons (roadway, curb, sidewalk, block, open). Every ground polygon publishes its construction `bottom` and walkable `top`: roadway -0.2 to 0 m, curb 0 to 0.15 m, and sidewalk, block and open ground 0 to 0.15 m.
+- `hydrology` (optional): [src/hydro/schema/hydrology-plan.schema.json](src/hydro/schema/hydrology-plan.schema.json). It publishes the independent deterministic `seedId`; water bodies with exact surface polygons, closed shoreline polylines and water-side construction bands; elevation, depth and material key; and exact full-width network contacts typed as bridge or tunnel. Downstream renderers consume `bodies[].surfaces` at `elevation`, extrude or shade to `depth`, resolve `materialKey`, draw `shorelines[].path` and `band`, then build `structures[]` from `path`, `width`, `level`, `kind`, `network` and `refId`.
+- `volumetric`: low poly city for map previews: one prism per parcel plus land cover polygons (roadway, curb, sidewalk, block, open). Every ground polygon publishes its construction `bottom` and walkable `top`: roadway -0.2 to 0 m, curb 0 to 0.15 m, and sidewalk, block and open ground 0 to 0.15 m. When hydrology exists, these polygons cover land only; water surfaces are separate.
 - `stats`: population estimate, parcel counts per type, per district.
 
 ## Errors
 Closed set, thrown as `AtlasError { code, message, details? }` ([schema/blueprint.ts](schema/blueprint.ts)):
 - `E_INVALID_PARAMS`: params fail validation; message names the field.
-- `E_UNSATISFIABLE`: params cannot yield a coherent city (e.g. size too small for the district count).
+- `E_UNSATISFIABLE`: params cannot yield a coherent city (e.g. size too small for the district count, or below 420 m on one axis when hydrology is requested).
 - `E_INVARIANT`: post-generation coherence check failed; atlas bug, report with seed and params.
 
 ## Invariants
@@ -63,6 +64,7 @@ Closed set, thrown as `AtlasError { code, message, details? }` ([schema/blueprin
 - The curb is a ground surface of its own: the outer 0.15 m of the block, between roadway and sidewalk ([src/streets/widths.ts](src/streets/widths.ts)). Block, curb, sidewalk and interior are offsets of one closed ring. Boolean source edges shorter than 0.5 m are removed before the return is built, and curb fragments below a 0.5 m run become sidewalk, so the kerb has no direction flips or slivers. It runs unbroken through every junction return with both its edges parallel to it. An alley borders no roadway, so it has no kerb: those stretches are sidewalk. The per-edge sidewalk width includes the kerb at its outer edge.
 - Block outlines and sidewalk polygons are simple rings (3+ points, real area, no crossing edges); every convex curb corner with room for a 0.6 m return is rounded by an arc of 1.5 to 3 m.
 - Feature toggles are respected: a disabled feature produces no entities of that kind.
+- Hydrology is derived from its independent seed stream before infrastructure placement. Water surfaces and shorelines are bounded, snapped to 1 mm, CCW, simple and byte-stable. Parcels, accesses, stations, entrances and land-cover polygons do not overlap water. A full-width street or rail corridor touches water only where `hydrology.structures` publishes the exact bridge or tunnel span. Highway supports in water belong to a published highway bridge; no untyped support overlap is allowed.
 - Every parcel footprint hosts the core rectangle its type needs, derived from interior's published core feasibility ([src/zoning/core.ts](src/zoning/core.ts) mirrors the constants of `../interior/schemas/core-feasibility.json`; a test fails when that file moves). A rectangle is a core mode's band length by its plate depth, with the stair shaft sized for the longest flight the recipe allows, plus one 0.5 m snap (the corridor face and the core start land on interior's grid) and twice the deepest facade (0.62 m) on both axes; it fits in either orientation. Walkup 11.14 x 9.74 m, walkup with two stairs 17.64 x 9.74 m, compact elevator core 12.14 x 13.74 m, standard elevator core 20.14 x 9.74 m. A heavy type (offices, corpo, hotel, hospital, mall, factory) hosts the compact rectangle; a light type (residential, commerce, restaurant, coffee_shop, clinic, police, military) hosts the walkup rectangle, and one of the two-stair rectangles when its footprint exceeds 460 m2.
 - Every parcel footprint keeps its type's band end to end, the short side of its rectangle: `HEAVY_BAND` 12.14 m, `LIGHT_BAND` 9.74 m ([src/zoning/bands.ts](src/zoning/bands.ts)). The band is the width between the footprint's two long sides along the whole footprint, where an oblique end cut is a cap and not a narrowing. The zoner assigns a lot only types whose band it hosts; a heavy type whose footprint cannot host its rectangle is retyped to the district's main light type (commerce in downtown, commercial and industrial districts, residential in residential and mixed ones); a lot hosting no rectangle merges into a neighbour parcel or becomes open area.
 - Envelope floors stay within what the hosted core allows: no cap with an elevator rectangle, 6 floors with the two-stair walkup rectangle, 4 with the walkup rectangle alone.

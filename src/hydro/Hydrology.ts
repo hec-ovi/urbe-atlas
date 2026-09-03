@@ -4,6 +4,7 @@ import type {
   HydroPolygon,
   HydrologyCrossingInput,
   HydrologyPlan,
+  HydrologyParams,
   HydrologyRequest,
   HydrologyType,
   WaterStructure,
@@ -59,12 +60,13 @@ export function withHydrologyStructures(
   const structures: WaterStructure[] = [];
   const ordered = [...crossings].sort((a, b) => a.network.localeCompare(b.network) || a.refId.localeCompare(b.refId));
   for (const crossing of ordered) {
-    if (!TYPES.length || crossing.path.length < 2 || !crossing.path.every(validPoint) || !Number.isFinite(crossing.level)) {
+    if (crossing.path.length < 2 || !crossing.path.every(validPoint) || !(crossing.width > 0) || !Number.isFinite(crossing.level)) {
       throw new AtlasError('E_INVARIANT', `invalid hydrology crossing input ${crossing.network}:${crossing.refId}`);
     }
     for (const body of plan.bodies) {
       for (const surface of body.surfaces) {
-        for (const path of pathsInside(crossing.path, surface)) {
+        const contact = offsetRing(surface, crossing.width / 2);
+        for (const path of pathsInside(crossing.path, contact)) {
           structures.push({
             id: `ws${structures.length}`,
             kind: crossing.network === 'subway' || crossing.level < body.elevation ? 'tunnel' : 'bridge',
@@ -72,6 +74,7 @@ export function withHydrologyStructures(
             refId: crossing.refId,
             waterBodyId: body.id,
             path,
+            width: crossing.width,
             level: crossing.level,
           });
         }
@@ -91,10 +94,14 @@ function validateRequest(request: HydrologyRequest): void {
     throw invalid('hydrology boundary must be a finite polygon');
   }
   if (request.config === undefined) return;
-  if (!request.config || typeof request.config !== 'object' || Array.isArray(request.config)
-    || Object.keys(request.config).some((key) => key !== 'type') || !TYPES.includes(request.config.type)) {
-    throw invalid('hydrology.type must be lagoon, river, or sea-coast');
-  }
+  validateHydrologyParams(request.config);
+}
+
+/** Runtime validation shared by Atlas parameter resolution and this boundary. */
+export function validateHydrologyParams(value: unknown): asserts value is HydrologyParams {
+  if (!value || typeof value !== 'object' || Array.isArray(value)
+    || Object.keys(value).some((key) => key !== 'type')
+    || !TYPES.includes((value as HydrologyParams).type)) throw invalid('hydrology.type must be lagoon, river, or sea-coast');
 }
 
 function lagoon(width: number, depth: number, identity: number): HydroPolygon {
@@ -167,6 +174,26 @@ function shorelineBand(surface: HydroPolygon, width: number): HydroPolygon[] {
     ]));
   }
   return strips;
+}
+
+/** Deterministic mitered clearance ring for classifying a full-width corridor. */
+function offsetRing(surface: HydroPolygon, amount: number): HydroPolygon {
+  const out: HydroPolygon = [];
+  for (let index = 0; index < surface.length; index++) {
+    const before = surface[(index - 1 + surface.length) % surface.length];
+    const at = surface[index];
+    const after = surface[(index + 1) % surface.length];
+    const incoming = unit(at[0] - before[0], at[1] - before[1]);
+    const outgoing = unit(after[0] - at[0], after[1] - at[1]);
+    const n1: HydroPoint = [incoming[1], -incoming[0]];
+    const n2: HydroPoint = [outgoing[1], -outgoing[0]];
+    const mx = n1[0] + n2[0];
+    const mz = n1[1] + n2[1];
+    const denominator = mx * n2[0] + mz * n2[1];
+    const scale = Math.abs(denominator) > 1e-6 ? Math.min(amount / denominator, amount * 4) : amount;
+    out.push(point(at[0] + mx * scale, at[1] + mz * scale));
+  }
+  return ensureCCW(out);
 }
 
 function pathsInside(path: HydroPoint[], polygon: HydroPolygon): HydroPoint[][] {
@@ -249,6 +276,11 @@ function pathLength(path: HydroPoint[]): number {
   let total = 0;
   for (let index = 1; index < path.length; index++) total += Math.hypot(path[index][0] - path[index - 1][0], path[index][1] - path[index - 1][1]);
   return total;
+}
+
+function unit(x: number, z: number): HydroPoint {
+  const length = Math.hypot(x, z);
+  return length > 1e-9 ? [x / length, z / length] : [0, 0];
 }
 
 function interpolate(a: HydroPoint, b: HydroPoint, t: number): HydroPoint {

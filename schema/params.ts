@@ -25,7 +25,11 @@ export interface AtlasParams {
   /** Wealth mix weights, normalized internally. Default { poor: 0.3, mid: 0.45, rich: 0.2, high_rich: 0.05 }. */
   tierWeights?: Partial<Record<WealthTier, number>>;
   features?: FeatureToggles;
+  /** Optional deterministic water reservation. Omitted means no hydrology and preserves legacy output. */
+  hydrology?: HydrologyParams;
 }
+
+export type { HydrologyParams, HydrologyType } from '../src/hydro/types';
 
 export interface FeatureToggles {
   /** Generate highways. Default true. */
@@ -41,3 +45,4 @@ export interface FeatureToggles {
   /** Permit underground connections downstream. Echoed in blueprint meta. Default true. */
   undergroundTunnels?: boolean;
 }
+import type { HydrologyParams } from '../src/hydro/types';

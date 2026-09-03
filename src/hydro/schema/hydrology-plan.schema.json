@@ -47,7 +47,7 @@
           "items": {
             "type": "object",
             "additionalProperties": false,
-            "required": ["id", "kind", "network", "refId", "waterBodyId", "path", "level"],
+            "required": ["id", "kind", "network", "refId", "waterBodyId", "path", "width", "level"],
             "properties": {
               "id": { "type": "string", "minLength": 1 },
               "kind": { "enum": ["bridge", "tunnel"] },
@@ -55,6 +55,7 @@
               "refId": { "type": "string", "minLength": 1 },
               "waterBodyId": { "type": "string", "minLength": 1 },
               "path": { "type": "array", "minItems": 2, "items": { "$ref": "#/$defs/point" } },
+              "width": { "type": "number", "exclusiveMinimum": 0 },
               "level": { "type": "number" }
             }
           }

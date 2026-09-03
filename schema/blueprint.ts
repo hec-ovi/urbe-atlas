@@ -9,6 +9,7 @@
  */
 
 import type { AtlasParams, DistrictKind, WealthTier } from './params';
+import type { HydrologyPlan } from '../src/hydro/types';
 
 export type Vec2 = [x: number, z: number];
 export type Vec3 = [x: number, y: number, z: number];
@@ -43,6 +44,8 @@ export interface CityBlueprint {
   blocks: Block[];
   parcels: Parcel[];
   transit: Transit;
+  /** Present only when AtlasParams.hydrology is supplied. */
+  hydrology?: HydrologyPlan;
   volumetric: Volumetric;
   stats: CityStats;
 }
@@ -52,7 +55,7 @@ export interface BlueprintMeta {
   version: string;
   seed: string;
   /** Params after defaults were applied: the exact input that reproduces this blueprint. */
-  params: Required<AtlasParams>;
+  params: Omit<Required<AtlasParams>, 'hydrology'> & Pick<AtlasParams, 'hydrology'>;
   /** Axis-aligned bounds of all geometry. */
   bounds: { min: Vec2; max: Vec2 };
   units: 'meters';

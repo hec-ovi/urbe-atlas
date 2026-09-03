@@ -1,5 +1,7 @@
 import type { AtlasParams, DistrictKind, FeatureToggles, WealthTier } from '../../schema/params';
 import { invalidParams, unsatisfiable } from '../errors';
+import { validateHydrologyParams } from '../hydro/Hydrology';
+import type { HydrologyParams } from '../hydro/types';
 
 export interface ResolvedParams {
   seed: string | number;
@@ -10,6 +12,7 @@ export interface ResolvedParams {
   maxFloorsByDistrict: Partial<Record<DistrictKind, number>>;
   tierWeights: Record<WealthTier, number>;
   features: Required<FeatureToggles>;
+  hydrology?: HydrologyParams;
 }
 
 /** Minimum ground area a district needs to hold blocks and streets. */
@@ -120,6 +123,8 @@ export function resolveParams(input: AtlasParams): ResolvedParams {
     undergroundTunnels: featureInput?.undergroundTunnels ?? true,
   };
 
+  if (input.hydrology !== undefined) validateHydrologyParams(input.hydrology);
+
   if (size.width * size.depth < dMin * MIN_DISTRICT_AREA) {
     throw unsatisfiable(
       `size ${size.width}x${size.depth} m cannot hold ${dMin} districts; need >= ${MIN_DISTRICT_AREA} m2 each`,
@@ -136,6 +141,7 @@ export function resolveParams(input: AtlasParams): ResolvedParams {
     maxFloorsByDistrict,
     tierWeights,
     features,
+    ...(input.hydrology ? { hydrology: { ...input.hydrology } } : {}),
   };
 }
 
