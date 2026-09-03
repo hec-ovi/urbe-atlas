@@ -1,5 +1,5 @@
 /** Complete, validated city creation form for every AtlasParams input. */
-import type { AtlasParams, DistrictKind, FeatureToggles, WealthTier } from '../../../schema/params';
+import type { AtlasParams, DistrictKind, FeatureToggles, HydrologyType, WealthTier } from '../../../schema/params';
 import { el } from '../components/dom';
 import { RangeField } from '../components/rangeField';
 
@@ -71,6 +71,7 @@ export class ParamsPanel {
   private readonly districtMin: RangeField;
   private readonly districtMax: RangeField;
   private readonly maxFloors: RangeField;
+  private readonly hydrology: HTMLSelectElement;
   private readonly districtCaps = new Map<DistrictKind, { enabled: HTMLInputElement; value: HTMLInputElement }>();
   private readonly tierWeights = new Map<WealthTier, RangeField>();
   private readonly features = {} as Record<keyof FeatureToggles, HTMLInputElement>;
@@ -88,6 +89,13 @@ export class ParamsPanel {
     this.districtMin = new RangeField({ id: 'district-min', label: 'Minimum districts', min: 1, max: 24, step: 1, value: 1, integer: true, onInput: validate });
     this.districtMax = new RangeField({ id: 'district-max', label: 'Maximum districts', min: 1, max: 24, step: 1, value: 3, integer: true, onInput: validate });
     this.maxFloors = new RangeField({ id: 'maxFloors', label: 'Global floor cap', min: 1, max: 120, step: 1, value: 40, integer: true, onInput: validate });
+    this.hydrology = el('select', { id: 'hydrology', 'aria-label': 'Waterfront' }, [
+      el('option', { value: 'none', text: 'None' }),
+      el('option', { value: 'lagoon', text: 'Lagoon' }),
+      el('option', { value: 'river', text: 'River' }),
+      el('option', { value: 'sea-coast', text: 'Sea coast' }),
+    ]);
+    this.hydrology.addEventListener('change', validate);
 
     const featureFields = el('div', { class: 'feature-grid' });
     for (const key of Object.keys(FEATURE_LABELS) as (keyof FeatureToggles)[]) {
@@ -164,7 +172,12 @@ export class ParamsPanel {
           random,
         ]),
       ], true),
-      section('City shape', [this.width.root, this.depth.root, this.irregularity.root], true),
+      section('City shape', [
+        this.width.root,
+        this.depth.root,
+        this.irregularity.root,
+        el('label', { for: 'hydrology' }, [el('span', { text: 'Waterfront' }), this.hydrology]),
+      ], true),
       section('Districts', [
         this.districtMin.root,
         this.districtMax.root,
@@ -213,6 +226,7 @@ export class ParamsPanel {
       ...(Object.keys(maxFloorsByDistrict).length > 0 ? { maxFloorsByDistrict } : {}),
       tierWeights,
       features,
+      ...(this.hydrology.value === 'none' ? {} : { hydrology: { type: this.hydrology.value as HydrologyType } }),
     };
   }
 
@@ -230,6 +244,7 @@ export class ParamsPanel {
     this.districtMin.value = districtCount[0];
     this.districtMax.value = districtCount[1];
     this.maxFloors.value = params.maxFloors ?? DEFAULT_PARAMS.maxFloors!;
+    this.hydrology.value = params.hydrology?.type ?? 'none';
     for (const [kind, control] of this.districtCaps) {
       const cap = params.maxFloorsByDistrict?.[kind];
       control.enabled.checked = cap !== undefined;

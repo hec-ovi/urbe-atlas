@@ -75,6 +75,13 @@ export const TRANSIT_COLORS = {
   trainStation: '#b8eaff',
 } as const;
 
+export const HYDROLOGY_COLORS = {
+  'water.lagoon': '#176d91',
+  'water.river': '#16789c',
+  'water.sea-coast': '#126486',
+  shoreline: '#79c9d9',
+} as const;
+
 export const DIAGNOSTIC_COLORS = {
   highwayCenterlines: '#fff26d',
   highwaySupports: '#ff4fd8',

@@ -12,7 +12,7 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import type { CityBlueprint, ElevationPoint, Parcel, PlantingKind, Polygon, Polyline, Station, StreetEdge, TrafficSignal, Vec2 } from '../../../schema/blueprint';
-import { DIAGNOSTIC_COLORS, FURNITURE_COLORS, GROUND_COLORS, TRANSIT_COLORS, parcelHsl, streetColor } from '../components/colors';
+import { DIAGNOSTIC_COLORS, FURNITURE_COLORS, GROUND_COLORS, HYDROLOGY_COLORS, TRANSIT_COLORS, parcelHsl, streetColor } from '../components/colors';
 import { defaultFilters, type FilterKey, type Filters } from './filters';
 import { streetSurfaceRegions } from './StreetSurfaceRegions';
 
@@ -80,6 +80,7 @@ export class Map3DView {
     this.layers.clear();
     this.blueprint = bp;
     this.parcels = bp.parcels;
+    this.buildHydrology(bp);
     this.buildGround(bp);
     this.buildParcels(bp);
     this.buildStreets(bp);
@@ -222,6 +223,24 @@ export class Map3DView {
       new THREE.MeshLambertMaterial({ color: 0xd8d1bb }),
       'crossing-markings',
     );
+  }
+
+  private buildHydrology(bp: CityBlueprint): void {
+    if (!bp.hydrology) return;
+    for (const body of bp.hydrology.bodies) {
+      this.merged(
+        'hydrology.water',
+        body.surfaces.map((surface) => plate(surface, body.elevation)),
+        new THREE.MeshLambertMaterial({ color: HYDROLOGY_COLORS[body.materialKey], transparent: true, opacity: 0.88 }),
+        body.materialKey,
+      );
+      this.merged(
+        'hydrology.shoreline',
+        body.shorelines.flatMap((shoreline) => shoreline.band.map((band) => plate(band, body.elevation + 0.015))),
+        new THREE.MeshLambertMaterial({ color: HYDROLOGY_COLORS.shoreline }),
+        'shoreline-bands',
+      );
+    }
   }
 
   private buildParcels(bp: CityBlueprint): void {

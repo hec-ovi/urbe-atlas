@@ -6,6 +6,7 @@ import {
   DISTRICT_OUTLINE,
   FURNITURE_COLORS,
   GROUND_COLORS,
+  HYDROLOGY_COLORS,
   TRANSIT_COLORS,
   parcelColor,
   streetColor,
@@ -160,6 +161,11 @@ export class MapView {
     context.lineJoin = 'round';
 
     this.polygon(context, blueprint.meta.boundary, '#0f1821', BOUNDARY_COLOR, 1.5);
+    if (blueprint.hydrology && this.filters['hydrology.water']) {
+      for (const body of blueprint.hydrology.bodies) {
+        for (const surface of body.surfaces) this.polygon(context, surface, HYDROLOGY_COLORS[body.materialKey]);
+      }
+    }
     for (const ground of blueprint.volumetric.ground) {
       if (this.filters[`ground.${ground.surface}`]) this.polygon(context, ground.polygon, GROUND_COLORS[ground.surface]);
     }
@@ -185,6 +191,14 @@ export class MapView {
       context.setLineDash([7, 5]);
       for (const district of blueprint.districts) this.polygon(context, district.boundary, null, DISTRICT_OUTLINE, 2);
       context.setLineDash([]);
+    }
+    if (blueprint.hydrology && this.filters['hydrology.shoreline']) {
+      for (const body of blueprint.hydrology.bodies) {
+        for (const shoreline of body.shorelines) {
+          for (const band of shoreline.band) this.polygon(context, band, HYDROLOGY_COLORS.shoreline);
+          this.polygon(context, shoreline.path, null, HYDROLOGY_COLORS.shoreline, 1.5);
+        }
+      }
     }
     this.drawTransit(context, blueprint);
     this.drawFurniture(context, blueprint);

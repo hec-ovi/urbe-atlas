@@ -50,6 +50,8 @@ describe('LegendWidget', () => {
     expect(getByText(legend.root, 'coffee shop')).toBeTruthy();
     expect(getByText(legend.root, 'residential')).toBeTruthy();
     expect(getByText(legend.root, 'alley')).toBeTruthy();
+    expect(getByText(legend.root, 'water')).toBeTruthy();
+    expect(getByText(legend.root, 'shoreline')).toBeTruthy();
     expect(legend.root.querySelectorAll('.swatch').length).toBeGreaterThanOrEqual(13 * 4);
   });
 });
@@ -97,6 +99,17 @@ describe('LayerToggles', () => {
     await userEvent.click(getByRole(toggles.root, 'button', { name: 'Defaults' }));
     expect(onChange.mock.lastCall![0].interiorsOnly).toBe(false);
   });
+
+  it('toggles water surfaces and shorelines independently', async () => {
+    const onChange = vi.fn();
+    const toggles = new LayerToggles(onChange);
+    document.body.append(toggles.root);
+    await userEvent.click(getByLabelText(toggles.root, 'water'));
+    expect(onChange.mock.lastCall![0]['hydrology.water']).toBe(false);
+    expect(onChange.mock.lastCall![0]['hydrology.shoreline']).toBe(true);
+    await userEvent.click(getByLabelText(toggles.root, 'shoreline'));
+    expect(onChange.mock.lastCall![0]['hydrology.shoreline']).toBe(false);
+  });
 });
 
 describe('ParamsPanel', () => {
@@ -114,12 +127,14 @@ describe('ParamsPanel', () => {
     await userEvent.clear(seed);
     await userEvent.type(seed, 'test-9');
     await userEvent.click(getByLabelText(panel.root, 'Subways'));
+    await userEvent.selectOptions(getByLabelText(panel.root, 'Waterfront'), 'lagoon');
     await userEvent.click(getByText(panel.root, 'Generate city'));
     expect(handlers.onGenerate).toHaveBeenCalledTimes(1);
     const params = handlers.onGenerate.mock.calls[0][0];
     expect(params.seed).toBe('test-9');
     expect(params.size).toEqual({ width: 1000, depth: 1000 });
     expect(params.districtCount).toEqual([1, 3]);
+    expect(params.hydrology).toEqual({ type: 'lagoon' });
     expect(params.tierWeights).toEqual({ poor: 0.3, mid: 0.45, rich: 0.2, high_rich: 0.05 });
     expect(params.features).toEqual({
       highways: true,
@@ -143,6 +158,7 @@ describe('ParamsPanel', () => {
       maxFloorsByDistrict: { downtown: 9 },
       tierWeights: { poor: 1 },
       features: { alleys: false },
+      hydrology: { type: 'river' },
     });
     await userEvent.click(getByText(panel.root, 'Save parameters'));
     const params = handlers.onExport.mock.calls[0][0];
@@ -154,6 +170,7 @@ describe('ParamsPanel', () => {
     expect(params.tierWeights).toEqual({ poor: 1, mid: 0.45, rich: 0.2, high_rich: 0.05 });
     expect(params.features.alleys).toBe(false);
     expect(params.features.trains).toBe(true);
+    expect(params.hydrology).toEqual({ type: 'river' });
   });
 
   it('keeps slider and exact value synchronized and blocks invalid input', async () => {
@@ -237,6 +254,23 @@ describe('MapView', () => {
     view.setInteriorParcels([]);
     expect(featureAt(centre)).toBeNull();
   });
+
+  it('draws the exact water surface and shoreline band on independent layers', () => {
+    const blueprint = generateCity({ seed: 'flat-water', size: { width: 600, depth: 600 }, hydrology: { type: 'lagoon' } });
+    const view = new MapView();
+    vi.spyOn(view.canvas, 'getContext').mockReturnValue({
+      fillRect: vi.fn(), beginPath: vi.fn(), moveTo: vi.fn(), lineTo: vi.fn(), closePath: vi.fn(),
+      fill: vi.fn(), stroke: vi.fn(), arc: vi.fn(), strokeRect: vi.fn(), setLineDash: vi.fn(),
+    } as never);
+    const polygon = vi.spyOn(view as never, 'polygon');
+    view.setBlueprint(blueprint);
+    const body = blueprint.hydrology!.bodies[0];
+    expect(polygon.mock.calls.some((call) => call[1] === body.surfaces[0])).toBe(true);
+    expect(polygon.mock.calls.some((call) => call[1] === body.shorelines[0].band[0])).toBe(true);
+    polygon.mockClear();
+    view.setFilters({ ...defaultFilters(), 'hydrology.water': false, 'hydrology.shoreline': false });
+    expect(polygon.mock.calls.some((call) => call[1] === body.surfaces[0] || call[1] === body.shorelines[0].band[0])).toBe(false);
+  });
 });
 
 describe('3D street surfaces', () => {
@@ -287,6 +321,18 @@ describe('PreviewApp', () => {
     expect(layers.get('ground.roadway')?.getObjectByName('crossing-markings')).toBeTruthy();
     expect(error.mock.calls.flat().join(' ')).not.toContain('mergeGeometries');
     error.mockRestore();
+  });
+
+  it('builds exact water and shoreline meshes and applies their visibility switches', () => {
+    const view = new Map3DView();
+    const blueprint = generateCity({ seed: 'three-water', size: { width: 600, depth: 600 }, hydrology: { type: 'river' } });
+    view.setBlueprint(blueprint);
+    const layers = (view as unknown as { layers: Map<string, THREE.Group> }).layers;
+    expect(layers.get('hydrology.water')?.getObjectByName('water.river')).toBeTruthy();
+    expect(layers.get('hydrology.shoreline')?.getObjectByName('shoreline-bands')).toBeTruthy();
+    view.setFilters({ ...defaultFilters(), 'hydrology.water': false, 'hydrology.shoreline': true });
+    expect(layers.get('hydrology.water')?.visible).toBe(false);
+    expect(layers.get('hydrology.shoreline')?.visible).toBe(true);
   });
 
   it('shows only assembled interior building batches in the 3D constraint', () => {

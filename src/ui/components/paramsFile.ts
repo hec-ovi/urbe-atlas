@@ -12,6 +12,7 @@ const FIELDS = [
   'maxFloorsByDistrict',
   'tierWeights',
   'features',
+  'hydrology',
 ] as const;
 
 /** Reads a parameter file. Throws Error with a readable reason when it is not one. */

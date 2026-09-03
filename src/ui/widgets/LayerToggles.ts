@@ -1,6 +1,6 @@
 /** Every visualization switch, grouped, each group with its own all-on/all-off row. */
 import { FILTER_GROUPS, defaultFilters, filterLabel, type FilterKey, type Filters } from '../views/filters';
-import { DIAGNOSTIC_COLORS, DISTRICT_OUTLINE, FURNITURE_COLORS, GROUND_COLORS, TRANSIT_COLORS, parcelColor, streetColor } from '../components/colors';
+import { DIAGNOSTIC_COLORS, DISTRICT_OUTLINE, FURNITURE_COLORS, GROUND_COLORS, HYDROLOGY_COLORS, TRANSIT_COLORS, parcelColor, streetColor } from '../components/colors';
 import { el } from '../components/dom';
 
 export class LayerToggles {
@@ -137,6 +137,8 @@ function filterColor(key: FilterKey): string {
   if (key.startsWith('street.')) return streetColor(name as Parameters<typeof streetColor>[0]);
   if (key.startsWith('transit.')) return TRANSIT_COLORS[name === 'bus' ? 'busRoute' : name as 'train' | 'subway'];
   if (key.startsWith('furniture.')) return FURNITURE_COLORS[name as keyof typeof FURNITURE_COLORS];
+  if (key === 'hydrology.water') return HYDROLOGY_COLORS['water.river'];
+  if (key === 'hydrology.shoreline') return HYDROLOGY_COLORS.shoreline;
   if (key.startsWith('diagnostic.')) return DIAGNOSTIC_COLORS[name as keyof typeof DIAGNOSTIC_COLORS];
   return DISTRICT_OUTLINE;
 }
