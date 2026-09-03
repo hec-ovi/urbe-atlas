@@ -2,7 +2,7 @@
 
 Purpose: deterministically generates the 2D city blueprint (districts, streets with sidewalks, typed parcels with 3D envelopes, transit and optional hydrology) from a seed and parameters.
 
-Status: package v0.2.22. Blueprint v0.15.0 is implemented and tested when hydrology is requested. An omitted hydrology input retains the byte-identical v0.14.0 blueprint shape used by existing samples; breaking changes go through the orchestrator.
+Status: package v0.2.23. Blueprint v0.15.0 is implemented and tested when hydrology is requested. An omitted hydrology input retains the byte-identical v0.14.0 blueprint shape used by existing samples; breaking changes go through the orchestrator.
 
 ## Conventions
 - Units: meters. Ground plane XZ, +Y up. 2D points are `[x, z]`; heights along +Y.
@@ -16,7 +16,9 @@ Status: package v0.2.22. Blueprint v0.15.0 is implemented and tested when hydrol
 Params: [schema/params.ts](schema/params.ts). Only `seed` is required; every other field has a documented default (size, irregularity, district count range, max floors global and per district kind, wealth tier weights, feature toggles for highways, trains, subways, alleys, air and underground tunnels). `hydrology: { type }` optionally selects `lagoon`, `river`, or `sea-coast`; omission means no water and adds no output field.
 Nested parameter objects and arrays are validated at runtime. Unknown district kinds, wealth tiers and feature names, non-boolean toggles, malformed ranges and non-finite numbers fail with `E_INVALID_PARAMS`. Browser parameter imports apply the same validation before changing the form.
 
-CLI: `npm run generate -- --seed <seed> --out <file.json> [--size N] [--irregularity X] [--max-floors N] [--no-highways] [--no-trains] [--no-subways] [--no-alleys]` writes the blueprint JSON. Exit 1 on AtlasError (code printed), 2 on usage error.
+CLI: after `npm run build:cli`, `npm run generate -- --seed <seed> --out <file.json> [--size N] [--irregularity X] [--max-floors N] [--no-highways] [--no-trains] [--no-subways] [--no-alleys]` executes the prepared artifact without modifying the Atlas package and writes the blueprint JSON only to the requested path. Exit 1 on AtlasError (code printed), 2 on usage error. `npm run preview` prepares the same CLI before its server starts.
+
+Build: `npm run build` type-checks the package, writes the reusable CLI to `dist/cli.mjs`, and writes the production browser preview under `dist/preview/`. `npm run build:cli` builds only the CLI. Building either surface preserves the other.
 
 Samples, committed and test-guaranteed to regenerate byte-identical:
 - [samples/city-urbe.json](samples/city-urbe.json): seed `urbe`, default params (full-size city).

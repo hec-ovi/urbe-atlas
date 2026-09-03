@@ -1,14 +1,18 @@
 {
   "name": "atlas",
-  "version": "0.2.22",
+  "version": "0.2.23",
   "private": true,
   "description": "Deterministic 2D city map generator: seed plus params to a typed city blueprint",
   "type": "module",
   "scripts": {
     "test": "vitest run",
+    "prepreview": "npm run build:cli",
     "preview": "vite",
-    "build": "tsc --noEmit",
-    "generate": "esbuild src/cli.ts --bundle --platform=node --format=esm --outfile=dist/cli.mjs --log-level=warning && node dist/cli.mjs"
+    "typecheck": "tsc --noEmit",
+    "build": "npm run typecheck && npm run build:cli && npm run build:preview",
+    "build:cli": "esbuild src/cli.ts --bundle --platform=node --format=esm --outfile=dist/cli.mjs --log-level=warning",
+    "build:preview": "vite build",
+    "generate": "node dist/cli.mjs"
   },
   "devDependencies": {
     "@testing-library/dom": "^10.4.1",

@@ -5,11 +5,14 @@ Deterministic 2D city map generator. A seed plus a few parameters produce a comp
 ## Run
 
 ```
-npm install
+npm ci
 npm test                                    # contract tests
 npm run preview                             # browser map: pan, zoom, legend, layer toggles
+npm run build                               # type check, CLI and production preview
 npm run generate -- --seed urbe --out city.json
 ```
+
+`npm run build:cli` prepares `dist/cli.mjs` for a host that invokes Atlas as a subprocess. `npm run generate` executes that artifact without writing inside the Atlas checkout. Preview startup prepares it too. The production browser files live under `dist/preview/`, so either build can run without deleting the other.
 
 The preview generates cities from a form: parameter sets export and import as JSON files, hydrology can reserve a lagoon, river or sea coast, and generation reports its progress or failure. Right-click a visible parcel, street, highway or station to keep its measurements in the inspector. A selected parcel can open in the configured engine viewer; the default targets the local engine, and an empty URL template disables it.
 
