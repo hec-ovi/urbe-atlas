@@ -68,7 +68,9 @@ export const TRANSIT_COLORS = {
   busStop: '#66ee93',
   busRoute: '#51d68a',
   subway: '#f472b6',
+  subwayTunnel: '#302832',
   subwayStation: '#ffb1d8',
+  subwayTerminal: '#ffdeef',
   train: '#59ccff',
   trainStation: '#b8eaff',
 } as const;

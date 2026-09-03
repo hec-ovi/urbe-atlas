@@ -247,6 +247,11 @@ describe('PreviewApp', () => {
     expect(layers.has('diagnostic.highwayCenterlines')).toBe(blueprint.streets.highwayStructures.length > 0);
     expect(layers.has('diagnostic.highwaySupports')).toBe(blueprint.streets.highwayStructures.some((item) => item.supports.length > 0));
     expect(layers.has('diagnostic.stationAccess')).toBe(blueprint.transit.subwayStations.some((item) => item.accessPaths.length > 0));
+    const subway = layers.get('transit.subway');
+    expect(subway?.getObjectByName('subway-corridor')).toBeTruthy();
+    expect(subway?.getObjectByName('subway-track')).toBeTruthy();
+    expect(subway?.getObjectByName('station-assemblies')).toBeTruthy();
+    expect(subway?.getObjectByName('terminal-gates')).toBeTruthy();
     expect(error.mock.calls.flat().join(' ')).not.toContain('mergeGeometries');
     error.mockRestore();
   });

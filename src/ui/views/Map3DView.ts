@@ -149,7 +149,7 @@ export class Map3DView {
   }
 
   /** Merged mesh of many geometries in one colour, into one layer. */
-  private merged(key: FilterKey, parts: THREE.BufferGeometry[], material: THREE.Material): void {
+  private merged(key: FilterKey, parts: THREE.BufferGeometry[], material: THREE.Material, name?: string): void {
     if (parts.length === 0) return;
     const hasIndex = parts.some((part) => part.index !== null);
     const hasNoIndex = parts.some((part) => part.index === null);
@@ -165,7 +165,11 @@ export class Map3DView {
     const geometry = mergeGeometries(compatible, false);
     parts.forEach((p) => p.dispose());
     converted.forEach((part) => part.dispose());
-    if (geometry) this.layer(key).add(new THREE.Mesh(geometry, material));
+    if (geometry) {
+      const mesh = new THREE.Mesh(geometry, material);
+      if (name) mesh.name = name;
+      this.layer(key).add(mesh);
+    }
   }
 
   private buildGround(bp: CityBlueprint): void {
@@ -265,7 +269,24 @@ export class Map3DView {
     const under = (level: number) => level < 0;
     const rail = (key: FilterKey, path: Polyline, level: number, width: number, color: string) => {
       if (under(level)) {
-        this.layer(key).add(new THREE.Mesh(tunnel(path, width / 2, level), new THREE.MeshLambertMaterial({ color })));
+        const corridor = new THREE.Mesh(
+          tunnel(path, width / 2, level),
+          new THREE.MeshLambertMaterial({
+            color: TRANSIT_COLORS.subwayTunnel,
+            transparent: true,
+            opacity: 0.28,
+            depthWrite: false,
+            side: THREE.DoubleSide,
+          }),
+        );
+        corridor.name = 'subway-corridor';
+        this.layer(key).add(corridor);
+        const track = new THREE.Mesh(
+          ribbon(path, Math.min(1.6, width / 3), level + 0.08),
+          new THREE.MeshLambertMaterial({ color }),
+        );
+        track.name = 'subway-track';
+        this.layer(key).add(track);
       } else {
         this.layer(key).add(new THREE.Mesh(ribbon(path, width, level + 0.06), new THREE.MeshLambertMaterial({ color })));
       }
@@ -283,8 +304,25 @@ export class Map3DView {
     for (const line of t.trainLines) rail('transit.train', line.path, line.level, line.width, TRANSIT_COLORS.train);
     for (const line of t.subwayLines) rail('transit.subway', line.path, line.level, line.width, TRANSIT_COLORS.subway);
 
-    this.merged('transit.train', t.trainStations.flatMap(stationParts), new THREE.MeshLambertMaterial({ color: TRANSIT_COLORS.trainStation }));
-    this.merged('transit.subway', t.subwayStations.flatMap(stationParts), new THREE.MeshLambertMaterial({ color: TRANSIT_COLORS.subwayStation }));
+    this.merged('transit.train', t.trainStations.flatMap(stationParts), new THREE.MeshLambertMaterial({ color: TRANSIT_COLORS.trainStation }), 'station-assemblies');
+    this.merged('transit.subway', t.subwayStations.flatMap(stationParts), new THREE.MeshLambertMaterial({ color: TRANSIT_COLORS.subwayStation }), 'station-assemblies');
+    const subwayById = new Map(t.subwayStations.map((station) => [station.id, station]));
+    const terminals: THREE.BufferGeometry[] = [];
+    for (const line of t.subwayLines) {
+      const first = subwayById.get(line.stationIds[0]);
+      const last = subwayById.get(line.stationIds[line.stationIds.length - 1]);
+      if (first) terminals.push(...terminalGate(line.path[0], direction(line.path[0], line.path[1]), line.width, first.level));
+      if (last) {
+        const end = line.path.length - 1;
+        terminals.push(...terminalGate(line.path[end], direction(line.path[end - 1], line.path[end]), line.width, last.level));
+      }
+    }
+    this.merged(
+      'transit.subway',
+      terminals,
+      new THREE.MeshLambertMaterial({ color: TRANSIT_COLORS.subwayTerminal }),
+      'terminal-gates',
+    );
     const stops: THREE.BufferGeometry[] = [];
     for (const stop of t.busStops) stops.push(new THREE.BoxGeometry(2, 2.5, 2).translate(stop.position[0], 1.25, stop.position[1]));
     this.merged('transit.bus', stops, new THREE.MeshLambertMaterial({ color: TRANSIT_COLORS.busStop }));
@@ -416,6 +454,25 @@ function stationParts(s: Station): THREE.BufferGeometry[] {
     }
   }
   return parts;
+}
+
+/** A portal across the route at the exact line endpoint makes the terminal visible in isolation. */
+function terminalGate(point: Vec2, along: Vec2, corridorWidth: number, level: number): THREE.BufferGeometry[] {
+  const height = 2.4;
+  const post = 0.35;
+  const width = Math.max(6, corridorWidth);
+  const side: Vec2 = [-along[1], along[0]];
+  const angle = -Math.atan2(along[1], along[0]);
+  const centres = [-1, 1].map((sign): Vec2 => [
+    point[0] + side[0] * sign * (width / 2 - post / 2),
+    point[1] + side[1] * sign * (width / 2 - post / 2),
+  ]);
+  return [
+    ...centres.map(([x, z]) => new THREE.BoxGeometry(post, height, post).translate(x, level + height / 2, z)),
+    new THREE.BoxGeometry(post, post, width)
+      .rotateY(angle)
+      .translate(point[0], level + height - post / 2, point[1]),
+  ];
 }
 
 /** A polygon extruded upward from `base`. */
