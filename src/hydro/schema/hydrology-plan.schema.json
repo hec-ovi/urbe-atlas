@@ -1,0 +1,74 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:urbe:atlas:hydro:plan",
+  "oneOf": [
+    { "type": "null" },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["seedId", "type", "bodies", "structures"],
+      "properties": {
+        "seedId": { "type": "string", "pattern": "^hydro-[0-9a-f]{8}$" },
+        "type": { "$ref": "#/$defs/type" },
+        "bodies": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["id", "type", "surfaces", "shorelines", "elevation", "depth", "materialKey"],
+            "properties": {
+              "id": { "type": "string", "minLength": 1 },
+              "type": { "$ref": "#/$defs/type" },
+              "surfaces": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/polygon" } },
+              "shorelines": {
+                "type": "array",
+                "minItems": 1,
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["id", "path", "closed", "band"],
+                  "properties": {
+                    "id": { "type": "string", "minLength": 1 },
+                    "path": { "$ref": "#/$defs/polygon" },
+                    "closed": { "const": true },
+                    "band": { "type": "array", "minItems": 3, "items": { "$ref": "#/$defs/polygon" } }
+                  }
+                }
+              },
+              "elevation": { "type": "number" },
+              "depth": { "type": "number", "exclusiveMinimum": 0 },
+              "materialKey": { "enum": ["water.lagoon", "water.river", "water.sea-coast"] }
+            }
+          }
+        },
+        "structures": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["id", "kind", "network", "refId", "waterBodyId", "path", "level"],
+            "properties": {
+              "id": { "type": "string", "minLength": 1 },
+              "kind": { "enum": ["bridge", "tunnel"] },
+              "network": { "enum": ["street", "train", "subway"] },
+              "refId": { "type": "string", "minLength": 1 },
+              "waterBodyId": { "type": "string", "minLength": 1 },
+              "path": { "type": "array", "minItems": 2, "items": { "$ref": "#/$defs/point" } },
+              "level": { "type": "number" }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "type": { "enum": ["lagoon", "river", "sea-coast"] },
+    "point": {
+      "type": "array",
+      "prefixItems": [{ "type": "number" }, { "type": "number" }],
+      "items": false
+    },
+    "polygon": { "type": "array", "minItems": 3, "items": { "$ref": "#/$defs/point" } }
+  }
+}

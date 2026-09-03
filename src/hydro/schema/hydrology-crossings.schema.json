@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:urbe:atlas:hydro:crossings",
+  "type": "array",
+  "items": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": ["network", "refId", "path", "level"],
+    "properties": {
+      "network": { "enum": ["street", "train", "subway"] },
+      "refId": { "type": "string", "minLength": 1 },
+      "path": {
+        "type": "array",
+        "minItems": 2,
+        "items": {
+          "type": "array",
+          "prefixItems": [{ "type": "number" }, { "type": "number" }],
+          "items": false
+        }
+      },
+      "level": { "type": "number" }
+    }
+  }
+}
