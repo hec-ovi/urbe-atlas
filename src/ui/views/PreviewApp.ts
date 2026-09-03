@@ -227,6 +227,11 @@ export class PreviewApp {
       if (!response.ok) return;
       const manifest = await response.json();
       if (request !== this.manifestRequest || this.blueprint !== blueprint || !isWorldManifest(manifest)) return;
+      const blueprintParcels = new Set(blueprint.parcels.map((item) => item.id));
+      if (manifest.seed !== blueprint.meta.seed
+        || manifest.atlasVersion !== blueprint.meta.version
+        || manifest.parcels.length !== blueprintParcels.size
+        || !manifest.parcels.every((id) => blueprintParcels.has(id))) return;
       this.setInteriorParcels(manifest.interiors);
     } catch {
       // An assembled output is optional. The filter fails closed until one is available.

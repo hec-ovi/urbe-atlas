@@ -4,7 +4,7 @@ Purpose: dark browser workspace for creating and inspecting a CityBlueprint in a
 
 ## In
 - A `CityBlueprint` ([schema](../../schema/blueprint.ts)). The app generates one locally through `generateCity` from the params panel.
-- An optional assembled world manifest ([schema](../../../engine/src/assembly/schema/world-manifest.schema.json)), resolved from the configured `out=` path. Its exact `interiors` parcel ids drive the interiors-only filter. Missing or invalid manifests fail closed.
+- An optional assembled world manifest ([schema](../../../engine/src/assembly/schema/world-manifest.schema.json)), resolved from the configured `out=` path. Its seed, Atlas version and complete parcel set must match the displayed blueprint. Its exact `interiors` parcel ids drive the interiors-only filter. Missing, invalid or mismatched manifests fail closed.
 
 ## Components
 - views/PreviewApp: the preview itself, sidebar plus map. Methods: `generate(params)` (resolves once the city is on screen, or its failure reported), `resize()`, `setInteriorParcels(parcelIds)`. While a city builds, the form is locked behind a progress cover that reports preparing, generating, rendering and ready stages. Failures and file results land in the notification stack. The 3D geometry is deferred until 3D is selected. Right-clicking a 2D feature or 3D building selects it and opens the Visualization tab. Selection never navigates automatically.

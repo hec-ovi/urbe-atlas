@@ -486,17 +486,19 @@ describe('PreviewApp', () => {
   });
 
   it('loads exact interior ids from the selected assembled manifest', async () => {
+    const fixture = generateCity(SMALL);
+    const interiorId = fixture.parcels[0].id;
     const fetchManifest = vi.fn<ManifestFetcher>(async () => ({
       ok: true,
       json: async () => ({
         contractVersion: '1.0.0',
-        seed: 'assembled',
-        atlasVersion: '0.2.21',
+        seed: fixture.meta.seed,
+        atlasVersion: fixture.meta.version,
         named: false,
         namingTheme: null,
-        parcels: ['p0', 'p1'],
-        interiors: ['p0'],
-        floors: { p0: ['000'] },
+        parcels: fixture.parcels.map((parcel) => parcel.id),
+        interiors: [interiorId],
+        floors: { [interiorId]: ['000'] },
       }),
     }));
     const mapIds = vi.spyOn(MapView.prototype, 'setInteriorParcels');
@@ -505,8 +507,8 @@ describe('PreviewApp', () => {
     await app.generate(SMALL);
     await waitFor(() => expect(getByText(app.root, '1 building has interiors')).toBeTruthy());
     expect(fetchManifest).toHaveBeenCalledWith('http://localhost:5306/out/preview/manifest.json');
-    expect(mapIds).toHaveBeenLastCalledWith(['p0']);
-    expect(map3dIds).toHaveBeenLastCalledWith(['p0']);
+    expect(mapIds).toHaveBeenLastCalledWith([interiorId]);
+    expect(map3dIds).toHaveBeenLastCalledWith([interiorId]);
     mapIds.mockRestore();
     map3dIds.mockRestore();
   });
