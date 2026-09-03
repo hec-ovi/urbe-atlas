@@ -41,4 +41,4 @@ Streets grow as streamlines through a composite tensor field (grid, radial and b
 
 ## In the urbe family
 
-atlas is the root of the world: nothing feeds it, and every other layer starts from its blueprint. [connections](../connections) turns it into links and movement networks, [simulation](../simulation) reads its districts and stats, [naming](../naming) names its placeholders, and [engine](../engine) assembles the result. Each parcel becomes a real building through [exterior](../exterior). The full picture lives in [urbe](..).
+atlas is the root of the world: nothing feeds it, and every other layer starts from its blueprint. [connections](https://github.com/hec-ovi/urbe-transit) turns it into links and movement networks, [simulation](https://github.com/hec-ovi/urbe-population) reads its districts and stats, [naming](https://github.com/hec-ovi/urbe-namer) names its placeholders, and [engine](https://github.com/hec-ovi/urbe-engine) assembles the result. Each parcel becomes a real building through [exterior](https://github.com/hec-ovi/buildingforge). The full picture lives in [urbe](https://github.com/hec-ovi/urbe).
