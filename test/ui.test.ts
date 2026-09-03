@@ -469,12 +469,12 @@ describe('PreviewApp', () => {
     });
   });
 
-  it('keeps the selected building link in the inspector without opening from map clicks', async () => {
+  it('opens the right-clicked building while preserving the selected output', async () => {
     const app = mount();
     await app.generate(SMALL);
     app.resize();
     const canvas = app.root.querySelector('canvas') as HTMLCanvasElement;
-    const opened = vi.spyOn(window, 'open').mockReturnValue(null);
+    const opened = vi.spyOn(window, 'open').mockReturnValue({} as Window);
     const user = userEvent.setup();
     const template = getByLabelText(app.root, 'URL template');
     await user.clear(template);
@@ -482,7 +482,7 @@ describe('PreviewApp', () => {
 
     await user.click(canvas);
     expect(opened).not.toHaveBeenCalled();
-    await inspectUntil(canvas, () => app.root.querySelector('.inspector-open') !== null);
+    await inspectUntil(canvas, () => opened.mock.calls.length > 0);
     const selected = app.root.querySelector('.inspector-heading strong')!.textContent!.split(' · ')[0];
     const firstLink = getByRole(app.root, 'link', { name: 'Open building view' }) as HTMLAnchorElement;
     const first = new URL(firstLink.href);
@@ -490,12 +490,14 @@ describe('PreviewApp', () => {
     expect(first.searchParams.get('parcel')).toBe(selected);
     expect(first.searchParams.get('parcel')).not.toBe('p136');
     expect(first.searchParams.get('out')).toBe('/out/selected');
+    expect(opened).toHaveBeenLastCalledWith(first.toString(), '_blank', 'noopener');
 
     await user.clear(template);
     await user.type(template, 'https://engine.test/?out=/out/revised');
     expect(new URL((getByRole(app.root, 'link', { name: 'Open building view' }) as HTMLAnchorElement).href).searchParams.get('out'))
       .toBe('/out/revised');
 
+    opened.mockClear();
     let secondParcel = selected;
     for (let x = 15; x < CANVAS && secondParcel === selected; x += 25) {
       for (let z = 15; z < CANVAS && secondParcel === selected; z += 25) {
@@ -506,7 +508,7 @@ describe('PreviewApp', () => {
     }
     expect(secondParcel).not.toBe(selected);
     expect(app.root.querySelector('.inspector-heading strong')!.textContent).toContain(secondParcel);
-    expect(opened).not.toHaveBeenCalled();
+    expect(new URL(String(opened.mock.lastCall![0])).searchParams.get('parcel')).toBe(secondParcel);
 
     await user.click(getByRole(app.root, 'button', { name: 'Clear selection' }));
     expect(getByText(app.root, 'Hover to preview. Right-click a feature to keep its measurements here.')).toBeTruthy();
@@ -527,7 +529,7 @@ describe('PreviewApp', () => {
     expect(opened).not.toHaveBeenCalled();
     expect(getByRole(app.root, 'status').textContent).toContain('No assembled output is selected');
     expect(getByRole(app.root, 'status').textContent).toContain('out=');
-    expect(getByRole(app.root, 'log').textContent).not.toContain('No assembled output is selected');
+    expect(getByRole(app.root, 'log').textContent).toContain('No assembled output is selected');
     opened.mockRestore();
   });
 

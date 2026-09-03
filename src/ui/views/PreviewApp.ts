@@ -57,11 +57,16 @@ export class PreviewApp {
       (hit) => {
         this.inspector.select(hit);
         this.tabs.show('visualization');
+        if (hit.kind === 'parcel') this.openParcel(hit.parcel);
       },
       (hit) => this.inspector.preview(hit),
     );
     this.map3d = new Map3DView(
-      (parcel) => { this.inspector.select({ kind: 'parcel', parcel }); this.tabs.show('visualization'); },
+      (parcel) => {
+        this.inspector.select({ kind: 'parcel', parcel });
+        this.tabs.show('visualization');
+        this.openParcel(parcel);
+      },
     );
     this.panel = new ParamsPanel({
       onGenerate: (params) => void this.generate(params),
@@ -203,6 +208,16 @@ export class PreviewApp {
     } catch (e) {
       this.notifications.error(`${file.name}: ${e instanceof Error ? e.message : String(e)}`);
     }
+  }
+
+  /** Opens the selected parcel synchronously from its right-click event. */
+  private openParcel(parcel: CityBlueprint['parcels'][number]): void {
+    const destination = this.parcelLink.destinationFor(parcel, this.blueprint?.meta.seed ?? '');
+    if ('error' in destination) {
+      this.notifications.error(`${parcel.id}: ${destination.error}`);
+      return;
+    }
+    window.open(destination.url, '_blank', 'noopener');
   }
 
   private scheduleManifestLoad(): void {

@@ -1,5 +1,7 @@
 # Changelog
 
+0.2.24: right-clicking a parcel in either Atlas map opens that exact parcel in the configured building viewer while preserving the assembled output selection. The inspector keeps the same destination as a fallback and shows configuration errors when no output is available.
+
 0.2.23: the production build publishes the reusable generator CLI at `dist/cli.mjs` and the browser preview under `dist/preview/`. Preview startup prepares the CLI before serving. The public generate command executes the prepared artifact without modifying Atlas.
 
 0.2.22: optional lagoon, river and sea-coast hydrology reserves deterministic water surfaces before infrastructure placement. The blueprint publishes fitted shorelines, material bindings and typed bridge or tunnel contacts; land, buildings, stations and supports remain clear. The 2D and 3D previews expose the water plan.
