@@ -42,8 +42,9 @@ import { closestOnSegment, cross, dist, sub } from './geom/vec';
 import { LEVELS } from './levels';
 import { cityGridAngle } from './grid';
 import { RAIL, STATION } from './transit/stations';
+import { GROUND_LEVELS, type GroundSurfaceKind } from './streets/surfaces';
 
-export const BLUEPRINT_VERSION = '0.13.2';
+export const BLUEPRINT_VERSION = '0.14.0';
 
 const SUBDIVISION: Record<DistrictKind, SubdivisionConfig> = {
   downtown: { minLotArea: 500, maxLotArea: 2600, chanceNoDivide: 0.12 },
@@ -410,22 +411,26 @@ export function generateCity(input: AtlasParams): CityBlueprint {
   // face = its roadway part + block pieces + open pieces, so per-face
   // differences give hole-free roadway ground and exact coverage.
   const ground: GroundSurface[] = [];
+  const addGround = (surface: GroundSurfaceKind, polygon: Polygon): void => {
+    const levels = GROUND_LEVELS[surface];
+    ground.push({ surface, polygon, bottom: levels.bottom, top: levels.top });
+  };
   const piecesByFace = new Map<number, Polygon[]>();
   builtBlocks.forEach((b) => {
     (piecesByFace.get(b.faceIndex) ?? piecesByFace.set(b.faceIndex, []).get(b.faceIndex)!).push(b.boundary);
   });
   faces.forEach((face, fi) => {
     for (const poly of difference([face.polygon], piecesByFace.get(fi) ?? [])) {
-      ground.push({ surface: 'roadway', polygon: poly });
+      addGround('roadway', poly);
     }
   });
-  for (const b of builtBlocks) for (const poly of b.curb) ground.push({ surface: 'curb', polygon: poly });
-  for (const b of builtBlocks) for (const poly of b.sidewalk) ground.push({ surface: 'sidewalk', polygon: poly });
-  for (const p of parcels) ground.push({ surface: 'block', polygon: p.lot });
-  for (const open of blockOpenAreas) for (const poly of open) ground.push({ surface: 'open', polygon: poly });
+  for (const b of builtBlocks) for (const poly of b.curb) addGround('curb', poly);
+  for (const b of builtBlocks) for (const poly of b.sidewalk) addGround('sidewalk', poly);
+  for (const p of parcels) addGround('block', p.lot);
+  for (const open of blockOpenAreas) for (const poly of open) addGround('open', poly);
   // the fringe is whatever the placed cover leaves of the boundary, so the partition is exact by construction
   const fringe = difference([boundary], ground.map((g) => g.polygon));
-  for (const poly of fringe) ground.push({ surface: 'open', polygon: poly });
+  for (const poly of fringe) addGround('open', poly);
 
   const heightRng = Rng.from(seed, 'volumetric');
   const volumetric = {

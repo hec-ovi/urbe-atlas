@@ -18,7 +18,6 @@ import { streetSurfaceRegions } from './StreetSurfaceRegions';
 
 const SKY = 0x0e1117;
 const FLOOR_GAP = 0.08;
-const ROADWAY_BASE = -0.02;
 const STREET_SURFACE = 0.01;
 const PLATFORM_THICKNESS = 1;
 const HEADHOUSE_HEIGHT = 3.2;
@@ -176,11 +175,21 @@ export class Map3DView {
     const parts: Record<string, THREE.BufferGeometry[]> = { roadway: [], curb: [], sidewalk: [], block: [], open: [] };
     for (const cover of bp.volumetric.ground) {
       if (cover.polygon.length < 3) continue;
-      parts[cover.surface]!.push(plate(cover.polygon, cover.surface === 'roadway' ? ROADWAY_BASE : 0.05));
+      parts[cover.surface]!.push(cover.surface === 'curb'
+        ? prism(cover.polygon, cover.bottom, cover.top - cover.bottom)
+        : plate(cover.polygon, cover.top));
     }
     for (const surface of Object.keys(parts) as (keyof typeof GROUND_COLORS)[]) {
       this.merged(`ground.${surface}`, parts[surface]!, new THREE.MeshLambertMaterial({ color: GROUND_COLORS[surface] }));
     }
+    const roadwayTop = bp.volumetric.ground.find((surface) => surface.surface === 'roadway')?.top ?? 0;
+    this.merged(
+      'ground.roadway',
+      bp.streets.crossings.flatMap((crossing) => crossing.segments.flatMap((segment) =>
+        segment.markings.map((polygon) => plate(polygon, roadwayTop + 0.012)))),
+      new THREE.MeshLambertMaterial({ color: 0xd8d1bb }),
+      'crossing-markings',
+    );
   }
 
   private buildParcels(bp: CityBlueprint): void {

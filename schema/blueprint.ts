@@ -192,7 +192,19 @@ export interface StreetEdge {
 export interface Crossing {
   nodeId: string;
   /** Each segment spans the roadway from one sidewalk to another. */
-  segments: { from: Vec2; to: Vec2 }[];
+  segments: CrossingSegment[];
+}
+
+export interface CrossingSegment {
+  /** Street arm crossed by this segment. */
+  edgeId: string;
+  /** Pedestrian centerline from one sidewalk walking band to the other. */
+  from: Vec2;
+  to: Vec2;
+  /** Clear crossing width along the street direction. */
+  width: number;
+  /** Stripe polygons fitted by construction to the carriageway width. */
+  markings: Polygon[];
 }
 
 /** A street-bounded area: sidewalk ring on its edge, parcels and open areas inside. */
@@ -345,6 +357,9 @@ export interface BuildingVolume {
 export interface GroundSurface {
   surface: 'roadway' | 'curb' | 'sidewalk' | 'block' | 'open';
   polygon: Polygon;
+  /** Bottom and walkable top of this construction region, meters on +Y. */
+  bottom: number;
+  top: number;
 }
 
 export interface CityStats {

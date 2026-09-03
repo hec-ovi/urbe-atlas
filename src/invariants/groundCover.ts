@@ -14,6 +14,7 @@ import type { CityBlueprint } from '../../schema/blueprint';
 import { invariantFailure } from '../errors';
 import { intersection, offset } from '../geom/clip';
 import { area, bounds } from '../geom/polygon';
+import { GROUND_LEVELS } from '../streets/surfaces';
 
 /** Overlap band a surface pair may not exceed, meters. */
 const OVERLAP_EPS = 0.01;
@@ -27,6 +28,15 @@ interface Box {
 
 export function checkGroundCover(bp: CityBlueprint): void {
   const ground = bp.volumetric.ground;
+  for (const region of ground) {
+    const expected = GROUND_LEVELS[region.surface];
+    if (region.bottom !== expected.bottom || region.top !== expected.top) {
+      throw invariantFailure(`ground ${region.surface} has invalid construction levels`, {
+        bottom: region.bottom,
+        top: region.top,
+      });
+    }
+  }
   const boxes: Box[] = ground.map((g) => {
     const b = bounds(g.polygon);
     return {

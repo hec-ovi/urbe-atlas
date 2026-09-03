@@ -3,6 +3,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { getByLabelText, getByRole, getByText, waitFor } from '@testing-library/dom';
 import userEvent from '@testing-library/user-event';
+import * as THREE from 'three';
 import { generateCity } from '../src';
 import type { AtlasParams } from '../schema/params';
 import { LegendWidget } from '../src/ui/widgets/LegendWidget';
@@ -252,6 +253,7 @@ describe('PreviewApp', () => {
     expect(subway?.getObjectByName('subway-track')).toBeTruthy();
     expect(subway?.getObjectByName('station-assemblies')).toBeTruthy();
     expect(subway?.getObjectByName('terminal-gates')).toBeTruthy();
+    expect(layers.get('ground.roadway')?.getObjectByName('crossing-markings')).toBeTruthy();
     expect(error.mock.calls.flat().join(' ')).not.toContain('mergeGeometries');
     error.mockRestore();
   });
@@ -283,6 +285,49 @@ describe('PreviewApp', () => {
     }
     expect(peakVertices).toBe(2);
     expect(bendVertices).toBe(4);
+  });
+
+  it('shares one miter across the deck, barriers and underside at a highway corner', () => {
+    const view = new Map3DView();
+    const blueprint = generateCity({ seed: 'corner-preview', size: { width: 1000, depth: 1000 } });
+    const structure = blueprint.streets.highwayStructures[0];
+    structure.path = [[0, 0], [20, 0], [20, 20]];
+    structure.elevationProfile = [{ distance: 0, level: 8 }, { distance: 40, level: 8 }];
+    structure.ramps = { start: 0, end: 0 };
+    structure.supports = [];
+    blueprint.streets.highwayStructures = [structure];
+    view.setBlueprint(blueprint);
+    const layers = (view as unknown as { layers: Map<string, THREE.Group> }).layers;
+    const [deckMesh, barrierMesh] = layers.get('street.highway')!.children as THREE.Mesh[];
+    const deck = deckMesh.geometry.getAttribute('position');
+    expect(deck.count).toBe(12);
+    expect(deckMesh.geometry.index?.count).toBe(60);
+    const bend = Array.from({ length: 4 }, (_, offset) => [
+      deck.getX(4 + offset), deck.getY(4 + offset), deck.getZ(4 + offset),
+    ]);
+    expect(bend).toEqual([
+      [12.5, 8, 7.5],
+      [27.5, 8, -7.5],
+      [12.5, 7, 7.5],
+      [27.5, 7, -7.5],
+    ]);
+    expect(bend.some(([x, , z]) => x === 20 && z === 0)).toBe(false);
+
+    const barriers = barrierMesh.geometry.getAttribute('position');
+    const hasBarrierCorner = (x: number, y: number, z: number): boolean =>
+      Array.from({ length: barriers.count }, (_, index) => index).some((index) =>
+        Math.abs(barriers.getX(index) - x) < 1e-6
+        && Math.abs(barriers.getY(index) - y) < 1e-6
+        && Math.abs(barriers.getZ(index) - z) < 1e-6);
+    expect(hasBarrierCorner(12.5, 8, 7.5)).toBe(true);
+    expect(hasBarrierCorner(27.5, 8, -7.5)).toBe(true);
+
+    deckMesh.updateMatrixWorld(true);
+    const visibleFrom = (origin: THREE.Vector3, direction: THREE.Vector3): boolean =>
+      new THREE.Raycaster(origin, direction.normalize(), 0, 100).intersectObject(deckMesh).length > 0;
+    expect(visibleFrom(new THREE.Vector3(18, 20, 0), new THREE.Vector3(0, -1, 0))).toBe(true);
+    expect(visibleFrom(new THREE.Vector3(18, -10, 0), new THREE.Vector3(0, 1, 0))).toBe(true);
+    expect(visibleFrom(new THREE.Vector3(40, 7.5, -2), new THREE.Vector3(-1, 0, 0))).toBe(true);
   });
 
   it('blocks the form behind a progress cover while generating', async () => {
