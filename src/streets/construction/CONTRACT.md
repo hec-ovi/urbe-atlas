@@ -22,13 +22,14 @@ Purpose: assigns continuous street cross sections and reserves each side's space
 ## Invariants
 
 - Units are metres. Left/right refer to the directed edge path. Positive lane offset is left. Sidewalk bands run from road to building: curb, border, furnishing, walking, frontage.
-- Road profiles carry one or more lanes with explicit directions. A through-run preserves lane order, widths and travel direction when source edges reverse. Highway edges omit cross sections and keep the Atlas highway structure contract. Alleys have no lanes or curb and retain 3 to 5 m of pedestrian space.
-- Ground road widths default to 7, 14 and 21 m. Sidewalk totals default to 3, 4.5, 6.5 and 8.5 m. These are game-design dimensions. The curb remains the shared 0.15 m construction width.
+- New generation assigns 1 or 2 lanes to `street`, and exactly 4 lanes to `road` (avenue). Directions are explicit. A through-run preserves lane order, widths and travel direction when source edges reverse. Highway edges omit cross sections and keep the Atlas highway structure contract. Alleys have no lanes or curb and retain 3 to 5 m of pedestrian space.
+- Default profiles are a 2-lane, 7 m street and a 4-lane, 14 m avenue. Sidewalk totals default to 3, 4.5, 6.5 and 8.5 m. These are game-design dimensions. The curb remains the shared 0.15 m construction width.
 - A carriageway equals its lane widths plus shoulders. Each sidewalk equals its band's widths. The per-edge scalar fields repeat these exact totals.
 - Identical graph and settings produce identical output. Width hierarchy is assigned to complete through-runs, independent of graph-edge fragmentation.
 - Corridors reserve the full left and right pedestrian widths before parcel generation. Roadway ownership takes precedence where corridors meet at a junction.
 - Optional `sidewalkAssignments` names a sidewalk profile per district and street class. Each side resolves its district independently; unspecified classes retain ranked selection. Walking width excludes all other bands. Building forecourts are not part of these reservations.
 - `crossings.pedestrianClearance` resolves to 2.5 m when omitted. It is the positive vertical space requested from the grade datum's obstacle query, independent of crossing marking width.
+- Saved blueprints retain their authored lane counts. `validateStreetSections` checks their dimensions and run continuity without applying new-generation profile eligibility. Loading a saved blueprint never changes it.
 
 ## Errors
 
@@ -37,7 +38,7 @@ Purpose: assigns continuous street cross sections and reserves each side's space
 
 ## Conformance
 
-[One-way input](fixtures/one-way.input.json): apply the supplied profile with resolved sidewalk defaults. Its two reversed source edges share one forward run; `a` publishes one forward lane and `b` one backward lane, each 3.5 m wide at offset 0.
+[One-way input](fixtures/one-way.input.json): use the supplied street profile alongside the default avenue and sidewalk profiles. Its two reversed source edges share one forward run; `a` publishes one forward lane and `b` one backward lane, each 3.5 m wide at offset 0.
 
 ## Dependencies
 

@@ -12,7 +12,7 @@ const nodes = fixture.nodes as BuiltNode[];
 describe('explicit street profiles', () => {
   it('preserves a one-way run across reversed edges and reserves each assigned sidewalk independently', () => {
     const input = resolveStreetDesign();
-    input.profiles = [fixture.profile as StreetDesign['profiles'][number]];
+    input.profiles = [fixture.profile as StreetDesign['profiles'][number], ...input.profiles.filter((profile) => profile.classes.includes('road'))];
     input.sidewalkAssignments = [{ district: 'residential', street: 'standard' }, { district: 'commercial', street: 'promenade' }];
     const design = resolveStreetDesign(input);
     const plan = StreetSections.plan(edges, nodes, design, ([, z]) => z > 0 ? 'residential' : 'commercial');

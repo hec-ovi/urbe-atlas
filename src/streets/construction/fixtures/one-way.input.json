@@ -9,7 +9,7 @@
     { "id": "n2", "position": [40, 0], "edgeIds": ["b"] }
   ],
   "profile": {
-    "id": "one", "classes": ["street", "road"],
+    "id": "one", "classes": ["street"],
     "lanes": [{ "direction": "forward", "width": 3.5 }],
     "shoulders": { "left": 0, "right": 0 }
   }

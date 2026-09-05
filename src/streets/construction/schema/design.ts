@@ -8,6 +8,7 @@ export interface LaneDesign {
 
 export interface RoadProfile {
   id: string;
+  /** New generation: street has 1 or 2 lanes; road (avenue) has exactly 4. */
   classes: ('street' | 'road')[];
   /** Ordered left to right across the directed path. */
   lanes: LaneDesign[];

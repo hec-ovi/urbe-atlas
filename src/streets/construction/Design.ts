@@ -19,7 +19,6 @@ export function resolveStreetDesign(input?: StreetDesign): StreetDesign {
     profiles: [
       { id: 'local', classes: ['street'], lanes: lanes(2), shoulders: { left: 0, right: 0 } },
       { id: 'avenue', classes: ['road'], lanes: lanes(4), shoulders: { left: 0, right: 0 } },
-      { id: 'boulevard', classes: ['road'], lanes: lanes(6), shoulders: { left: 0, right: 0 } },
     ],
     sidewalkProfiles: [
       { id: 'compact', curb: CURB_WIDTH, border: 0.35, furnishing: 0.5, walking: 1.5, frontage: 0.5 },
@@ -44,6 +43,8 @@ export function resolveStreetDesign(input?: StreetDesign): StreetDesign {
       if (!record(lane) || !positive(lane.width)
         || (lane.direction !== 'forward' && lane.direction !== 'backward')) fail(`${field}.lanes has invalid dimensions or direction`);
     }
+    if (profile.classes.includes('road') && profile.lanes.length !== 4) fail(`${field} (${profile.id}): avenues (road) require exactly 4 lanes; use street for 1 or 2 lanes`);
+    if (profile.classes.includes('street') && profile.lanes.length !== 1 && profile.lanes.length !== 2) fail(`${field} (${profile.id}): streets require 1 or 2 lanes; use road for a 4-lane avenue`);
     if (!record(profile.shoulders) || !nonnegative(profile.shoulders.left) || !nonnegative(profile.shoulders.right)) fail(`${field}.shoulders must be nonnegative metres`);
   }
   for (const kind of ['street', 'road']) {
