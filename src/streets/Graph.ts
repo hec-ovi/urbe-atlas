@@ -6,12 +6,14 @@
  */
 import type { Polyline, StreetClass, Vec2 } from '../../schema/blueprint';
 import { segmentIntersection } from '../geom/vec';
-import { dist } from '../geom/vec';
-import { snapPoint } from '../geom/clip';
+import { closestOnSegment, dist } from '../geom/vec';
+import { segmentVisitsGridCell, snapPoint } from '../geom/clip';
 import { length as lineLength, simplify } from '../geom/polyline';
 import { cleanCenterline } from './centerline';
 import { physicalPathKey } from './PathIdentity';
 import type { TracedLine } from './StreamlineTracer';
+import type { StreetDomain } from './domain/StreetDomain';
+import { invariantFailure } from '../errors';
 
 export interface BuiltNode {
   id: string;
@@ -37,13 +39,28 @@ interface WorkEdge {
 }
 
 export class StreetGraphBuilder {
+  static extend(
+    graph: { edges: readonly BuiltEdge[] },
+    lines: TracedLine[],
+    options: { domain: StreetDomain },
+  ): { nodes: BuiltNode[]; edges: BuiltEdge[] } {
+    return this.build([...graph.edges.map(({ class: kind, path }) => ({ class: kind, path })), ...lines], {
+      ...options, simplifyTolerance: 0, snapRadius: 0,
+    });
+  }
+
   static build(
     lines: TracedLine[],
-    options: { simplifyTolerance: number; snapRadius: number },
+    options: { simplifyTolerance: number; snapRadius: number; domain: StreetDomain },
   ): { nodes: BuiltNode[]; edges: BuiltEdge[] } {
-    const { snapRadius } = options;
+    const { snapRadius, domain } = options;
     const polylines = lines
-      .map((l) => ({ class: l.class, path: simplify(l.path, options.simplifyTolerance).map(snapPoint) }))
+      .map((line) => {
+        const source = line.path.map(snapPoint);
+        if (!domain.covers(source)) throw invariantFailure('source street leaves its reserved domain', { path: source });
+        const simplified = options.simplifyTolerance === 0 ? source : simplify(source, options.simplifyTolerance);
+        return { class: line.class, path: domain.covers(simplified) ? simplified : source };
+      })
       .filter((l) => l.path.length >= 2 && lineLength(l.path) > snapRadius * 2);
 
     // --- collect segments and find intersections -------------------------
@@ -89,6 +106,17 @@ export class StreetGraphBuilder {
     };
 
     const tested = new Set<string>();
+    const nodeEndpoint = (source: Seg, target: Seg): void => {
+      const endpoints = [
+        ...(source.idx === 0 ? [source.a] : []),
+        ...(source.idx === polylines[source.line].path.length - 2 ? [source.b] : []),
+      ];
+      for (const point of endpoints) {
+        if (!segmentVisitsGridCell(target.a, target.b, point)) continue;
+        if (!domain.coversSegment(target.a, point) || !domain.coversSegment(point, target.b)) continue;
+        addCut(target.line, target.idx, closestOnSegment(point, target.a, target.b).t, point);
+      }
+    };
     for (let si = 0; si < segs.length; si++) {
       const s = segs[si];
       for (const key of cellsOf(s)) {
@@ -99,6 +127,10 @@ export class StreetGraphBuilder {
           const pairKey = `${si}:${oi}`;
           if (tested.has(pairKey)) continue;
           tested.add(pairKey);
+          if (s.line !== o.line) {
+            nodeEndpoint(s, o);
+            nodeEndpoint(o, s);
+          }
           const hit = segmentIntersection(s.a, s.b, o.a, o.b);
           if (!hit) continue;
           addCut(s.line, s.idx, hit.t, hit.point);
@@ -139,22 +171,28 @@ export class StreetGraphBuilder {
 
     // --- node clustering -------------------------------------------------
     const nodePositions: Vec2[] = [];
+    const exactNodes = new Map<string, number>();
     const nodeGrid = new Map<string, number[]>();
     const nodeKey = (p: Vec2): string => `${Math.floor(p[0] / snapRadius)},${Math.floor(p[1] / snapRadius)}`;
-    const canonical = (p: Vec2): number => {
-      const cx = Math.floor(p[0] / snapRadius);
-      const cz = Math.floor(p[1] / snapRadius);
+    const canonical = (p: Vec2, accepts: (candidate: Vec2) => boolean): number => {
+      const exactKey = `${p[0]},${p[1]}`;
+      const exact = exactNodes.get(exactKey);
+      if (exact !== undefined) return exact;
       let best = -1;
       let bestD = snapRadius;
-      for (let dx = -1; dx <= 1; dx++) {
-        for (let dz = -1; dz <= 1; dz++) {
-          const bucket = nodeGrid.get(`${cx + dx},${cz + dz}`);
-          if (!bucket) continue;
-          for (const ni of bucket) {
-            const d = dist(nodePositions[ni], p);
-            if (d < bestD) {
-              bestD = d;
-              best = ni;
+      if (snapRadius > 0) {
+        const cx = Math.floor(p[0] / snapRadius);
+        const cz = Math.floor(p[1] / snapRadius);
+        for (let dx = -1; dx <= 1; dx++) {
+          for (let dz = -1; dz <= 1; dz++) {
+            const bucket = nodeGrid.get(`${cx + dx},${cz + dz}`);
+            if (!bucket) continue;
+            for (const ni of bucket) {
+              const d = dist(nodePositions[ni], p);
+              if (d < bestD && accepts(nodePositions[ni])) {
+                bestD = d;
+                best = ni;
+              }
             }
           }
         }
@@ -162,10 +200,13 @@ export class StreetGraphBuilder {
       if (best >= 0) return best;
       const ni = nodePositions.length;
       nodePositions.push(p);
-      const key = nodeKey(p);
-      const bucket = nodeGrid.get(key);
-      if (bucket) bucket.push(ni);
-      else nodeGrid.set(key, [ni]);
+      exactNodes.set(exactKey, ni);
+      if (snapRadius > 0) {
+        const key = nodeKey(p);
+        const bucket = nodeGrid.get(key);
+        if (bucket) bucket.push(ni);
+        else nodeGrid.set(key, [ni]);
+      }
       return ni;
     };
 
@@ -178,11 +219,15 @@ export class StreetGraphBuilder {
         const path = m.points.slice(start, i + 1);
         start = i;
         if (path.length < 2) continue;
-        const a = canonical(path[0]);
-        const b = canonical(path[path.length - 1]);
+        const a = canonical(path[0], (candidate) => domain.covers(cleanCenterline([candidate, ...path.slice(1)])));
+        const b = canonical(path[path.length - 1], (candidate) =>
+          domain.covers(cleanCenterline([nodePositions[a], ...path.slice(1, -1), candidate])));
         // a run that returns to the node it left is a fold, never a street
         if (a === b) continue;
         const fixed = cleanCenterline([nodePositions[a], ...path.slice(1, -1), nodePositions[b]]);
+        if (!domain.covers(fixed)) {
+          throw invariantFailure('street graph edit leaves its reserved domain', { path, fixed });
+        }
         workEdges.push({ class: m.class, a, b, path: fixed });
       }
     }

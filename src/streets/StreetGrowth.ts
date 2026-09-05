@@ -7,8 +7,9 @@ import type { Rng } from '../core/rng';
 import type { ResolvedParams } from '../params/defaults';
 import type { PlannedDistrict } from '../districts/DistrictPlanner';
 import { FieldBasis, TensorField } from '../field/TensorField';
-import { bounds, pointInPolygon } from '../geom/polygon';
+import { bounds } from '../geom/polygon';
 import { StreamlineTracer, TracedLine } from './StreamlineTracer';
+import type { StreetDomain } from './domain/StreetDomain';
 
 /** Irregularity from which a downtown turns radial instead of staying on the city grid. */
 const RADIAL_DOWNTOWN_FROM = 0.4;
@@ -48,14 +49,14 @@ export class StreetGrowth {
 
   static grow(
     field: TensorField,
-    boundary: Polygon,
+    domain: StreetDomain,
     rng: Rng,
     params: ResolvedParams,
     districts: PlannedDistrict[],
   ): TracedLine[] {
-    const tracer = new StreamlineTracer(field, boundary);
+    const tracer = new StreamlineTracer(field, domain);
     const size = Math.min(params.size.width, params.size.depth);
-    const { min, max } = bounds(boundary);
+    const { min, max } = bounds(domain.boundary);
 
     if (params.features.highways) {
       const hwSep = Math.min(Math.max(size / 4, 400), 1500);
@@ -93,7 +94,7 @@ export class StreetGrowth {
     const darts: { point: Vec2; family: 'major' | 'minor' }[] = [];
     for (let i = 0; i < 400; i++) {
       const p: Vec2 = [dartRng.range(min[0], max[0]), dartRng.range(min[1], max[1])];
-      if (pointInPolygon(p, boundary)) {
+      if (domain.contains(p)) {
         darts.push({ point: p, family: i % 2 === 0 ? 'major' : 'minor' });
       }
     }

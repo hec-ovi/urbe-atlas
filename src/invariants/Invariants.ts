@@ -23,6 +23,7 @@ import { checkCrossings } from './crossings';
 import { checkCityHydrology } from '../hydro/CityHydrologyInvariants';
 import { intersection } from '../geom/clip';
 import { validateStreetSections } from '../streets/construction/validateSections';
+import { validateStreetDomain } from '../streets/domain/validateStreetDomain';
 import { validateStationEntrances } from '../transit/reservations/validateStationEntrances';
 
 /** Shortest run of kerb the generator ever publishes as its own piece, meters. */
@@ -112,6 +113,7 @@ export class Invariants {
     // street edges: no degenerate run, no centerline folded over its own band
     checkStreetEdges(bp);
     validateStreetSections(bp);
+    validateStreetDomain(bp);
     checkStreetElevations(bp);
     checkHighwayStructures(bp);
 

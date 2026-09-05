@@ -7,8 +7,8 @@ import type { StreetClass } from '../../schema/blueprint';
 import type { Rng } from '../core/rng';
 import type { TensorField } from '../field/TensorField';
 import { add, dist, dot, neg, scale, sub } from '../geom/vec';
-import { pointInPolygon } from '../geom/polygon';
-import type { Polygon } from '../../schema/blueprint';
+import { snapPoint } from '../geom/clip';
+import type { StreetDomain } from './domain/StreetDomain';
 import { SeparationGrid } from './SeparationGrid';
 import { MAX_TURN_COS } from './centerline';
 import { length as lineLength } from '../geom/polyline';
@@ -50,18 +50,18 @@ interface SeedCandidate {
 
 export class StreamlineTracer {
   private readonly field: TensorField;
-  private readonly boundary: Polygon;
+  private readonly domain: StreetDomain;
   /** Separation is per eigenvector family: crossing the other family is what makes intersections. */
   private readonly samples = { major: new SeparationGrid(30), minor: new SeparationGrid(30) };
   readonly lines: TracedLine[] = [];
 
-  constructor(field: TensorField, boundary: Polygon) {
+  constructor(field: TensorField, domain: StreetDomain) {
     this.field = field;
-    this.boundary = boundary;
+    this.domain = domain;
   }
 
   private inBounds(p: Vec2): boolean {
-    return pointInPolygon(p, this.boundary);
+    return this.domain.contains(p);
   }
 
   private eigen(p: Vec2, family: 'major' | 'minor', prev: Vec2 | null): Vec2 {
@@ -83,8 +83,8 @@ export class StreamlineTracer {
       if (prev === null && sign === -1) v = neg(v);
       const mid = this.eigen(add(p, scale(v, params.dstep / 2)), family, v);
       const step = mid[0] === 0 && mid[1] === 0 ? v : mid;
-      const next = add(p, scale(step, params.dstep));
-      if (!this.inBounds(next)) break;
+      const next = snapPoint(add(p, scale(step, params.dstep)));
+      if (!this.domain.coversSegment(p, next)) break;
       // self-collision: against own samples far enough behind
       let selfHit = false;
       for (let j = 0; j < own.length - 20; j++) {
@@ -96,7 +96,9 @@ export class StreamlineTracer {
       if (selfHit) break;
       // proximity to same-family lines: stop and join, always reaching forward
       if (i * params.dstep > params.dtest * 2) {
-        const near = this.samples[family].nearestWithin(next, params.dtest, continues(p, step));
+        const onward = continues(p, step);
+        const near = this.samples[family].nearestWithin(next, params.dtest,
+          (q) => onward(q) && this.domain.coversSegment(p, q));
         if (near) {
           out.push(near);
           return out;
@@ -110,7 +112,8 @@ export class StreamlineTracer {
     // join a dangling end to any nearby line of either family, still going forward
     if (out.length > 0 && prev !== null) {
       const last = out[out.length - 1];
-      const onward = continues(last, prev);
+      const continuesForward = continues(last, prev);
+      const onward = (q: Vec2): boolean => continuesForward(q) && this.domain.coversSegment(last, q);
       const nearSame = this.samples[family].nearestWithin(last, params.dsep, onward);
       const other: 'major' | 'minor' = family === 'major' ? 'minor' : 'major';
       const nearOther = this.samples[other].nearestWithin(last, params.dsep, onward);
@@ -135,7 +138,8 @@ export class StreamlineTracer {
     let guard = 0;
     while (queue.length > 0 && guard < 200000) {
       guard++;
-      const seed = queue.shift()!;
+      const candidate = queue.shift()!;
+      const seed = { ...candidate, point: snapPoint(candidate.point) };
       if (!this.inBounds(seed.point)) continue;
       if (this.samples[seed.family].hasWithin(seed.point, params.dsep * 0.85)) continue;
       if (this.field.isDegenerate(seed.point)) continue;

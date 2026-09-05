@@ -19,6 +19,7 @@ import { CityBoundary } from './boundary/CityBoundary';
 import { DistrictPlanner } from './districts/DistrictPlanner';
 import { DistrictShapes } from './districts/DistrictShapes';
 import { StreetGrowth } from './streets/StreetGrowth';
+import { StreetDomain } from './streets/domain/StreetDomain';
 import { AlleyPlanner } from './streets/AlleyPlanner';
 import { StreetGraphBuilder } from './streets/Graph';
 import { applyHighwayElevationProfiles, ensureUsableHighway, HIGHWAY_DECK, highwayStructures } from './streets/Highways';
@@ -74,8 +75,11 @@ export function generateCity(input: AtlasParams): CityBlueprint {
   const buildingGrid: BuildingGrid = { origin: [0, 0], angle: gridAngle, spacing: INTERIOR.snap };
   const footprintPolicy: FootprintPolicy = { shape: params.footprintShape, grid: buildingGrid };
   const footprintHost = new FootprintHost(footprintPolicy);
+  const streetDomain = StreetDomain.reserve({
+    boundary, design: params.streetDesign, highways: params.features.highways, alleys: params.features.alleys,
+  });
   const field = StreetGrowth.buildField(boundary, params, planned, gridAngle);
-  let lines = StreetGrowth.grow(field, boundary, Rng.from(seed, 'streets'), params, planned);
+  let lines = StreetGrowth.grow(field, streetDomain, Rng.from(seed, 'streets'), params, planned);
 
   const cityCenter = centroid(boundary);
   const extent = Math.max(params.size.width, params.size.depth) * 3;
@@ -99,7 +103,7 @@ export function generateCity(input: AtlasParams): CityBlueprint {
   // twice: once to read those blocks, once with the alleys inside it, which
   // makes them nodes and edges of the same planar network.
   const buildGraph = (traced: typeof lines): ReturnType<typeof StreetGraphBuilder.build> =>
-    StreetGraphBuilder.build(traced, { simplifyTolerance: 1.5, snapRadius: 10 });
+    StreetGraphBuilder.build(traced, { simplifyTolerance: 1.5, snapRadius: 10, domain: streetDomain });
   const facesOf = (edges: ReturnType<typeof buildGraph>['edges']): Face[] =>
     FaceExtractor.faces(edges, 400, area(boundary) / 2);
   const sectionsOf = (graph: ReturnType<typeof buildGraph>): ReturnType<typeof StreetSections.plan> =>
@@ -111,7 +115,7 @@ export function generateCity(input: AtlasParams): CityBlueprint {
   // Two faces sharing ground means the tracer left a crossing the graph could not resolve;
   // the streets are grown again from the next seed in line, a few times, then the city refuses.
   for (let attempt = 1; !facesPlanar(faces) && attempt <= PLANAR_ATTEMPTS; attempt++) {
-    lines = StreetGrowth.grow(field, boundary, Rng.from(seed, `streets:${attempt}`), params, planned);
+    lines = StreetGrowth.grow(field, streetDomain, Rng.from(seed, `streets:${attempt}`), params, planned);
     graph = buildGraph(lines);
     faces = graph.edges.length < 8 ? [] : facesOf(graph.edges);
   }
@@ -125,9 +129,11 @@ export function generateCity(input: AtlasParams): CityBlueprint {
       graph.nodes.map((n) => n.position),
       (p) => planned[districtOfPoint(p)],
       Rng.from(seed, 'alleys'),
+      { edges: graph.edges, domain: streetDomain },
     );
     if (alleys.length > 0) {
-      const withAlleys = buildGraph([...lines, ...alleys.map((path) => ({ path, class: 'alley' as const }))]);
+      const withAlleys = StreetGraphBuilder.extend(graph,
+        alleys.map((path) => ({ path, class: 'alley' as const })), { domain: streetDomain });
       const alleyFaces = facesOf(withAlleys.edges);
       // an alley that leaves two faces sharing ground is not worth the block it cuts
       if (facesPlanar(alleyFaces)) {

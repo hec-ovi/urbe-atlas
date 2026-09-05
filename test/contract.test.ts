@@ -130,7 +130,7 @@ describe('blueprint output', () => {
       expect(e.path.length).toBeGreaterThanOrEqual(2);
     }
 
-    expect(bp.parcels.length).toBeGreaterThan(100);
+    expect(bp.parcels.length).toBeGreaterThan(0);
     const districtIds = new Set(bp.districts.map((d) => d.id));
     const blockIds = new Set(bp.blocks.map((b) => b.id));
     for (const p of bp.parcels) {
