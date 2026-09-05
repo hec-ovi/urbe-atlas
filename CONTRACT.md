@@ -22,6 +22,17 @@ CLI: after `npm run build:cli`, `npm run generate -- --seed <seed> --out <file.j
 
 Build: `npm run build` type-checks the package, writes the reusable CLI to `dist/cli.mjs`, and writes the production browser preview under `dist/preview/`. `npm run build:cli` builds only the CLI. Building either surface preserves the other.
 
+Root construction entries:
+
+- `GroundCover.plan(input)` takes legacy [GroundCoverInput](src/streets/GroundCoverSchema.ts) (boundary, water, station bays and surface masks) on the authored 1 mm grid. It returns a runtime-only `GroundCoverPlan`: one opaque exact partition, original boundary, coordinate scale, semantic owner IDs/levels and excluded owner IDs. Ordered legacy ownership is water, station bay, roadway, curb, sidewalk, block, open, then open fringe. Empty semantic owners remain listed.
+- `GroundCover.snapshot(plan)` returns shared-vertex `GroundSurface[]` after verifying the partition. The numeric view does not replace or consume its exact state. Snapshot metadata must describe every nonexcluded current owner; unknown owners fail. A fitting consumer can refine those retained handles and publish its own final view.
+- `GroundCover.build(input)` composes `plan` and `snapshot`. Off-grid input, inconsistent snapshot metadata and partition errors use `E_INVARIANT`. Ground construction imports no paving implementation, and retains no second owner-polygon cache.
+- The same entries accept `format: 'source-claims-v1'`, [source schema](schema/ground.ts), with an authored boundary, excluded land, complete source claims and explicit open remainder. Each source has a unique caller-owned ID, absolute bottom/top and geometry-free street-side, roadway or land provenance. Gutter and gutter-lip are distinct surfaces; other paved functional roles retain sidewalk surface. No modern height comes from legacy ground levels.
+- Modern `plan` returns [SourceGroundCoverPlan](src/streets/GroundCoverSchema.ts). Modern `snapshot`/`build` returns `{format, sources, ground}`; every ground record references its source and has the same surface/levels. Subdivision retains source IDs. Metadata is copied; source masks are not a published geometry cache.
+- Complete source claims must fit the city minus excluded land and have mutually disjoint interiors. Overlapping masks within one claim form that source's union. Distinct claims cannot resolve an overlap by order, even with equal roles or heights. Out-of-domain claims, conflicting ownership, duplicate IDs, invalid provenance/levels and inconsistent source references fail with `E_INVARIANT` and source evidence. Empty claims and boundary-only contact are valid.
+- An empty modern claims list establishes the retained land partition with its explicit open owner. A later construction stage can divide those same owner handles through the partition contract and register matching source/owner metadata before snapshot. Complete raw masks can enter a retained subdomain directly; exported numeric boundaries never rebuild ownership. This entry does not construct junction returns or accept unresolved junction overlaps.
+- Source-owned snapshots are an additive construction shape, separate from `CityBlueprint`. City, paving and movement consumers require their own format negotiation before using these roles and heights.
+
 Samples, committed and test-guaranteed to regenerate byte-identical:
 - [samples/city-urbe.json](samples/city-urbe.json): seed `urbe`, default params (full-size city).
 - [samples/city-urbe-small.json](samples/city-urbe-small.json): seed `urbe-small`, size 800x800 (village, first complete-city build target).
@@ -87,6 +98,7 @@ Closed set, thrown as `AtlasError { code, message, details? }` ([schema/blueprin
 
 ## Depends on
 
+- [Source partition](src/geom/partition/CONTRACT.md): retained ground ownership and exact coverage proofs.
 - [Interior](../interior/CONTRACT.md): the mirrored [core-feasibility constants](../interior/schemas/core-feasibility.json) constrain parcel footprints and floor caps.
 - [Exterior](../exterior/CONTRACT.md): the mirrored [floor constants](../exterior/schemas/floor-constants.json) constrain envelope floor heights.
 
