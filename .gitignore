@@ -3,6 +3,7 @@ docs/FEEDBACK.md
 docs/ISSUES.md
 node_modules/
 dist/
+.atlas-cities/
 .env
 docs/FULL-REQUIREMENTS.md
 CLAUDE.md

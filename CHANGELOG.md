@@ -1,5 +1,7 @@
 # Changelog
 
+Unreleased: the preview submits blueprint generation to a server worker, lists persistent cities and keeps viewing available during generation. Generate exteriors is visible for the displayed city.
+
 0.4.0: blueprint 0.17.0 publishes continuous 7, 14 and 21 m street profiles, exact lanes and independent pedestrian bands reserved before parcels. Grade rail and complete outboard subway entrance bays reserve land from the zoning forecast; water contacts include actual asymmetric corridors. Shared grid-cell normalization preserves simple ground rings. The preview exposes rectangular footprint selection and parameter-file preservation.
 
 0.3.0: blueprint 0.16.0 publishes a shared half-metre building grid and defaults to complete rectangular footprints. Zoning and buildability share exact contained, core-valid fits with deterministic best-area selection; lot-following footprints remain an explicit parameter.

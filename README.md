@@ -12,9 +12,9 @@ npm run build                               # type check, CLI and production pre
 npm run generate -- --seed urbe --out city.json
 ```
 
-`npm run build:cli` prepares `dist/cli.mjs` for a host that invokes Atlas as a subprocess. `npm run generate` executes that artifact without writing inside the Atlas checkout. Preview startup prepares it too. The production browser files live under `dist/preview/`, so either build can run without deleting the other.
+`npm run build:cli` prepares `dist/cli.mjs` for subprocess callers. `npm run generate` writes to the requested output path. `npm run build:cities` prepares the background generation worker. Preview startup builds both Node entries. The browser build lives under `dist/preview/`.
 
-The preview generates cities from a form: parameter sets export and import as JSON files, hydrology can reserve a lagoon, river or sea coast, and generation reports its progress or failure. Mitered highway deck meshes contain no zero-area faces. Optional station-access diagnostics stay visible through their shafts and platforms. Right-click a visible feature to keep its measurements in the inspector. A parcel also opens immediately in the configured engine building viewer; its inspector link remains available as a fallback. The default targets the local engine, and an empty URL template disables it.
+The preview submits blueprint generation to its server API and lists saved cities with their build status. Maps remain usable during generation. `ATLAS_CITY_DATA_DIR` selects persistent storage, default `.atlas-cities`. Parameter files and saved blueprints can be imported and exported. Generate exteriors starts a separate Engine job for the displayed blueprint. Left-click selects a parcel; Open becomes available after its exterior is verified.
 
 Generator flags: `--size N`, `--irregularity X`, `--max-floors N`, `--no-highways`, `--no-trains`, `--no-subways`, `--no-alleys`. Only `--seed` is required; everything else has a documented default in `schema/params.ts`.
 

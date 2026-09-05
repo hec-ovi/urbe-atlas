@@ -20,7 +20,9 @@ Nested parameter objects and arrays are validated at runtime. Unknown district k
 
 CLI: after `npm run build:cli`, `npm run generate -- --seed <seed> --out <file.json> [--size N] [--irregularity X] [--max-floors N] [--no-highways] [--no-trains] [--no-subways] [--no-alleys]` executes the prepared artifact without modifying the Atlas package and writes the blueprint JSON only to the requested path. Exit 1 on AtlasError (code printed), 2 on usage error. `npm run preview` prepares the same CLI before its server starts.
 
-Build: `npm run build` type-checks the package, writes the reusable CLI to `dist/cli.mjs`, and writes the production browser preview under `dist/preview/`. `npm run build:cli` builds only the CLI. Building either surface preserves the other.
+Build: `npm run build` type-checks the package, writes the CLI to `dist/cli.mjs`, the city worker to `dist/city-worker.mjs`, and the browser preview under `dist/preview/`. `build:cli` and `build:cities` prepare their individual entries. Preview startup prepares both Node entries. Each build preserves the other outputs.
+
+Preview hosting mounts the [city catalog API](src/cities/CONTRACT.md) on the same origin in development and production preview. `ATLAS_CITY_DATA_DIR` defaults to `.atlas-cities` relative to the server working directory. Blueprint generation runs in a worker; saved cities persist there. Exterior and interior generation remain separate stages. The browser consumes this API through the [UI contract](src/ui/CONTRACT.md).
 
 Root construction entries:
 

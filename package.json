@@ -6,11 +6,12 @@
   "type": "module",
   "scripts": {
     "test": "vitest run",
-    "prepreview": "npm run build:cli",
+    "prepreview": "npm run build:cli && npm run build:cities",
     "preview": "vite",
     "typecheck": "tsc --noEmit",
-    "build": "npm run typecheck && npm run build:cli && npm run build:preview",
+    "build": "npm run typecheck && npm run build:cli && npm run build:cities && npm run build:preview",
     "build:cli": "esbuild src/cli.ts --bundle --platform=node --format=esm --outfile=dist/cli.mjs --log-level=warning",
+    "build:cities": "esbuild src/cities/worker.ts --bundle --platform=node --format=esm --outfile=dist/city-worker.mjs --log-level=warning",
     "build:preview": "vite build",
     "generate": "node dist/cli.mjs"
   },
