@@ -5,12 +5,12 @@
  * assign stable sorted ids.
  */
 import type { Polyline, StreetClass, Vec2 } from '../../schema/blueprint';
-import { segmentIntersection } from '../geom/vec';
-import { closestOnSegment, dist } from '../geom/vec';
-import { segmentVisitsGridCell, snapPoint } from '../geom/clip';
+import { dist } from '../geom/vec';
+import { snapPoint } from '../geom/clip';
 import { length as lineLength } from '../geom/polyline';
 import { cleanCenterline } from './centerline';
 import { resolveGraphPaths } from './GraphResolution';
+import { GraphContacts } from './GraphContacts';
 import { simplifyJoinedPaths } from './SourceJunctions';
 import type { TracedLine } from './StreamlineTracer';
 import type { StreetDomain } from './domain/StreetDomain';
@@ -65,111 +65,8 @@ export class StreetGraphBuilder {
       })
       .filter((l) => l.path.length >= 2 && lineLength(l.path) > snapRadius * 2);
 
-    // --- collect segments and find intersections -------------------------
-    interface Seg {
-      line: number;
-      idx: number; // segment index within polyline
-      a: Vec2;
-      b: Vec2;
-    }
-    const segs: Seg[] = [];
-    for (let li = 0; li < polylines.length; li++) {
-      const path = polylines[li].path;
-      for (let i = 0; i < path.length - 1; i++) segs.push({ line: li, idx: i, a: path[i], b: path[i + 1] });
-    }
-
-    const cellSize = 50;
-    const grid = new Map<string, number[]>();
-    const cellsOf = (s: Seg): string[] => {
-      const minX = Math.floor(Math.min(s.a[0], s.b[0]) / cellSize);
-      const maxX = Math.floor(Math.max(s.a[0], s.b[0]) / cellSize);
-      const minZ = Math.floor(Math.min(s.a[1], s.b[1]) / cellSize);
-      const maxZ = Math.floor(Math.max(s.a[1], s.b[1]) / cellSize);
-      const keys: string[] = [];
-      for (let x = minX; x <= maxX; x++) for (let z = minZ; z <= maxZ; z++) keys.push(`${x},${z}`);
-      return keys;
-    };
-    for (let si = 0; si < segs.length; si++) {
-      for (const key of cellsOf(segs[si])) {
-        const bucket = grid.get(key);
-        if (bucket) bucket.push(si);
-        else grid.set(key, [si]);
-      }
-    }
-
-    // cuts[line][segIdx] = list of t params
-    const cuts = new Map<string, { t: number; point: Vec2 }[]>();
-    const addCut = (line: number, idx: number, t: number, point: Vec2): void => {
-      const key = `${line}:${idx}`;
-      const list = cuts.get(key);
-      const entry = { t, point: snapPoint(point) };
-      if (list) list.push(entry);
-      else cuts.set(key, [entry]);
-    };
-
-    const tested = new Set<string>();
-    const nodeEndpoint = (source: Seg, target: Seg): void => {
-      const endpoints = [
-        ...(source.idx === 0 ? [source.a] : []),
-        ...(source.idx === polylines[source.line].path.length - 2 ? [source.b] : []),
-      ];
-      for (const point of endpoints) {
-        if (!segmentVisitsGridCell(target.a, target.b, point)) continue;
-        if (!domain.coversSegment(target.a, point) || !domain.coversSegment(point, target.b)) continue;
-        addCut(target.line, target.idx, closestOnSegment(point, target.a, target.b).t, point);
-      }
-    };
-    for (let si = 0; si < segs.length; si++) {
-      const s = segs[si];
-      for (const key of cellsOf(s)) {
-        for (const oi of grid.get(key)!) {
-          if (oi <= si) continue;
-          const o = segs[oi];
-          if (s.line === o.line && Math.abs(s.idx - o.idx) <= 1) continue;
-          const pairKey = `${si}:${oi}`;
-          if (tested.has(pairKey)) continue;
-          tested.add(pairKey);
-          if (s.line !== o.line) {
-            nodeEndpoint(s, o);
-            nodeEndpoint(o, s);
-          }
-          const hit = segmentIntersection(s.a, s.b, o.a, o.b);
-          if (!hit) continue;
-          addCut(s.line, s.idx, hit.t, hit.point);
-          addCut(o.line, o.idx, hit.u, hit.point);
-        }
-      }
-    }
-
-    // --- rebuild polylines with cut points, mark forced nodes ------------
-    interface Marked {
-      class: StreetClass;
-      points: Vec2[];
-      forced: boolean[];
-    }
-    const marked: Marked[] = [];
-    for (let li = 0; li < polylines.length; li++) {
-      const path = polylines[li].path;
-      const points: Vec2[] = [path[0]];
-      const forced: boolean[] = [true];
-      for (let i = 0; i < path.length - 1; i++) {
-        const list = (cuts.get(`${li}:${i}`) ?? []).slice().sort((p, q) => p.t - q.t);
-        for (const cut of list) {
-          if (dist(points[points.length - 1], cut.point) < 1e-6) {
-            forced[forced.length - 1] = true;
-            continue;
-          }
-          points.push(cut.point);
-          forced.push(true);
-        }
-        if (dist(points[points.length - 1], path[i + 1]) >= 1e-6) {
-          points.push(path[i + 1]);
-          forced.push(false);
-        }
-      }
-      forced[forced.length - 1] = true;
-      marked.push({ class: polylines[li].class, points, forced });
-    }
+    const marked = GraphContacts.node(polylines.map((line) => line.path), domain)
+      .map((path, index) => ({ ...path, class: polylines[index].class }));
 
     // --- node clustering -------------------------------------------------
     const nodePositions: Vec2[] = [];
