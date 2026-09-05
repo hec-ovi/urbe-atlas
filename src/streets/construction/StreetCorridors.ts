@@ -4,13 +4,16 @@ import { PolygonIndex } from '../../geom/PolygonIndex';
 import type { SectionedStreetEdge } from './schema/sections';
 import type { SidewalkBands } from './schema/design';
 import type { StreetSide } from './SidewalkSection';
+import { CORRIDOR_SWEEP_MODEL } from './corridors/Model';
+import type { StreetPlanningReservations } from './corridors/schema';
 
-const BAND_ORDER: (keyof SidewalkBands)[] = ['curb', 'border', 'furnishing', 'walking', 'frontage'];
+const BAND_ORDER = CORRIDOR_SWEEP_MODEL.bandOrder;
 /** All parallel sweeps share angular stations, independent of their width. */
-const ARC_STEP = Math.PI / 180;
+const ARC_STEP = CORRIDOR_SWEEP_MODEL.maximumFanStepRadians;
 
 /** Complete rights of way, including distinct left and right pedestrian widths. */
 export class StreetCorridors {
+  static readonly model = CORRIDOR_SWEEP_MODEL;
   readonly roadway: Map<string, Polygon[]>;
   readonly byEdge: Map<string, Polygon[]>;
   readonly pedestrian: Polygon[];
@@ -18,9 +21,7 @@ export class StreetCorridors {
   readonly index: PolygonIndex;
 
   constructor(edges: readonly StreetEdge[]) {
-    this.roadway = new Map(edges.filter((edge) => edge.width > 0).map((edge) => [edge.id,
-      edge.class === 'highway' ? bufferLine(edge.path, edge.width) : corridor(edge.path, edge.width / 2, edge.width / 2),
-    ]));
+    this.roadway = new Map(edges.filter((edge) => edge.width > 0).map((edge) => [edge.id, roadwayOf(edge)]));
     this.byEdge = new Map(edges.map((edge) => [edge.id, edge.class === 'highway'
       ? this.roadway.get(edge.id)!
       : corridor(edge.path, edge.width / 2 + edge.sidewalk.left, edge.width / 2 + edge.sidewalk.right),
@@ -28,6 +29,20 @@ export class StreetCorridors {
     this.full = [...this.byEdge.values()].flat();
     this.pedestrian = edges.filter((edge) => edge.width === 0).flatMap((edge) => corridor(edge.path, edge.sidewalk.left, edge.sidewalk.right));
     this.index = new PolygonIndex(this.full);
+  }
+
+  /** Exact edge-local planning data; final ground retains junction ownership. */
+  static reservations(edges: readonly SectionedStreetEdge[]): StreetPlanningReservations {
+    return {
+      version: '1.0.0', model: this.model,
+      edges: edges.map((edge) => ({
+        edgeId: edge.id, roadway: roadwayOf(edge),
+        sides: {
+          left: { sidewalk: this.sidewalk(edge, 'left'), walking: this.band(edge, 'left', 'walking') },
+          right: { sidewalk: this.sidewalk(edge, 'right'), walking: this.band(edge, 'right', 'walking') },
+        },
+      })),
+    };
   }
 
   /** The complete published sidewalk on one directed side, before junction ownership. */
@@ -46,6 +61,11 @@ export class StreetCorridors {
     }
     return [];
   }
+}
+
+function roadwayOf(edge: StreetEdge): Polygon[] {
+  if (edge.width <= 0) return [];
+  return edge.class === 'highway' ? bufferLine(edge.path, edge.width) : corridor(edge.path, edge.width / 2, edge.width / 2);
 }
 
 function sweptBand(edge: StreetEdge, side: StreetSide, start: number, end: number): Polygon[] {

@@ -1,5 +1,7 @@
 # Box map
 
+- src/streets/construction/corridors: exact edge-local roadway, sidewalk and walking query data for consumer conformance. src/streets/construction/corridors/CONTRACT.md. Depends on street construction and geometry; final ground owns rendering and collision.
+
 - src/streets/construction/datum: profile-based grade ownership, independent structure projections, land faces and clearance. src/streets/construction/datum/CONTRACT.md. Depends on street corridors, Highway envelopes and geometry.
 
 - src/streets/alleys: block cuts with real surrounding-street terminals inside the reserved domain. src/streets/alleys/CONTRACT.md. Depends on street domain, Atlas graph paths and geometry.
