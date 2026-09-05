@@ -14,6 +14,8 @@ export interface Division { claims: PartitionClaim[]; remainderId: string }
 export interface PartitionPiece { ownerId: string; vertices: number[]; fixed: boolean }
 export interface PartitionComponent { id: string; boundaries: Polygon[] }
 export interface PartitionPointEnclosure { lower: Vec2; upper: Vec2 }
+export interface PartitionEdgeSupportInput { from: Vec2; to: Vec2; encoding: 'authored-1mm' }
+export interface PartitionEdgeSupportEnclosure { from: PartitionPointEnclosure; to: PartitionPointEnclosure }
 
 /** Homogeneous rational coordinate (x / w, y / w); not published in ground JSON. */
 export interface ExactVertex { x: string; y: string; w: string }
