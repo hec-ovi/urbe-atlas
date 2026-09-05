@@ -2,6 +2,7 @@ import type { Polygon, Vec2 } from '../../../../schema/blueprint';
 import { invalidParams } from '../../../errors';
 import { coordinateCover, GRID_STEP, precisionInterior } from '../../../geom/clip';
 import { Band } from './Band';
+import { CoordinateCoverage } from './CoordinateCoverage';
 import { FootprintRegions } from './FootprintRegions';
 import { subtractIntervals } from './Intervals';
 import { StationLimits } from './StationLimits';
@@ -20,7 +21,7 @@ export class CrossingIntervals {
     if (!allowed.length) return [];
     const forbidden = band.candidates(input.forbidden ?? []);
     const excluded = band.candidates(input.excluded ?? []);
-    const blocked = FootprintRegions.outsideEnclosures(band.polygon, band.candidates(coordinateCover(allowed)));
+    const blocked = CoordinateCoverage.missing(band.polygon, allowed, band.candidates(coordinateCover(allowed)));
     if (excluded.length) blocked.push(...FootprintRegions.insideEnclosures(band.polygon, excluded));
     if (forbidden.length) {
       blocked.push(...precisionInterior(FootprintRegions.inside(band.polygon, forbidden))

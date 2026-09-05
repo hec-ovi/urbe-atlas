@@ -2,7 +2,7 @@
 
 - src/cities: backend blueprint jobs and persistent saved-city catalog. src/cities/CONTRACT.md. Depends on the root generator; the preview server mounts its HTTP handler.
 
-- src/streets/crossings/intervals: safe full-footprint station ranges and shared source-edge subdivisions. src/streets/crossings/intervals/CONTRACT.md. Depends on geometry, exact source partition and street construction.
+- src/streets/crossings/intervals: safe full-footprint station ranges, complete coordinate coverage and shared source-edge subdivisions. src/streets/crossings/intervals/CONTRACT.md. Depends on geometry, exact source partition and street construction.
 
 - src/streets/crossings: pre-ground source contacts, external fields and proved walking terminals. src/streets/crossings/CONTRACT.md. Depends on Atlas graph, street reservations and geometry; final placement also takes ground, and intervals/ solves full-footprint station ranges.
 

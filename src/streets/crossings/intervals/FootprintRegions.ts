@@ -1,9 +1,16 @@
 import type { Polygon } from '../../../../schema/blueprint';
+import { coordinateCover } from '../../../geom/clip';
 import { SourcePartition } from '../../../geom/partition/SourcePartition';
 import type { PartitionPointEnclosure } from '../../../geom/partition/schema';
+import { CoordinateCoverage } from './CoordinateCoverage';
 
 /** Query views keep the footprint and mask edges at their source coordinates. */
 export class FootprintRegions {
+  static covers(source: Polygon, allowed: readonly Polygon[]): boolean {
+    const masks = allowed.slice();
+    return CoordinateCoverage.missing(source, masks, coordinateCover(masks)).length === 0;
+  }
+
   static outside(source: Polygon, masks: readonly Polygon[]): Polygon[] {
     return this.partition(source, masks).boundaries('outside');
   }
