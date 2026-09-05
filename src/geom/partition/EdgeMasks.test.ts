@@ -6,6 +6,13 @@ import { verifyPublishedCover } from './published/verifyPublishedCover';
 import type { PartitionClaim, PartitionEdgeMask, Polygon } from './schema';
 
 describe('exact source-edge construction', () => {
+  it('rounds authored edge positions once without crossing the endpoint range', () => {
+    expect([
+      edgePositionView({ encoding: 'authored-1mm', position: { from: [0, 0], to: [.003, 0], t: .7 } }),
+      edgePositionView({ encoding: 'authored-1mm', position: { from: [.007, 0], to: [.008, 0], t: 2 ** -53 } }),
+    ]).toEqual([[.0021, 0], [.007, 0]]);
+  });
+
   it('represents finite affine positions with wide denominators and subnormal halfway rounding', () => {
     const view = (from: number, to: number, t: number) => edgePositionView({ position: { from: [from, 0], to: [to, 0], t } });
     expect(view(1, 2, 1e-300)).toEqual([1, 0]);

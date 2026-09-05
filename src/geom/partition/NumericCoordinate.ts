@@ -1,7 +1,5 @@
-/** Finite intermediates divide directly; wide ratios use exact quotient rounding. */
+/** Rounds a rational coordinate once to the nearest Float64, with even midpoint ties. */
 export function numericCoordinate(numerator: bigint, denominator: bigint): number {
-  const n = Number(numerator), d = Number(denominator);
-  if (Number.isFinite(n) && Number.isFinite(d)) return n / d;
   if (!numerator) return 0;
   const negative = numerator < 0n, magnitude = negative ? -numerator : numerator;
   let exponent = magnitude.toString(2).length - denominator.toString(2).length;
