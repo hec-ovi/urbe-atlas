@@ -39,13 +39,11 @@ export function resolveStreetDesign(input?: StreetDesign): StreetDesign {
     if (!Array.isArray(profile.classes) || profile.classes.length === 0
       || profile.classes.some((kind: unknown) => kind !== 'street' && kind !== 'road')
       || new Set(profile.classes).size !== profile.classes.length) fail(`${field}.classes must list street or road once`);
-    if (!Array.isArray(profile.lanes) || profile.lanes.length < 2) fail(`${field}.lanes must carry both directions`);
+    if (!Array.isArray(profile.lanes) || profile.lanes.length === 0) fail(`${field}.lanes must contain at least one lane`);
     for (const lane of profile.lanes) {
       if (!record(lane) || !positive(lane.width)
         || (lane.direction !== 'forward' && lane.direction !== 'backward')) fail(`${field}.lanes has invalid dimensions or direction`);
     }
-    if (!profile.lanes.some((lane: LaneDesign) => lane.direction === 'forward')
-      || !profile.lanes.some((lane: LaneDesign) => lane.direction === 'backward')) fail(`${field}.lanes must carry both directions`);
     if (!record(profile.shoulders) || !nonnegative(profile.shoulders.left) || !nonnegative(profile.shoulders.right)) fail(`${field}.shoulders must be nonnegative metres`);
   }
   for (const kind of ['street', 'road']) {
@@ -62,12 +60,30 @@ export function resolveStreetDesign(input?: StreetDesign): StreetDesign {
     }
     if (!positive(profile.walking)) fail(`${field}.walking must be positive metres`);
   }
+  const assignedDistricts = new Set<string>();
+  if (value.sidewalkAssignments !== undefined) {
+    if (!Array.isArray(value.sidewalkAssignments)) fail('sidewalkAssignments must be an array');
+    for (const [index, assignment] of value.sidewalkAssignments.entries()) {
+      const field = `sidewalkAssignments[${index}]`;
+      if (!record(assignment) || !['downtown', 'commercial', 'residential', 'industrial', 'mixed'].includes(assignment.district)
+        || assignedDistricts.has(assignment.district)) fail(`${field}.district must be valid and unique`);
+      assignedDistricts.add(assignment.district);
+      if (assignment.street === undefined && assignment.road === undefined) fail(`${field} must assign a street or road profile`);
+      for (const kind of ['street', 'road'] as const) {
+        if (assignment[kind] !== undefined && !sidewalkIds.has(assignment[kind])) fail(`${field}.${kind} must name a sidewalk profile`);
+      }
+    }
+  }
+  const crossings = value.crossings === undefined ? { pedestrianClearance: 2.5 } : value.crossings;
+  if (!record(crossings) || !positive(crossings.pedestrianClearance)) fail('crossings.pedestrianClearance must be positive metres');
   return {
     profiles: value.profiles.map((profile: RoadProfile) => ({
       id: profile.id, classes: [...profile.classes], lanes: profile.lanes.map((lane) => ({ ...lane })), shoulders: { ...profile.shoulders },
     })).sort((a: RoadProfile, b: RoadProfile) => roadwayTotal(a) - roadwayTotal(b) || a.id.localeCompare(b.id)),
     sidewalkProfiles: value.sidewalkProfiles.map((profile: SidewalkProfile) => ({ ...profile }))
       .sort((a: SidewalkProfile, b: SidewalkProfile) => sidewalkTotal(a) - sidewalkTotal(b) || a.id.localeCompare(b.id)),
+    ...(value.sidewalkAssignments === undefined ? {} : { sidewalkAssignments: value.sidewalkAssignments.map((assignment) => ({ ...assignment })) }),
+    crossings: { pedestrianClearance: crossings.pedestrianClearance },
   };
 }
 

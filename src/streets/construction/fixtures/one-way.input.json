@@ -1,0 +1,16 @@
+{
+  "edges": [
+    { "id": "a", "class": "street", "from": "n0", "to": "n1", "path": [[0, 0], [20, 0]] },
+    { "id": "b", "class": "street", "from": "n2", "to": "n1", "path": [[40, 0], [20, 0]] }
+  ],
+  "nodes": [
+    { "id": "n0", "position": [0, 0], "edgeIds": ["a"] },
+    { "id": "n1", "position": [20, 0], "edgeIds": ["a", "b"] },
+    { "id": "n2", "position": [40, 0], "edgeIds": ["b"] }
+  ],
+  "profile": {
+    "id": "one", "classes": ["street", "road"],
+    "lanes": [{ "direction": "forward", "width": 3.5 }],
+    "shoulders": { "left": 0, "right": 0 }
+  }
+}

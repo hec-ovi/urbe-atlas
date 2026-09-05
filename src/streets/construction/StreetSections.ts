@@ -49,7 +49,12 @@ export class StreetSections {
           }
           const dense = kind === 'downtown' || kind === 'commercial';
           const target = dense ? edge.class === 'road' ? 3 : 2 : kind === 'mixed' || edge.class === 'road' ? 1 : 0;
-          const chosen = design.sidewalkProfiles[Math.min(target, design.sidewalkProfiles.length - 1)];
+          const assigned = edge.class === 'street' || edge.class === 'road'
+            ? design.sidewalkAssignments?.find((assignment) => assignment.district === kind)?.[edge.class]
+            : undefined;
+          const chosen = assigned === undefined
+            ? design.sidewalkProfiles[Math.min(target, design.sidewalkProfiles.length - 1)]
+            : design.sidewalkProfiles.find((profile) => profile.id === assigned)!;
           return { profileId: chosen.id, bands: bandsOnly(chosen) };
         };
         const shoulders = profile
