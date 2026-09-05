@@ -6,9 +6,11 @@ Purpose: publishes the exact edge-local footprint queries used to plan street sp
 
 `StreetCorridors.reservations(edges)` and `StreetCorridors.model` are exported through [../StreetCorridors.ts](../StreetCorridors.ts).
 
-Input: validated street edges, [../schema/sections.ts](../schema/sections.ts). Output: [schema.ts](schema.ts), [JSON schema](planning-reservations.schema.json).
+Input: validated street edges, [../schema/sections.ts](../schema/sections.ts). Output: [schema.ts](schema.ts), [legacy JSON schema](planning-reservations.schema.json), [explicit-side JSON schema](planning-reservations-v1.1.schema.json).
 
 Each source `edgeId` carries its roadway reservation and left/right complete sidewalk and walking reservations as simple CCW polygons in metres. Left/right follow the source edge's directed path. Zero-width regions are empty arrays. An edge without functional bands uses its full sidewalk as walking space.
+
+Any explicit side geometry selects output/model version `1.1.0`. Every side then also publishes `paved` and `bands` queries for gutter-lip, gutter, curb, border, furnishing and frontage. Walking is stored once in its existing field. Legacy-only inputs retain byte-identical `1.0.0` output. Legacy sides in a mixed export have empty gutter roles and retain their original widths.
 
 ## Authority
 
@@ -21,14 +23,16 @@ Consumers use the serialized query polygons for exact edge-local conformance and
 - A directed side sweeps segment rectangles from the centerline to radius `carriageway / 2 + side width`.
 - Every bend adds a fan through the shortest signed angle in `[-pi, pi]`. Its `ceil(abs(angle) / maximumFanStepRadians)` stations divide the angle equally. Parallel radii share those stations.
 - Each directed side has a quarter-fan at each endpoint. Coordinates snap to the model's 1 mm grid.
-- A sidewalk or functional band is the union at its outer radius minus the union at its inner radius. Functional radii accumulate the published band order from the carriageway edge.
+- A sidewalk or functional band is the union at its outer radius minus the union at its inner radius. Explicit band radii use the published interval start/end directly; legacy bands use the construction box's common interval resolver. Paved spans begin at the curb interval's end. No consumer chooses new lateral offsets.
 - Grade roadways union both one-sided sweeps. Highway roadway reservations use the geometry kernel's round open-line buffer. The serialized polygons include the kernel's exact normalization and hole decomposition.
 
 ## Invariants and errors
 
 The export preserves every existing query polygon and input edge order. Identical inputs produce byte-identical JSON. Inputs are not changed. Returned polygon arrays are owned by the caller; shared model settings are deeply frozen. No additional errors are introduced; the geometry contract's `E_INVARIANT` applies.
 
-The constructor, reservation export, sidewalk and band queries reject explicit `sidewalks.*.geometry` with `E_INVARIANT`. Their accepted format is the curb-only section. `roadwayFor` accepts either format because carriageway ownership does not depend on side dimensions. Explicit-side support requires publishing gutter/lip, curb, paved and walking reservations from normalized intervals before accepting that format.
+The constructor, reservation export, sidewalk and band queries accept explicit `sidewalks.*.geometry`. `band` accepts the published role names, including gutter-lip and gutter. The full grade datum retains its own format gate until it can assign those roles and elevations to source owners; corridor acceptance alone does not permit modern ground generation.
+
+Functional roles partition each directed side. Their union covers its complete reservation, and their interiors are disjoint; paved queries exclude curb and gutter roles. Sweeps retain the same shared angular stations and caps. These edge-local queries add no final ground owners or persistent polygon cache.
 
 ## Conformance
 

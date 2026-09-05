@@ -1,0 +1,64 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:urbe:atlas:street-planning-reservations:1.1.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "model", "edges"],
+  "properties": {
+    "version": { "const": "1.1.0" },
+    "model": { "$ref": "#/$defs/model" },
+    "edges": { "type": "array", "items": { "$ref": "#/$defs/edge" } }
+  },
+  "$defs": {
+    "polygons": {
+      "type": "array", "items": {
+        "type": "array", "minItems": 3, "items": {
+          "type": "array", "minItems": 2, "maxItems": 2, "items": { "type": "number" }
+        }
+      }
+    },
+    "side": {
+      "type": "object", "additionalProperties": false,
+      "required": ["sidewalk", "walking", "paved", "bands"],
+      "properties": {
+        "sidewalk": { "$ref": "#/$defs/polygons" },
+        "walking": { "$ref": "#/$defs/polygons" },
+        "paved": { "$ref": "#/$defs/polygons" },
+        "bands": {
+          "type": "object", "additionalProperties": false,
+          "required": ["gutter-lip", "gutter", "curb", "border", "furnishing", "frontage"],
+          "properties": {
+            "gutter-lip": { "$ref": "#/$defs/polygons" }, "gutter": { "$ref": "#/$defs/polygons" },
+            "curb": { "$ref": "#/$defs/polygons" }, "border": { "$ref": "#/$defs/polygons" },
+            "furnishing": { "$ref": "#/$defs/polygons" }, "frontage": { "$ref": "#/$defs/polygons" }
+          }
+        }
+      }
+    },
+    "edge": {
+      "type": "object", "additionalProperties": false,
+      "required": ["edgeId", "roadway", "sides"],
+      "properties": {
+        "edgeId": { "type": "string", "minLength": 1 },
+        "roadway": { "$ref": "#/$defs/polygons" },
+        "sides": {
+          "type": "object", "additionalProperties": false, "required": ["left", "right"],
+          "properties": { "left": { "$ref": "#/$defs/side" }, "right": { "$ref": "#/$defs/side" } }
+        }
+      }
+    },
+    "model": {
+      "type": "object", "additionalProperties": false,
+      "required": ["id", "version", "authority", "units", "coordinateGrid", "maximumFanStepRadians", "bandOrder", "radialOrigin", "joins", "stations", "caps", "bandOperation", "highwayRoadway"],
+      "properties": {
+        "id": { "const": "atlas-directed-corridors" }, "version": { "const": "1.1.0" },
+        "authority": { "const": "edge-local-planning" }, "units": { "const": "metres" },
+        "coordinateGrid": { "const": 0.001 }, "maximumFanStepRadians": { "const": 0.017453292519943295 },
+        "bandOrder": { "const": ["gutter-lip", "gutter", "curb", "border", "furnishing", "walking", "frontage"] },
+        "radialOrigin": { "const": "centerline" }, "joins": { "const": "shared-shortest-angle-fans" },
+        "stations": { "const": "equal-per-turn" }, "caps": { "const": "quarter-fans-per-side" },
+        "bandOperation": { "const": "outer-union-minus-inner-union" }, "highwayRoadway": { "const": "kernel-round-buffer" }
+      }
+    }
+  }
+}

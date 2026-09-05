@@ -16,3 +16,9 @@ export const CORRIDOR_SWEEP_MODEL: Readonly<CorridorSweepModel> = Object.freeze(
   bandOperation: 'outer-union-minus-inner-union',
   highwayRoadway: 'kernel-round-buffer',
 });
+
+export const EXPLICIT_CORRIDOR_SWEEP_MODEL: Readonly<CorridorSweepModel> = Object.freeze({
+  ...CORRIDOR_SWEEP_MODEL,
+  version: '1.1.0',
+  bandOrder: Object.freeze(['gutter-lip', 'gutter', 'curb', 'border', 'furnishing', 'walking', 'frontage'] as const),
+});

@@ -2,13 +2,11 @@ import type { Polygon, StreetEdge, Vec2 } from '../../../schema/blueprint';
 import { bufferLine, difference, snapPoint, union } from '../../geom/clip';
 import { PolygonIndex } from '../../geom/PolygonIndex';
 import type { SectionedStreetEdge } from './schema/sections';
-import type { SidewalkBands } from './schema/design';
 import type { StreetSide } from './SidewalkSection';
-import { CORRIDOR_SWEEP_MODEL } from './corridors/Model';
-import type { StreetPlanningReservations } from './corridors/schema';
-import { invariantFailure } from '../../errors';
+import { CORRIDOR_SWEEP_MODEL, EXPLICIT_CORRIDOR_SWEEP_MODEL } from './corridors/Model';
+import type { StreetPlanningReservations, SidePlanningReservation, ExplicitSidePlanningReservation, CorridorBandRole } from './corridors/schema';
+import { resolveSidewalkGeometry } from './SidewalkGeometry';
 
-const BAND_ORDER = CORRIDOR_SWEEP_MODEL.bandOrder;
 /** All parallel sweeps share angular stations, independent of their width. */
 const ARC_STEP = CORRIDOR_SWEEP_MODEL.maximumFanStepRadians;
 
@@ -25,7 +23,6 @@ export class StreetCorridors {
   static roadwayFor(edge: StreetEdge): Polygon[] { return roadwayOf(edge); }
 
   constructor(edges: readonly StreetEdge[]) {
-    edges.forEach(requireSupportedSides);
     this.roadway = new Map(edges.filter((edge) => edge.width > 0).map((edge) => [edge.id, roadwayOf(edge)]));
     this.byEdge = new Map(edges.map((edge) => [edge.id, edge.class === 'highway'
       ? this.roadway.get(edge.id)!
@@ -38,14 +35,25 @@ export class StreetCorridors {
 
   /** Exact edge-local planning data; final ground retains junction ownership. */
   static reservations(edges: readonly SectionedStreetEdge[]): StreetPlanningReservations {
-    edges.forEach(requireSupportedSides);
+    const explicit = edges.some((edge) => edge.crossSection?.sidewalks.left.geometry || edge.crossSection?.sidewalks.right.geometry);
+    const side = (edge: SectionedStreetEdge, name: StreetSide): SidePlanningReservation | ExplicitSidePlanningReservation => {
+      const common = { sidewalk: this.sidewalk(edge, name), walking: this.band(edge, name, 'walking') };
+      if (!explicit) return common;
+      const section = edge.crossSection?.sidewalks[name];
+      const geometry = section ? section.geometry ?? resolveSidewalkGeometry(section.bands) : undefined;
+      const start = geometry?.intervals.find((part) => part.role === 'curb')?.end ?? 0;
+      return { ...common, paved: sweptBand(edge, name, start, geometry?.totalWidth ?? edge.sidewalk[name]), bands: {
+        'gutter-lip': this.band(edge, name, 'gutter-lip'), gutter: this.band(edge, name, 'gutter'),
+        curb: this.band(edge, name, 'curb'), border: this.band(edge, name, 'border'),
+        furnishing: this.band(edge, name, 'furnishing'), frontage: this.band(edge, name, 'frontage'),
+      } };
+    };
     return {
-      version: '1.0.0', model: this.model,
+      version: explicit ? '1.1.0' : '1.0.0', model: explicit ? EXPLICIT_CORRIDOR_SWEEP_MODEL : this.model,
       edges: edges.map((edge) => ({
         edgeId: edge.id, roadway: roadwayOf(edge),
         sides: {
-          left: { sidewalk: this.sidewalk(edge, 'left'), walking: this.band(edge, 'left', 'walking') },
-          right: { sidewalk: this.sidewalk(edge, 'right'), walking: this.band(edge, 'right', 'walking') },
+          left: side(edge, 'left'), right: side(edge, 'right'),
         },
       })),
     };
@@ -53,27 +61,15 @@ export class StreetCorridors {
 
   /** The complete published sidewalk on one directed side, before junction ownership. */
   static sidewalk(edge: StreetEdge, side: StreetSide): Polygon[] {
-    requireSupportedSides(edge);
     return sweptBand(edge, side, 0, edge.sidewalk[side]);
   }
 
   /** One functional strip, preserving the same bent boundary as the full corridor. */
-  static band(edge: SectionedStreetEdge, side: StreetSide, role: keyof SidewalkBands): Polygon[] {
-    requireSupportedSides(edge);
-    const bands = edge.crossSection?.sidewalks[side].bands;
-    if (!bands) return role === 'walking' ? this.sidewalk(edge, side) : [];
-    let start = 0;
-    for (const name of BAND_ORDER) {
-      if (name === role) return sweptBand(edge, side, start, start + bands[name]);
-      start += bands[name];
-    }
-    return [];
-  }
-}
-
-function requireSupportedSides(edge: SectionedStreetEdge): void {
-  if (edge.crossSection?.sidewalks.left.geometry || edge.crossSection?.sidewalks.right.geometry) {
-    throw invariantFailure(`edge ${edge.id}: explicit sidewalk geometry requires corridor migration`);
+  static band(edge: SectionedStreetEdge, side: StreetSide, role: CorridorBandRole): Polygon[] {
+    const section = edge.crossSection?.sidewalks[side];
+    if (!section) return role === 'walking' ? this.sidewalk(edge, side) : [];
+    const interval = (section.geometry ?? resolveSidewalkGeometry(section.bands)).intervals.find((part) => part.role === role);
+    return interval ? sweptBand(edge, side, interval.start, interval.end) : [];
   }
 }
 
