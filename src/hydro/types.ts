@@ -42,6 +42,8 @@ export interface HydrologyCrossingInput {
   /** Full constructed width whose contact with water requires a structure. */
   width: number;
   level: number;
+  /** Exact constructed footprint, including independently reserved sides. */
+  corridor?: HydroPolygon[];
 }
 
 export interface WaterStructure {
@@ -53,6 +55,8 @@ export interface WaterStructure {
   path: HydroPoint[];
   width: number;
   level: number;
+  /** Exact water-contact reservation. Authoritative when present. */
+  corridor?: HydroPolygon[];
 }
 
 export interface HydrologyPlan {

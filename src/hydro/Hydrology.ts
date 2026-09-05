@@ -1,4 +1,6 @@
 import { AtlasError } from '../errors';
+import { CorridorContacts } from './CorridorContacts';
+import { validateCrossing } from './CrossingValidation';
 import type {
   HydroPoint,
   HydroPolygon,
@@ -57,13 +59,23 @@ export function withHydrologyStructures(
   crossings: readonly HydrologyCrossingInput[],
 ): HydrologyPlan | null {
   if (!plan) return null;
+  if (!Array.isArray(crossings)) throw new AtlasError('E_INVARIANT', 'hydrology crossings must be an array');
   const structures: WaterStructure[] = [];
+  crossings.forEach(validateCrossing);
   const ordered = [...crossings].sort((a, b) => a.network.localeCompare(b.network) || a.refId.localeCompare(b.refId));
   for (const crossing of ordered) {
-    if (crossing.path.length < 2 || !crossing.path.every(validPoint) || !(crossing.width > 0) || !Number.isFinite(crossing.level)) {
-      throw new AtlasError('E_INVARIANT', `invalid hydrology crossing input ${crossing.network}:${crossing.refId}`);
-    }
     for (const body of plan.bodies) {
+      if (crossing.corridor) {
+        for (const contact of new CorridorContacts(crossing.path, crossing.corridor).within(body.surfaces)) {
+          structures.push({
+            id: `ws${structures.length}`,
+            kind: crossing.network === 'subway' || crossing.level < body.elevation ? 'tunnel' : 'bridge',
+            network: crossing.network, refId: crossing.refId, waterBodyId: body.id,
+            ...contact, width: crossing.width, level: crossing.level,
+          });
+        }
+        continue;
+      }
       for (const surface of body.surfaces) {
         const contact = offsetRing(surface, crossing.width / 2);
         for (const path of pathsInside(crossing.path, contact)) {

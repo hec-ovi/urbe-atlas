@@ -1,8 +1,12 @@
 import { AtlasError } from '../errors';
+import { validCorridor } from './CrossingValidation';
+import { bufferLine, intersection } from '../geom/clip';
+import { area } from '../geom/polygon';
 import type { HydroPoint, HydroPolygon, HydrologyPlan } from './types';
 
 const TYPES = new Set(['lagoon', 'river', 'sea-coast']);
 const MATERIALS = new Set(['water.lagoon', 'water.river', 'water.sea-coast']);
+const GEOMETRY_GRID = 0.001;
 
 /** Fail-closed semantic checks for the hydrology output contract. */
 export function checkHydrology(plan: HydrologyPlan, size: { width: number; depth: number }): void {
@@ -20,12 +24,26 @@ export function checkHydrology(plan: HydrologyPlan, size: { width: number; depth
       if (shoreline.band.length !== shoreline.path.length || shoreline.band.some((piece) => !simpleRing(piece))) fail(`shoreline ${shoreline.id} has an invalid band`);
     });
   }
+  // Intersection vertices round to this grid; bound their error by distance,
+  // independent of how long a contact follows the shoreline.
+  const contactDomains = new Map(plan.bodies.map((body) => [body.id, body.surfaces.flatMap((surface) => [
+    surface, ...bufferLine([...surface, surface[0]], 2 * GEOMETRY_GRID),
+  ])]));
   for (const structure of plan.structures) {
     claim(ids, structure.id);
     if (!['bridge', 'tunnel'].includes(structure.kind) || !['street', 'train', 'subway'].includes(structure.network)
       || !plan.bodies.some((body) => body.id === structure.waterBodyId)
       || structure.path.length < 2 || !structure.path.every(validPoint) || !(structure.width > 0)
-      || !Number.isFinite(structure.level)) fail(`invalid water structure ${structure.id}`);
+      || !Number.isFinite(structure.width) || !Number.isFinite(structure.level)
+      || (structure.corridor !== undefined && !validCorridor(structure.corridor))) fail(`invalid water structure ${structure.id}`);
+    if (structure.corridor) {
+      const surfaces = contactDomains.get(structure.waterBodyId)!;
+      const contactArea = structure.corridor.reduce((sum, polygon) => sum + area(polygon), 0);
+      const wetArea = intersection(structure.corridor, surfaces).reduce((sum, polygon) => sum + area(polygon), 0);
+      if (contactArea - wetArea > GEOMETRY_GRID ** 2) fail(`water structure ${structure.id} reserves land outside its water contact`, {
+        contactArea, wetArea, maximumBoundaryError: GEOMETRY_GRID,
+      });
+    }
   }
 }
 
@@ -73,6 +91,6 @@ function samePoint(left: HydroPoint, right: HydroPoint): boolean {
   return left[0] === right[0] && left[1] === right[1];
 }
 
-function fail(message: string): never {
-  throw new AtlasError('E_INVARIANT', message);
+function fail(message: string, details?: Record<string, unknown>): never {
+  throw new AtlasError('E_INVARIANT', message, details);
 }
