@@ -2,6 +2,7 @@
 import type { AtlasParams, DistrictKind, FeatureToggles, FootprintShape, HydrologyType, WealthTier } from '../../../schema/params';
 import { el } from '../components/dom';
 import { RangeField } from '../components/rangeField';
+import { DEFAULT_PAVING } from '../data/defaultPaving';
 
 export interface ParamsPanelEvents {
   onGenerate: (params: AtlasParams) => void;
@@ -34,6 +35,7 @@ const DEFAULT_PARAMS: AtlasParams = {
   size: { width: 1000, depth: 1000 },
   irregularity: 0.35,
   footprintShape: 'rectangle',
+  pavingDesign: DEFAULT_PAVING,
   districtCount: [1, 3],
   maxFloors: 40,
   maxFloorsByDistrict: {},
@@ -75,7 +77,7 @@ export class ParamsPanel {
   private readonly hydrology: HTMLSelectElement;
   private readonly footprintShape: HTMLSelectElement;
   private streetDesign: AtlasParams['streetDesign'];
-  private pavingDesign: AtlasParams['pavingDesign'];
+  private pavingDesign: AtlasParams['pavingDesign'] = structuredClone(DEFAULT_PARAMS.pavingDesign);
   private readonly districtCaps = new Map<DistrictKind, { enabled: HTMLInputElement; value: HTMLInputElement }>();
   private readonly tierWeights = new Map<WealthTier, RangeField>();
   private readonly features = {} as Record<keyof FeatureToggles, HTMLInputElement>;
@@ -160,7 +162,9 @@ export class ParamsPanel {
     const presets = el('div', { class: 'preset-row', role: 'group', 'aria-label': 'City presets' });
     for (const [key, preset] of Object.entries(PRESETS)) {
       const button = el('button', { type: 'button', class: 'preset-button', text: humanize(key) });
-      button.addEventListener('click', () => this.setParams({ ...preset, seed: this.seed.value || 'urbe' }));
+      button.addEventListener('click', () => this.setParams({
+        pavingDesign: DEFAULT_PARAMS.pavingDesign, ...preset, seed: this.seed.value || 'urbe',
+      }));
       presets.append(button);
     }
     const reset = el('button', { type: 'button', class: 'preset-button reset-button', text: 'Reset' });
@@ -208,6 +212,7 @@ export class ParamsPanel {
       this.generateButton,
       section('Parameter files', [
         el('p', { class: 'section-note', text: 'Save this complete setup or load a JSON parameter file.' }),
+        el('p', { class: 'section-note', text: 'New presets use 1 m slabs with 2 m groups where they fit. Parameter files can supply a custom paving design.' }),
         el('div', { class: 'button-row' }, [exportButton, importButton]),
       ]),
       el('label', { class: 'visually-hidden', for: 'import-params' }, ['Parameter file', file]),

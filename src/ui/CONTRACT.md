@@ -13,6 +13,7 @@ Purpose: presents Atlas creation and blueprint inspection in a dark browser work
 - Local and URL opens inspect data. Save current city explicitly posts the displayed JSON to `/api/cities/import`; generated and reopened catalog entries are already saved.
 - `setMode(mode)` takes `2d | 3d`; `resize()` fits both canvases; `setInteriorParcels(parcelIds)` applies an exact parcel subset.
 - Parameter files are JSON AtlasParams. Unknown top-level fields are dropped, defaults are resolved, and the root runtime validation runs before the form changes.
+- New forms, presets and Reset select the caller-owned [default paving data](data/defaultPaving.ts): maintained finish, 1 m slab cells and optional 2 m groups on common stations, with 12 mm joints. Curb and border modules use the existing 0.15 m and 0.35 m widths. Their fit remains the producer's responsibility.
 - The optional assembled-world [manifest](../../../engine/src/assembly/schema/world-manifest.schema.json) is fetched beside the non-empty `out=` path in the parcel URL template. It must be contract 1.0.0 and match the displayed seed, Atlas version, complete parcel-id set, interior subset, and floor tags.
 - Exterior generation consumes the Engine [server contract](../../../engine/src/server/CONTRACT.md): capability, exact-blueprint POST and job polling. The Vite adapter proxies only `/api/exteriors` and its children to `ATLAS_ENGINE_API_URL` (default `http://127.0.0.1:5306`). `VITE_ENGINE_PREVIEW_URL` independently selects the browser viewer (default `http://localhost:5306/`).
 
@@ -74,11 +75,13 @@ No failure escapes a `PreviewApp` event handler.
 - An optional manifest affects the UI only after exact seed, version, parcel-set, subset, and floor-shape validation.
 - Downloaded blueprints are unchanged. Downloaded parameter files hold the full resolved form state.
 - Presets and Reset select rectangular buildings; omitted footprint shape imports use the root default. Changing form controls preserves imported street profiles and paving layouts.
+- Imported paving settings retain their exact modules, grouping and finish selections. Omitted `pavingDesign` remains omitted. Only a new form, preset or Reset chooses the preview paving default, using owned copies. Numeric paving settings do not change source street dimensions or add geometry in the UI.
 - All controls and panels have square corners.
 
 ## Depends on
 
 - [Atlas root contract](../../CONTRACT.md): AtlasParams, runtime parameter validation, CityBlueprint and AtlasError.
 - [City catalog contract](../cities/CONTRACT.md): durable blueprint generation, saved records, status and import routes.
+- [Fitted paving contract](../streets/construction/paving/CONTRACT.md): caller-owned numeric layouts, grouped slabs and shared stations.
 - [Engine assembly contract](../../../engine/src/assembly/CONTRACT.md): optional world manifest 1.0.0.
 - [Engine server contract](../../../engine/src/server/CONTRACT.md): exterior capability and exact-city jobs.
