@@ -14,6 +14,7 @@ import type {
 import type { AtlasParams, DistrictKind } from '../schema/params';
 import { Rng } from './core/rng';
 import { resolveParams } from './params/defaults';
+import { CityConstructionSupport } from './CityConstructionSupport';
 import { unsatisfiable } from './errors';
 import { CityBoundary } from './boundary/CityBoundary';
 import { DistrictPlanner } from './districts/DistrictPlanner';
@@ -64,6 +65,7 @@ const SUBDIVISION: Record<DistrictKind, SubdivisionConfig> = {
 
 export function generateCity(input: AtlasParams): CityBlueprint {
   const params = resolveParams(input);
+  CityConstructionSupport.assert(params.streetDesign);
   const seed = String(params.seed);
 
   // --- boundary, districts, streets -------------------------------------
