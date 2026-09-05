@@ -2,6 +2,7 @@ import { invariantFailure } from '../../errors';
 import { overlay } from './Arrangement';
 import { extent, overlaps } from './BoxIndex';
 import { PointPool, type Point, type Region, type Ring } from './Exact';
+import { readEdgeMask } from './EdgeMasks';
 import { connected, simple } from './Regions';
 import { readRing } from './RingInput';
 import { chain, nodeSegments, segments } from './Segments';
@@ -37,7 +38,7 @@ export class SourcePartition {
     this.available([...input.claims.map(claim => claim.id), input.remainderId]);
     const source = this.remaining(owner), masks = input.claims.map(claim => {
       const reader = this.pool.reader(claim.encoding);
-      return claim.masks.map(mask => readRing(mask, reader));
+      return [...claim.masks.map(mask => readRing(mask, reader)), ...(claim.edgeMasks ?? []).map(mask => readEdgeMask(mask, reader))];
     });
     let regions: Region[] | undefined;
     const read = (index: number) => (regions ??= overlay(source, masks, this.pool))[index];

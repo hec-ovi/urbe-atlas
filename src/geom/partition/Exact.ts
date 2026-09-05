@@ -1,5 +1,6 @@
 import { invariantFailure } from '../../errors';
 import type { ExactVertex, PartitionEncoding, Polygon, Vec2 } from './schema';
+import { numericCoordinate } from './NumericCoordinate';
 
 export interface Point { x: bigint; y: bigint; w: bigint; key: string; value: Vec2 }
 export type Ring = Point[];
@@ -48,7 +49,7 @@ export class PointPool {
     const key = `${x},${y},${w}`;
     const existing = this.points.get(key);
     if (existing) return existing;
-    const value: Vec2 = original ? [...original] : [Number(x) / Number(w), Number(y) / Number(w)];
+    const value: Vec2 = original ? [...original] : [numericCoordinate(x, w), numericCoordinate(y, w)];
     if (!value.every(Number.isFinite)) throw invariantFailure('partition coordinate cannot be represented');
     const point = { x, y, w, key, value };
     this.points.set(key, point);
@@ -74,12 +75,26 @@ export class PointPool {
     catch { throw invariantFailure('partition certificate contains an invalid exact vertex'); }
   }
 
-  ring(polygon: Polygon): Ring {
-    const points = polygon.map(point => this.input(point)).filter((point, index, all) => !index || point.key !== all[index - 1].key);
-    if (points.length > 1 && points[0].key === points[points.length - 1].key) points.pop();
-    if (points.length < 3 || !ringSign(points)) throw invariantFailure('partition ring must have positive area');
-    return ringSign(points) > 0 ? points : points.reverse();
+  affine(from: Point, to: Point, t: number): Point {
+    const [numerator, denominator] = binary(t);
+    if (t === 0 || from.key === to.key) return from;
+    if (t === 1) return to;
+    const rest = denominator - numerator;
+    return this.make(from.x * to.w * rest + to.x * from.w * numerator,
+      from.y * to.w * rest + to.y * from.w * numerator, from.w * to.w * denominator);
   }
+
+  ring(polygon: Polygon): Ring {
+    return normalizeRing(polygon.map(point => this.input(point)));
+  }
+}
+
+export function normalizeRing(ring: Ring): Ring {
+  const points = ring.filter((point, index) => !index || point.key !== ring[index - 1].key);
+  if (points.length > 1 && points[0].key === points[points.length - 1].key) points.pop();
+  const winding = points.length < 3 ? 0 : ringSign(points);
+  if (!winding) throw invariantFailure('partition ring must have positive area');
+  return winding > 0 ? points : points.reverse();
 }
 
 export const sign = (value: bigint): number => value < 0n ? -1 : value > 0n ? 1 : 0;
