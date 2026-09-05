@@ -8,9 +8,10 @@ import type { Polyline, StreetClass, Vec2 } from '../../schema/blueprint';
 import { segmentIntersection } from '../geom/vec';
 import { closestOnSegment, dist } from '../geom/vec';
 import { segmentVisitsGridCell, snapPoint } from '../geom/clip';
-import { length as lineLength, simplify } from '../geom/polyline';
+import { length as lineLength } from '../geom/polyline';
 import { cleanCenterline } from './centerline';
 import { physicalPathKey } from './PathIdentity';
+import { simplifyJoinedPaths } from './SourceJunctions';
 import type { TracedLine } from './StreamlineTracer';
 import type { StreetDomain } from './domain/StreetDomain';
 import { invariantFailure } from '../errors';
@@ -54,12 +55,15 @@ export class StreetGraphBuilder {
     options: { simplifyTolerance: number; snapRadius: number; domain: StreetDomain },
   ): { nodes: BuiltNode[]; edges: BuiltEdge[] } {
     const { snapRadius, domain } = options;
+    const sources = lines.map((line) => line.path.map(snapPoint));
+    for (const source of sources) {
+      if (!domain.covers(source)) throw invariantFailure('source street leaves its reserved domain', { path: source });
+    }
+    const simplified = simplifyJoinedPaths(sources, options.simplifyTolerance);
     const polylines = lines
-      .map((line) => {
-        const source = line.path.map(snapPoint);
-        if (!domain.covers(source)) throw invariantFailure('source street leaves its reserved domain', { path: source });
-        const simplified = options.simplifyTolerance === 0 ? source : simplify(source, options.simplifyTolerance);
-        return { class: line.class, path: domain.covers(simplified) ? simplified : source };
+      .map((line, index) => {
+        const path = simplified[index];
+        return { class: line.class, path: domain.covers(path) ? path : sources[index] };
       })
       .filter((l) => l.path.length >= 2 && lineLength(l.path) > snapRadius * 2);
 
