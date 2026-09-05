@@ -18,12 +18,18 @@ import { ensureCCW, area } from './polygon';
 import { normalizePaths } from './SnapRounding';
 import type { GridPath as IntPath } from './schema';
 import { interiorBeyondPrecision } from './InteriorPrecision';
+import { traversesGridCell } from './GridCellTraversal';
 
 const SCALE = 1000; // 1 unit = 1 mm
 export const GRID_STEP = 1 / SCALE;
 
 export const snap = (v: number): number => Math.round(v * SCALE) / SCALE;
 export const snapPoint = (p: Vec2): Vec2 => [snap(p[0]), snap(p[1])];
+
+export function segmentVisitsGridCell(a: Vec2, b: Vec2, center: Vec2): boolean {
+  const [start, end, cell] = toPath([a, b, center]);
+  return traversesGridCell({ a: start, b: end }, cell);
+}
 
 /** Whether the whole region survives half a boundary-width inset at diagnostic precision. */
 export function hasInteriorBeyondPrecision(polygons: Polygon[], boundaryWidth = GRID_STEP): boolean {
