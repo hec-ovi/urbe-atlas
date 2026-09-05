@@ -13,6 +13,7 @@ export interface PartitionReservation extends PartitionCoordinates { id: string;
 export interface Division { claims: PartitionClaim[]; remainderId: string }
 export interface PartitionPiece { ownerId: string; vertices: number[]; fixed: boolean }
 export interface PartitionComponent { id: string; boundaries: Polygon[] }
+export interface PartitionPointEnclosure { lower: Vec2; upper: Vec2 }
 
 /** Homogeneous rational coordinate (x / w, y / w); not published in ground JSON. */
 export interface ExactVertex { x: string; y: string; w: string }

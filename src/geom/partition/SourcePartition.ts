@@ -3,10 +3,11 @@ import { overlay } from './Arrangement';
 import { extent, overlaps } from './BoxIndex';
 import { PointPool, type Point, type Region, type Ring } from './Exact';
 import { readEdgeMask } from './EdgeMasks';
+import { CoordinateEnclosures } from './CoordinateEnclosures';
 import { connected, simple } from './Regions';
 import { readRing } from './RingInput';
 import { chain, nodeSegments, segments } from './Segments';
-import type { Division, PartitionComponent, PartitionCoordinates, PartitionInput, PartitionReservation, Polygon, SharedPartition } from './schema';
+import type { Division, PartitionComponent, PartitionCoordinates, PartitionInput, PartitionPointEnclosure, PartitionReservation, Polygon, SharedPartition } from './schema';
 
 interface Owner {
   id: string;
@@ -49,6 +50,11 @@ export class SourcePartition {
 
   loops(ownerId: string): Polygon[] { return this.remaining(this.readable(ownerId)).map(ring => ring.map(point => [...point.value])); }
   boundaries(ownerId: string): Polygon[] { return simple(this.remaining(this.readable(ownerId)), this.pool).map(ring => ring.map(point => [...point.value])); }
+
+  boundaryEnclosures(ownerId: string): PartitionPointEnclosure[][] {
+    const bounds = new CoordinateEnclosures();
+    return simple(this.remaining(this.readable(ownerId)), this.pool).map(ring => ring.map(point => bounds.point(point)));
+  }
 
   components(ownerId: string): PartitionComponent[] {
     const owner = this.owner(ownerId);
