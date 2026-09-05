@@ -1,5 +1,5 @@
 import { BoxIndex, extent, type Box } from './BoxIndex';
-import { compareX, compareY, intersection, onSegment, orient, sign, type Point, type PointPool, type Ring } from './Exact';
+import { compareX, compareY, intersection, orient, sign, type Point, type PointPool, type Ring } from './Exact';
 
 export interface Segment { id: number; a: Point; b: Point; box: Box; points: Map<string, Point> }
 
@@ -18,19 +18,30 @@ export function nodeSegments(edges: Segment[], pool: PointPool): void {
   const index = new BoxIndex(edges);
   for (const edge of edges) for (const other of index.query(edge.box)) {
     if (other.id <= edge.id) continue;
-    const abC = sign(orient(edge.a, edge.b, other.a)), abD = sign(orient(edge.a, edge.b, other.b));
-    const cdA = sign(orient(other.a, other.b, edge.a)), cdB = sign(orient(other.a, other.b, edge.b));
+    const abC = side(edge, other.a), abD = side(edge, other.b);
+    if (abC * abD > 0) continue;
+    const cdA = side(other, edge.a), cdB = side(other, edge.b);
+    if (cdA * cdB > 0) continue;
     if (abC * abD < 0 && cdA * cdB < 0) {
       const point = intersection(edge.a, edge.b, other.a, other.b, pool);
       edge.points.set(point.key, point); other.points.set(point.key, point);
       continue;
     }
-    const add = (point: Point, target: Segment) => { if (onSegment(point, target.a, target.b)) target.points.set(point.key, point); };
-    if (!abC) add(other.a, edge);
-    if (!abD) add(other.b, edge);
-    if (!cdA) add(edge.a, other);
-    if (!cdB) add(edge.b, other);
+    if (!abC) addCollinear(other.a, edge);
+    if (!abD) addCollinear(other.b, edge);
+    if (!cdA) addCollinear(edge.a, other);
+    if (!cdB) addCollinear(edge.b, other);
   }
+}
+
+function side(edge: Segment, point: Point): number {
+  return point.key === edge.a.key || point.key === edge.b.key ? 0 : sign(orient(edge.a, edge.b, point));
+}
+
+function addCollinear(point: Point, edge: Segment): void {
+  if (point.key !== edge.a.key && point.key !== edge.b.key
+    && compareX(point, edge.a) * compareX(point, edge.b) <= 0
+    && compareY(point, edge.a) * compareY(point, edge.b) <= 0) edge.points.set(point.key, point);
 }
 
 export function chain(edge: Segment): Point[] {

@@ -35,6 +35,7 @@ Types: [schema.ts](schema.ts). Entries: [SourcePartition.ts](SourcePartition.ts)
 - Numeric output permits only the representation rounding of a shared rational vertex. Solid outlines publish every shared subdivision point. Protected polygons are published verbatim; subdivision points on their edges belong to the certificate, not their published outlines.
 - One instance retains exact boundaries through nested divisions. Exported numeric views never become its geometry authority. Input source disjointness is a caller precondition for cross-source disjointness.
 - Bounding-box indexes prune segment pairs and containment candidates. Deterministic input order gives deterministic output order. The existing fixed-point Boolean API is unchanged.
+- Segment noding reuses exact endpoint identity and collinearity classifications; proper crossings and endpoint subdivisions keep the same exact coordinates and order.
 - Predicate filters use floating-point conversion/error bounds; uncertain signs use exact integers. The filter never admits a geometric distance tolerance.
 
 ## Errors
