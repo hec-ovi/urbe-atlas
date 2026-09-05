@@ -32,7 +32,7 @@ export function verifyPublishedCover(input: PublishedCoverInput): void {
     const domain = exclusions.length ? overlay([boundary], [exclusions], pool)[1] : [boundary];
     try { verifyIncidence(domain, pieces, pool); return; }
     catch (error) { if (!(error instanceof AtlasError)) throw error; }
-    verifyIncidence(domain, conversionWitnesses([boundary, ...exclusions], pieces, pool), pool);
+    verifyIncidence(domain, conversionWitnesses(domain, pieces, pool), pool);
   } catch (error) {
     if (error instanceof AtlasError) throw error;
     throw invariantFailure('published ground cover is malformed');

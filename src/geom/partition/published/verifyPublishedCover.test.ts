@@ -30,6 +30,29 @@ describe('published ground cover contract', () => {
     fail(changed);
   });
 
+  it('preserves a fully paired interior corner while resolving a domain subdivision', () => {
+    const near = 2 - Number.EPSILON, bottom: [number, number] = [2, 2 / 3], top: [number, number] = [2, 3];
+    const input: PublishedCoverInput = { boundary: [[0, 0], [3, 1], [3, 3], [0, 3]], exclusions: [], pieces: [
+      piece('left', [[0, 0], [1, 1 / 3], bottom, [near, 2], top, [0, 3]]),
+      piece('thin', [bottom, top, [near, 2]]),
+      piece('right', [bottom, [3, 1], [3, 3], top]),
+    ] };
+    verifyPublishedCover(input);
+    const changed = structuredClone(input);
+    changed.pieces[0].polygon[3][0] -= 1e-9;
+    fail(changed);
+  });
+
+  it('retains both independent boundary constraints at a derived exclusion-union corner', () => {
+    const input: PublishedCoverInput = { boundary: rectangle(0, 0, 4, 4),
+      exclusions: [[[0, 0], [3, 1], [0, 3]], rectangle(0, 0, 1, 4)],
+      pieces: [piece('land', [[1, 0], [4, 0], [4, 4], [1, 4], [1, 7 / 3], [3, 1], [1, 1 / 3]])] };
+    verifyPublishedCover(input);
+    const changed = structuredClone(input);
+    changed.pieces[0].polygon[4][0] += .0001;
+    fail(changed);
+  });
+
   it('rejects missing outer or inner land, duplicate owners and unilateral seam movement', () => {
     const input: PublishedCoverInput = { boundary: rectangle(0, 0, 9, 3), exclusions: [],
       pieces: [piece('left', rectangle(0, 0, 3, 3)), piece('middle', rectangle(3, 0, 6, 3)), piece('right', rectangle(6, 0, 9, 3))] };

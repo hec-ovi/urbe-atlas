@@ -1,8 +1,9 @@
 import { invariantFailure } from '../../../errors';
 import { BoxIndex, extent } from '../BoxIndex';
 import { intersection, onSegment, orient, type Point, type PointPool, type Ring } from '../Exact';
-import { segments, type Segment } from '../Segments';
+import type { Segment } from '../Segments';
 import { add, compare, divide, fraction, midpoint, multiply, subtract, type Fraction } from './Rational';
+import { unresolvedEdges } from './Unresolved';
 
 interface Interval { low: Fraction; high: Fraction }
 interface Constraint { edge: Segment; witness: Point }
@@ -57,18 +58,25 @@ function within(point: Point, value: Point, pool: PointPool): boolean {
 
 /** Only verification coordinates change; one numeric identity has one witness. */
 export function conversionWitnesses(authority: Ring[], pieces: Ring[], pool: PointPool): Ring[] {
-  const edges = segments([...authority, ...pieces]), index = new BoxIndex(edges);
+  const unresolved = unresolvedEdges(authority, pieces), index = new BoxIndex(unresolved.edges);
   const points = new Map(pieces.flat().map(point => [point.key, point]));
   const pinned = new Set(authority.flat().map(point => point.key));
   const constraints = new Map<string, Constraint[]>();
-  for (const point of points.values()) for (const edge of index.query(extent([[point]]))) {
-    if (point.key === edge.a.key || point.key === edge.b.key || onSegment(point, edge.a, edge.b)) continue;
-    const candidate = witness(point, edge, pool);
-    if (!candidate) continue;
-    let list = constraints.get(point.key);
-    if (!list) constraints.set(point.key, list = []);
-    list.push({ edge, witness: candidate });
-    pinned.add(edge.a.key); pinned.add(edge.b.key);
+  for (const point of points.values()) {
+    if (!unresolved.points.has(point.key)) continue;
+    const list: Constraint[] = [];
+    let needsWitness = false;
+    for (const edge of index.query(extent([[point]]))) {
+      if (point.key === edge.a.key || point.key === edge.b.key) continue;
+      if (onSegment(point, edge.a, edge.b)) { list.push({ edge, witness: point }); continue; }
+      const candidate = witness(point, edge, pool);
+      if (!candidate) continue;
+      needsWitness = true;
+      list.push({ edge, witness: candidate });
+    }
+    if (!needsWitness) continue;
+    constraints.set(point.key, list);
+    for (const { edge } of list) { pinned.add(edge.a.key); pinned.add(edge.b.key); }
   }
   const replacements = new Map<string, Point>();
   for (const [key, list] of constraints) {
