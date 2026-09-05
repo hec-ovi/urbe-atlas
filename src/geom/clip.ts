@@ -15,12 +15,11 @@ import {
 } from 'clipper2-ts';
 import type { Polygon, Vec2 } from '../../schema/blueprint';
 import { ensureCCW, area } from './polygon';
+import { normalizePaths } from './SnapRounding';
+import type { GridPath as IntPath } from './schema';
 
 const SCALE = 1000; // 1 unit = 1 mm
 export const GRID_STEP = 1 / SCALE;
-
-type IntPoint = { x: number; y: number };
-type IntPath = IntPoint[];
 
 export const snap = (v: number): number => Math.round(v * SCALE) / SCALE;
 export const snapPoint = (p: Vec2): Vec2 => [snap(p[0]), snap(p[1])];
@@ -39,6 +38,7 @@ function fromPath(path: IntPath): Polygon {
  * every piece is simply connected.
  */
 function fromPaths(paths: IntPath[], minArea = 1e-6, depth = 0): Polygon[] {
+  paths = normalizePaths(paths);
   const outers: IntPath[] = [];
   const holes: IntPath[] = [];
   for (const path of paths) {
@@ -118,7 +118,7 @@ export function union(polys: Polygon[]): Polygon[] {
 
 export function difference(subject: Polygon[], clip: Polygon[]): Polygon[] {
   if (subject.length === 0) return [];
-  if (clip.length === 0) return subject.map(ensureCCW);
+  if (clip.length === 0) return union(subject);
   const paths = clipDifference(subject.map(toPath), clip.map(toPath), FillRule.NonZero);
   return fromPaths(paths);
 }
