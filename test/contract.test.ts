@@ -165,8 +165,9 @@ describe('blueprint output', () => {
     expect(bp.stats.perDistrict.length).toBe(bp.districts.length);
   });
 
-  it('rounds curb corners on every block outline', () => {
+  it('rounds road-facing curb corners while preserving pedestrian seams', () => {
     const bp = defaultCity();
+    const alleys = bp.streets.edges.filter((edge) => edge.class === 'alley');
     let arcVertices = 0;
     for (const b of bp.blocks) {
       const n = b.boundary.length;
@@ -185,7 +186,10 @@ describe('blueprint output', () => {
         if (turn < 18) arcVertices++;
         // room for at least a 0.6 m return, using at most 40% of each edge
         const room = 0.4 * Math.min(la, lc) * Math.tan(interior / 2);
-        if (convex && room >= 0.6) expect(turn).toBeLessThanOrEqual(35);
+        const onSharedSeam = alleys.some((edge) => edge.path.slice(1).some((end, index) =>
+          segmentDistance(corner, edge.path[index], end) <= 0.002,
+        ));
+        if (convex && room >= 0.6 && !onSharedSeam) expect(turn).toBeLessThanOrEqual(35);
       }
     }
     expect(arcVertices).toBeGreaterThan(bp.blocks.length);
@@ -194,6 +198,8 @@ describe('blueprint output', () => {
   it('runs a curb strip along every block boundary a roadway borders', () => {
     const bp = defaultCity();
     const alleys = bp.streets.edges.filter((e) => e.class === 'alley');
+    const roadGround = bp.volumetric.ground.filter((ground) => ground.surface === 'roadway');
+    const curbGround = bp.volumetric.ground.filter((ground) => ground.surface === 'curb').map((ground) => ground.polygon);
     const nearAlley = (p: Vec2): boolean =>
       alleys.some((e) => e.path.slice(1).some((q, i) => segmentDistance(p, e.path[i], q) < CURB_WIDTH * 4));
     let curbPieces = 0;
@@ -217,8 +223,12 @@ describe('blueprint output', () => {
             on[0] - ((c[1] - a[1]) / span) * (CURB_WIDTH / 2),
             on[1] + ((c[0] - a[0]) / span) * (CURB_WIDTH / 2),
           ];
-          if (nearAlley(into)) continue;
-          expect(b.curb.some((poly) => pointInPolygon(into, poly)), `${b.id} kerb at ${into}`).toBe(true);
+          const sharedFrontage = nearAlley(into);
+          if (sharedFrontage && !roadGround.some((ground) =>
+            distanceToOutline(into, ground.polygon) <= CURB_WIDTH,
+          )) continue;
+          const curb = sharedFrontage ? curbGround : b.curb;
+          expect(curb.some((poly) => pointInPolygon(into, poly)), `${b.id} kerb at ${into}`).toBe(true);
         }
       }
     }

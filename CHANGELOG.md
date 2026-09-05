@@ -1,5 +1,7 @@
 # Changelog
 
+0.2.28: full-width street corridors own roadway through outer edges and small junction faces. Alley corridors retain continuous raised pedestrian paving through block cleanup and corner construction; frontage curbs follow the shared roadway boundary.
+
 0.2.27: highway deck meshes omit zero-area triangles where a ramp slab closes at grade, while retaining the shared miter and continuous top, side, and underside faces.
 
 0.2.26: station-access diagnostics remain visible through the subway shaft and platform, so the full route from each street entrance to its platform handoff can be inspected in the 3D preview.

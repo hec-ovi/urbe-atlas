@@ -19,7 +19,7 @@ const MIN_RADIUS = 0.6;
 const MAX_EDGE_SHARE = 0.4;
 
 /** Ring with its convex corners rounded; radiusAt supplies the radius per rounded corner. */
-export function filletCorners(ring: Polygon, radiusAt: () => number): Polygon {
+export function filletCorners(ring: Polygon, radiusAt: (corner: Vec2) => number): Polygon {
   if (ring.length < 3) return ring;
   const ccw = signedArea(ring) >= 0;
   const out: Polygon = [];
@@ -35,7 +35,7 @@ export function filletCorners(ring: Polygon, radiusAt: () => number): Polygon {
 }
 
 /** Arc replacing one corner, or null when the corner stays sharp. */
-function cornerArc(a: Vec2, b: Vec2, c: Vec2, ccw: boolean, radiusAt: () => number): Vec2[] | null {
+function cornerArc(a: Vec2, b: Vec2, c: Vec2, ccw: boolean, radiusAt: (corner: Vec2) => number): Vec2[] | null {
   const la = dist(a, b);
   const lc = dist(b, c);
   if (la < 1e-6 || lc < 1e-6) return null;
@@ -46,7 +46,7 @@ function cornerArc(a: Vec2, b: Vec2, c: Vec2, ccw: boolean, radiusAt: () => numb
   const interior = Math.acos(Math.min(1, Math.max(-1, u[0] * w[0] + u[1] * w[1])));
   if (Math.PI - interior < MIN_TURN) return null;
   const half = interior / 2;
-  const tangent = Math.min(radiusAt() / Math.tan(half), MAX_EDGE_SHARE * Math.min(la, lc));
+  const tangent = Math.min(radiusAt(b) / Math.tan(half), MAX_EDGE_SHARE * Math.min(la, lc));
   const radius = tangent * Math.tan(half);
   if (radius < MIN_RADIUS) return null;
 

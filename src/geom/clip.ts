@@ -17,6 +17,7 @@ import type { Polygon, Vec2 } from '../../schema/blueprint';
 import { ensureCCW, area } from './polygon';
 
 const SCALE = 1000; // 1 unit = 1 mm
+export const GRID_STEP = 1 / SCALE;
 
 type IntPoint = { x: number; y: number };
 type IntPath = IntPoint[];

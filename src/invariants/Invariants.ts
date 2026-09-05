@@ -10,6 +10,7 @@ import { bandWidth, hostsBand } from '../geom/band';
 import { area, distanceToOutline, isSimpleRing, pointInPolygon } from '../geom/polygon';
 import { distanceTo, doubleBackAt } from '../geom/polyline';
 import { checkGroundCover } from './groundCover';
+import { checkGroundNetwork } from './groundNetwork';
 import { checkStreetEdges } from './streetEdges';
 import { checkStations } from './stations';
 import { checkFurniture } from './furniture';
@@ -223,6 +224,7 @@ export class Invariants {
     }
     // and they tile it: no two ground surfaces overlap
     checkGroundCover(bp);
+    checkGroundNetwork(bp);
 
     // per-block: valid rings, and lots + open areas within the interior area
     for (const b of bp.blocks) {

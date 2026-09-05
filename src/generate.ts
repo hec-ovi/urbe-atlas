@@ -27,7 +27,7 @@ import type { Face } from './streets/Faces';
 import { Crossings } from './streets/Crossings';
 import { Signals } from './streets/Signals';
 import { Obstacles, Planting } from './streets/Planting';
-import { CURB_WIDTH, carriagewayWidth, sidewalkWidth } from './streets/widths';
+import { carriagewayWidth, sidewalkWidth } from './streets/widths';
 import { BlockBuilder, BuiltBlock } from './blocks/BlockBuilder';
 import { Buildability } from './blocks/Buildability';
 import { Subdivision, SubdivisionConfig } from './blocks/Subdivision';
@@ -43,6 +43,7 @@ import { LEVELS } from './levels';
 import { cityGridAngle } from './grid';
 import { RAIL, STATION } from './transit/stations';
 import { GROUND_LEVELS, type GroundSurfaceKind } from './streets/surfaces';
+import { GroundRoadway } from './streets/GroundRoadway';
 import { planHydrology, withHydrologyStructures } from './hydro/Hydrology';
 
 export const BLUEPRINT_VERSION = '0.14.1';
@@ -212,16 +213,20 @@ export function generateCity(input: AtlasParams): CityBlueprint {
   // blocks it separates meet at its centerline and are the whole alley, so
   // those blocks keep their rings narrow enough to stay within ALLEY_WIDTH.
   const alleyEdgeIds = new Set(streetEdges.filter((e) => e.class === 'alley').map((e) => e.id));
-  // the kerb stops where an alley reaches a block: a band across its centerline
-  // takes back what the two flanking rings would otherwise pave as kerb
-  const alleyBuffers = new Map<string, Polygon[]>();
+  const alleyPaths = new Map<string, Vec2[]>();
   for (const e of graph.edges) {
-    if (alleyEdgeIds.has(e.id)) alleyBuffers.set(e.id, bufferLine(e.path, CURB_WIDTH * 4));
+    if (alleyEdgeIds.has(e.id)) {
+      alleyPaths.set(e.id, e.path);
+    }
   }
+  const roadwayBuffers = roadwayOf(graph.edges);
+  const alleyPaving = streetEdges.filter((edge) => edge.class === 'alley')
+    .flatMap((edge) => bufferLine(edge.path, edge.sidewalk.left + edge.sidewalk.right));
   const builtBlocks = BlockBuilder.build(
     faces,
-    roadwayOf(graph.edges),
-    alleyBuffers,
+    roadwayBuffers,
+    alleyPaths,
+    alleyPaving,
     (face: Face) => {
       const di = districtOfPoint(centroid(face.polygon));
       const cls = face.edgeIds.some((id: string) => alleyEdgeIds.has(id)) ? 'alley' : 'street';
@@ -416,27 +421,23 @@ export function generateCity(input: AtlasParams): CityBlueprint {
   const pedestrianPaving = builtBlocks.flatMap((block) => [...block.curb, ...block.sidewalk]);
   const structures = highwayStructures(streetEdges, [...trainNoBuild, ...subwayShafts, ...pedestrianPaving]);
 
-  // face = its roadway part + block pieces + open pieces, so per-face
-  // differences give hole-free roadway ground and exact coverage.
+  // Ground ownership follows the full network, including unbounded and small faces.
   const ground: GroundSurface[] = [];
   const addGround = (surface: GroundSurfaceKind, polygon: Polygon): void => {
     const levels = GROUND_LEVELS[surface];
     const pieces = waterSurfaces.length > 0 ? difference([polygon], waterSurfaces) : [polygon];
     for (const piece of pieces) ground.push({ surface, polygon: piece, bottom: levels.bottom, top: levels.top });
   };
-  const piecesByFace = new Map<number, Polygon[]>();
-  builtBlocks.forEach((b) => {
-    (piecesByFace.get(b.faceIndex) ?? piecesByFace.set(b.faceIndex, []).get(b.faceIndex)!).push(b.boundary);
-  });
-  faces.forEach((face, fi) => {
-    for (const poly of difference([face.polygon], piecesByFace.get(fi) ?? [])) {
-      addGround('roadway', poly);
-    }
-  });
+  for (const poly of GroundRoadway.build(boundary, [...roadwayBuffers.values()].flat(), faces, builtBlocks)) {
+    addGround('roadway', poly);
+  }
   for (const b of builtBlocks) for (const poly of b.curb) addGround('curb', poly);
   for (const b of builtBlocks) for (const poly of b.sidewalk) addGround('sidewalk', poly);
   for (const p of parcels) addGround('block', p.lot);
   for (const open of blockOpenAreas) for (const poly of open) addGround('open', poly);
+  for (const poly of difference(intersection(alleyPaving, [boundary]), ground.map((region) => region.polygon))) {
+    addGround('sidewalk', poly);
+  }
   // the fringe is whatever the placed cover leaves of the boundary, so the partition is exact by construction
   const fringe = difference([boundary], ground.map((g) => g.polygon));
   for (const poly of fringe) addGround('open', poly);

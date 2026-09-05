@@ -1,18 +1,16 @@
 /**
- * Turns street-graph faces into blocks: subtract the roadway of the face's
- * own edges, round the curb corners, then inset for the curb strip and the
- * sidewalk ring. Corner continuity is structural because every ring comes
- * from offsetting the same closed polygon, so the kerb runs unbroken through
- * a junction return with both its edges parallel to it.
+ * Builds blocks outside the complete roadway network, with shared pedestrian
+ * seams, road-facing returns and a reserved sidewalk ring.
  */
-import type { Polygon } from '../../schema/blueprint';
+import type { Polygon, Polyline } from '../../schema/blueprint';
 import type { Rng } from '../core/rng';
 import type { Face } from '../streets/Faces';
-import { difference, intersection, offset } from '../geom/clip';
+import { difference, GRID_STEP, intersection, offset } from '../geom/clip';
 import { filletCorners } from '../geom/fillet';
 import { area } from '../geom/polygon';
-import { dist } from '../geom/vec';
+import { PolygonIndex } from '../geom/PolygonIndex';
 import { CURB_WIDTH } from '../streets/widths';
+import { SharedBoundary } from './SharedBoundary';
 
 /** Face land left over by the roadway: what a block is cut from. */
 export interface FacePiece {
@@ -22,7 +20,6 @@ export interface FacePiece {
 }
 
 export interface BuiltBlock {
-  faceIndex: number;
   /** Outer edge of the sidewalk (face minus roadway). */
   boundary: Polygon;
   /** The kerb: the outer CURB_WIDTH of the block, minus the stretches an alley takes. */
@@ -33,10 +30,12 @@ export interface BuiltBlock {
   /** Buildable area inside the sidewalk ring. */
   interior: Polygon[];
   edgeIds: string[];
+  /** Road-facing land removed to construct rounded returns. */
+  returns: Polygon[];
 }
 
 const MIN_BLOCK_AREA = 250;
-/** Boolean intersections below this run cannot carry a readable curb edge. */
+/** Source edges below this run are eligible for inward cleanup. */
 const MIN_SOURCE_EDGE = 0.5;
 const MIN_CURB_AREA = CURB_WIDTH * 0.5;
 
@@ -44,16 +43,13 @@ const MIN_CURB_AREA = CURB_WIDTH * 0.5;
 const CURB_RADIUS: [number, number] = [1.5, 3];
 
 export class BlockBuilder {
-  /** Land each face keeps once the roadway of its own edges is subtracted. */
+  /** Land each face keeps outside the complete carriageway network. */
   static pieces(faces: Face[], edgeBuffers: Map<string, Polygon[]>): FacePiece[] {
     const out: FacePiece[] = [];
+    const buffers = new PolygonIndex([...edgeBuffers.values()].flat());
     faces.forEach((face, faceIndex) => {
-      const roadway: Polygon[] = [];
-      for (const id of face.edgeIds) {
-        const buf = edgeBuffers.get(id);
-        if (buf) roadway.push(...buf);
-      }
-      // pieces below MIN_BLOCK_AREA stay part of the face's roadway ground
+      const roadway = buffers.near(face.polygon);
+      // Smaller land remains open ground, without taking ownership of any roadway.
       difference([face.polygon], roadway).forEach((polygon, pieceIndex) => {
         if (area(polygon) >= MIN_BLOCK_AREA) out.push({ faceIndex, pieceIndex, polygon });
       });
@@ -64,50 +60,45 @@ export class BlockBuilder {
   static build(
     faces: Face[],
     edgeBuffers: Map<string, Polygon[]>,
-    alleyBuffers: Map<string, Polygon[]>,
+    alleyPaths: Map<string, Polyline>,
+    alleyPaving: Polygon[],
     sidewalkWidthOfFace: (face: Face) => number,
     curbRng: Rng,
   ): BuiltBlock[] {
     const blocks: BuiltBlock[] = [];
+    const pedestrian = new PolygonIndex(alleyPaving);
+    const road = new PolygonIndex([...edgeBuffers.values()].flat());
     for (const { faceIndex, pieceIndex, polygon } of this.pieces(faces, edgeBuffers)) {
       const face = faces[faceIndex];
       const rng = curbRng.fork(`${faceIndex}:${pieceIndex}`);
-      const piece = filletCorners(withoutShortEdges(polygon), () => rng.range(CURB_RADIUS[0], CURB_RADIUS[1]));
       const sw = sidewalkWidthOfFace(face);
-      const interior = offset([piece], -sw).filter((p) => area(p) >= 60);
+      const shared = new SharedBoundary(face.edgeIds.flatMap((id) => alleyPaths.has(id) ? [alleyPaths.get(id)!] : []));
+      const piece = filletCorners(shared.clean(polygon, MIN_SOURCE_EDGE, sw), (corner) =>
+        shared.contains(corner) ? 0 : rng.range(CURB_RADIUS[0], CURB_RADIUS[1]),
+      );
+      const interior = difference(offset([piece], -sw), pedestrian.near(piece)).filter((p) => area(p) >= 60);
       if (interior.length === 0) continue;
       // three bands off the same ring, so the kerb follows every return with
       // both its edges parallel to it: kerb, then sidewalk, then the interior
       const behindCurb = offset([piece], -CURB_WIDTH);
       const kerb = difference([piece], behindCurb);
-      // an alley borders no roadway: its stretch of the band is sidewalk instead
-      const alleys: Polygon[] = [];
-      for (const id of face.edgeIds) alleys.push(...(alleyBuffers.get(id) ?? []));
-      const cutCurb = alleys.length > 0 ? difference(kerb, alleys) : kerb;
+      const returns = difference([polygon], [piece]);
+      // Two independently snapped offsets share this closed frontage boundary.
+      const roadFrontage = offset([...road.near(piece), ...returns], CURB_WIDTH + GRID_STEP * 2);
+      const pedestrianSeam = difference(shared.band(CURB_WIDTH * 4), roadFrontage);
+      // Shared pedestrian boundaries are curb-free; their roadway frontage keeps its curb.
+      const cutCurb = difference(kerb, pedestrianSeam);
       const curb = cutCurb.filter((polygon) => area(polygon) >= MIN_CURB_AREA);
       const sidewalk = [
         ...difference(behindCurb, interior),
-        ...intersection(kerb, alleys),
+        ...intersection(kerb, pedestrianSeam),
         ...cutCurb.filter((polygon) => area(polygon) < MIN_CURB_AREA),
       ];
-      blocks.push({ faceIndex, boundary: piece, curb, sidewalk, sidewalkWidth: sw, interior, edgeIds: face.edgeIds });
+      blocks.push({
+        boundary: piece, curb, sidewalk, sidewalkWidth: sw, interior,
+        edgeIds: face.edgeIds, returns,
+      });
     }
     return blocks;
   }
-}
-
-/** Removes millimetre-scale boolean remnants before their direction can turn a curb inward. */
-function withoutShortEdges(ring: Polygon): Polygon {
-  const out = ring.map((point) => [...point] as [number, number]);
-  let changed = true;
-  while (changed && out.length > 3) {
-    changed = false;
-    for (let i = 0; i < out.length; i++) {
-      if (dist(out[i], out[(i + 1) % out.length]) >= MIN_SOURCE_EDGE) continue;
-      out.splice((i + 1) % out.length, 1);
-      changed = true;
-      break;
-    }
-  }
-  return out;
 }
