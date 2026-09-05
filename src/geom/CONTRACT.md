@@ -11,6 +11,7 @@ Types: [schema.ts](schema.ts). Entry points: [clip.ts](clip.ts).
 - `bufferLine(points, width)` returns the region around an open line, with round ends.
 - `snap(value)` and `snapPoint(point)` return the nearest 1 mm coordinate.
 - `normalizePaths(paths)` in [SnapRounding.ts](SnapRounding.ts) takes oriented integer-grid paths and returns crossing-free simple cycles on the same grid. It preserves winding for the Boolean wrapper's outer/hole classification.
+- `hasInteriorBeyondPrecision(polygons, boundaryWidth = GRID_STEP)` unions the complete region and returns whether it retains interior after erosion by half `boundaryWidth`. Widths are finite positive metres. The check uses an internal grid 1,024 times finer than that width and publishes no geometry.
 
 ## Invariants
 
@@ -21,7 +22,7 @@ Types: [schema.ts](schema.ts). Entry points: [clip.ts](clip.ts).
 
 ## Errors
 
-`E_INVARIANT` if the normalized arrangement still contains a crossing.
+`E_INVARIANT` if the normalized arrangement still contains a crossing, or a diagnostic boundary width is not finite and positive.
 
 ## Depends on
 

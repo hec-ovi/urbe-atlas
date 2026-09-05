@@ -17,12 +17,18 @@ import type { Polygon, Vec2 } from '../../schema/blueprint';
 import { ensureCCW, area } from './polygon';
 import { normalizePaths } from './SnapRounding';
 import type { GridPath as IntPath } from './schema';
+import { interiorBeyondPrecision } from './InteriorPrecision';
 
 const SCALE = 1000; // 1 unit = 1 mm
 export const GRID_STEP = 1 / SCALE;
 
 export const snap = (v: number): number => Math.round(v * SCALE) / SCALE;
 export const snapPoint = (p: Vec2): Vec2 => [snap(p[0]), snap(p[1])];
+
+/** Whether the whole region survives half a boundary-width inset at diagnostic precision. */
+export function hasInteriorBeyondPrecision(polygons: Polygon[], boundaryWidth = GRID_STEP): boolean {
+  return interiorBeyondPrecision(polygons, boundaryWidth);
+}
 
 function toPath(poly: Polygon): IntPath {
   return poly.map(([x, z]) => ({ x: Math.round(x * SCALE), y: Math.round(z * SCALE) }));
