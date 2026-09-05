@@ -467,10 +467,15 @@ describe('PreviewApp', () => {
     const app = mount();
     const input = getByLabelText(app.root, 'Parameter file');
     const streetDesign: AtlasParams['streetDesign'] = {
-      profiles: [{ id: 'wide', classes: ['street', 'road'],
+      profiles: [{ id: 'wide', classes: ['street'],
         lanes: [{ direction: 'forward', width: 4 }, { direction: 'backward', width: 4 }],
-        shoulders: { left: 0.25, right: 0.25 } }],
+        shoulders: { left: 0.25, right: 0.25 } },
+      { id: 'avenue', classes: ['road'],
+        lanes: [{ direction: 'forward', width: 3.5 }, { direction: 'forward', width: 3.5 },
+          { direction: 'backward', width: 3.5 }, { direction: 'backward', width: 3.5 }],
+        shoulders: { left: 0, right: 0 } }],
       sidewalkProfiles: [{ id: 'walk', curb: 0.15, border: 0.25, furnishing: 1, walking: 3, frontage: 0.6 }],
+      crossings: { pedestrianClearance: 3 },
     };
     const pavingDesign: AtlasParams['pavingDesign'] = {
       defaultLayoutId: 'grid', districtLayouts: [{ districtId: 'd0', layoutId: 'grid' }],
@@ -488,7 +493,7 @@ describe('PreviewApp', () => {
       footprintShape: 'parcel', streetDesign, pavingDesign, unknownSetting: 'discard' };
     await userEvent.upload(input, new File([JSON.stringify(params)], 'city.json', { type: 'application/json' }));
     await waitFor(() => {
-      expect((getByLabelText(app.root, 'Seed') as HTMLInputElement).value).toBe('imported');
+      expect((getByLabelText(app.root, 'Seed') as HTMLInputElement).value, getByRole(app.root, 'log').textContent ?? '').toBe('imported');
     });
     expect((getByLabelText(app.root, 'Width (m)') as HTMLInputElement).value).toBe('900');
     expect((getByLabelText(app.root, 'Alleys') as HTMLInputElement).checked).toBe(false);
