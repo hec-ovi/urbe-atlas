@@ -24,6 +24,18 @@ function matchesBoundary(source: Region, triangles: Region, pool: PointPool): bo
 
 /** A left ray reaches the current exterior before any hole still to its right. */
 function bridge(outline: Ring, hole: Ring, pool: PointPool): Ring {
+  const occurrences = new Map<string, number[]>();
+  outline.forEach((point, index) => occurrences.set(point.key, [...(occurrences.get(point.key) ?? []), index]));
+  const interior = (index: number, point: Point) => {
+    const previous = outline[(index + outline.length - 1) % outline.length], current = outline[index], next = outline[(index + 1) % outline.length];
+    const incoming = orient(previous, current, point) >= 0n, outgoing = orient(current, next, point) >= 0n;
+    return orient(previous, current, next) >= 0n ? incoming && outgoing : incoming || outgoing;
+  };
+  for (let contact = 0; contact < hole.length; contact++) {
+    const index = occurrences.get(hole[contact].key)?.find(index => interior(index, hole[(contact + hole.length - 1) % hole.length])
+      && interior(index, hole[(contact + 1) % hole.length]));
+    if (index !== undefined) return [...outline.slice(0, index + 1), ...hole.slice(contact + 1), ...hole.slice(0, contact + 1), ...outline.slice(index + 1)];
+  }
   let first = 0;
   for (let index = 1; index < hole.length; index++) if (compare(hole[index], hole[first]) < 0) first = index;
   const h = hole[first], end = pool.make(h.x + h.w, h.y, h.w);
@@ -38,8 +50,10 @@ function bridge(outline: Ring, hole: Ring, pool: PointPool): Ring {
   }
   if (!nearest) throw invariantFailure('partition hole has no interior bridge');
   const joined = [...outline];
-  if (nearest.key === joined[(edgeIndex + 1) % joined.length].key) edgeIndex = (edgeIndex + 1) % joined.length;
-  else if (nearest.key !== joined[edgeIndex].key) joined.splice(++edgeIndex, 0, nearest);
+  const existing = occurrences.get(nearest.key)?.find(index => interior(index, h));
+  if (existing !== undefined) edgeIndex = existing;
+  else if (!occurrences.has(nearest.key)) joined.splice(++edgeIndex, 0, nearest);
+  else throw invariantFailure('partition bridge has no interior contact sector');
   const loop = [...hole.slice(first), ...hole.slice(0, first + 1)];
   return [...joined.slice(0, edgeIndex + 1), ...loop, nearest, ...joined.slice(edgeIndex + 1)];
 }
@@ -92,7 +106,11 @@ export function triangulate(component: Region, pool: PointPool): Region {
   const leftmost = (ring: Ring) => ring.reduce((a, b) => compare(a, b) < 0 ? a : b);
   const holes = component.slice(1).sort((a, b) => compare(leftmost(a), leftmost(b)));
   let outline = component[0];
-  for (const hole of holes) outline = bridge(outline, hole, pool);
+  while (holes.length) {
+    const present = new Set(outline.map(point => point.key));
+    const contact = holes.findIndex(hole => hole.some(point => present.has(point.key)));
+    outline = bridge(outline, holes.splice(contact < 0 ? 0 : contact, 1)[0], pool);
+  }
   const exact = exactEars(outline);
   if (!matchesBoundary(component, exact, pool)) throw invariantFailure('partition exact triangles do not conserve their boundary');
   return exact;

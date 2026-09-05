@@ -18,7 +18,8 @@ Types: [schema.ts](schema.ts). Entries: [SourcePartition.ts](SourcePartition.ts)
 
 - Source coordinates and canonical reserved corners are unchanged. Rational intersections share one identity and one numeric conversion. Derived solid vertices are not snapped to the source lattice.
 - All positive-area source land has exactly one owner; no owner adds land. Holes remain excluded. No area threshold discards a face, and no hole limit fills one.
-- Hole triangulation candidates must conserve the exact oriented boundary. Exact bridge and ear decisions handle unresolved candidates. Adjacent triangles coalesce only when their union has one simple boundary, retaining all boundary vertices.
+- Each hole belongs to its immediate containing exterior, including islands that contain further holes.
+- Hole triangulation candidates must conserve the exact oriented boundary. Touching holes join through existing contacts before adding bridges. Bridges enter the matching interior sector at repeated contact vertices; exact ear decisions handle unresolved candidates. Adjacent triangles coalesce only when their union has one simple boundary, retaining all boundary vertices.
 - Every interior edge has opposite incidences; exterior chains equal the original source edges. Simple positive-winding pieces and the complete planar edge arrangement prove coverage and disjointness, not area equality alone.
 - A certificate carries exact vertices and subdivision chains. Verification checks chains against source and piece edges, conversion against emitted numbers, planarity, winding and edge multiplicity. Corrupted faces, chains or vertices fail.
 - Numeric output permits only the representation rounding of a shared rational vertex. Protected polygons are published verbatim; subdivision points on their edges belong to the certificate, not their published outlines.

@@ -11,8 +11,10 @@ export function connected(region: Region, pool: PointPool): Region[] {
   for (const hole of region.filter(ring => ringSign(ring) < 0)) {
     const probe = leftProbe(hole[0], hole[1], pool), box = extent([[probe.base]]);
     const candidates = outers.filter(outer => overlaps(outer.box, box) && winding([outer.rings[0]], probe) !== 0);
-    if (candidates.length !== 1) throw invariantFailure('partition hole has no unique exterior');
-    candidates[0].rings.push(hole);
+    const immediate = candidates.filter(candidate => !candidates.some(other => other !== candidate
+      && winding([candidate.rings[0]], leftProbe(other.rings[0][0], other.rings[0][1], pool)) !== 0));
+    if (immediate.length !== 1) throw invariantFailure('partition hole has no unique immediate exterior');
+    immediate[0].rings.push(hole);
   }
   return outers.map(outer => outer.rings);
 }

@@ -55,6 +55,18 @@ describe('source-preserving partition contract', () => {
     verifyPartition({ source, partition: plan.finish() });
   });
 
+  it('assigns each nested hole to its immediate exterior component', () => {
+    const source = rectangle(0, 0, 30, 30), plan = SourcePartition.create({ id: 'source', source });
+    const frame = (low: number, high: number) => [rectangle(low, low, high, low + 2),
+      rectangle(low, high - 2, high, high), rectangle(low, low + 2, low + 2, high - 2),
+      rectangle(high - 2, low + 2, high, high - 2)];
+    plan.divide('source', { claims: [{ id: 'frames', masks: [...frame(0, 30), ...frame(10, 20)] }], remainderId: 'gaps' });
+    const components = plan.components('frames');
+    expect(components).toHaveLength(2);
+    expect(components.map(component => plan.loops(component.id).length)).toEqual([2, 2]);
+    verifyPartition({ source, partition: plan.finish() });
+  });
+
   it('publishes the consumer canonical cell unchanged when a solid cut terminates on its edge', () => {
     const source = rectangle(-5, -5, 5, 5), origin = [1.017, -.993], u = [.6, .8], pitch = [2, 2];
     const cell: Polygon = [[0, 0], [1, 0], [1, 1], [0, 1]].map(([column, row]) => {
@@ -72,11 +84,15 @@ describe('source-preserving partition contract', () => {
     expect(partition.certificate.pieceChains[index].some(edge => edge.length > 2)).toBe(true);
   });
 
-  it('conserves a hole whose derived corner is closer than the numeric triangulator can resolve', () => {
-    const source = rectangle(80, 230, 87, 236), plan = SourcePartition.create({ id: 'source', source });
+  it('conserves unresolved corners and the interior sectors of touching hole chains', () => {
+    const source = rectangle(80, 230, 100, 250), plan = SourcePartition.create({ id: 'source', source });
     plan.divide('source', { claims: [{ id: 'hole', masks: [
       [[83.142, 233.409], [83.188, 233.24], [85, 231], [85, 234]],
       rectangle(83.14199999999998, 233.40899999999993, 83.14200000000001, 233.40900000000005),
+      [[84, 230], [85, 230.5], [86, 232]],
+      [[86, 232], [90, 228], [94, 232], [90, 236]],
+      [[86, 240], [90, 236], [94, 240], [90, 244]],
+      [[95, 236], [96, 235], [97, 236], [96, 237]],
     ] }], remainderId: 'surrounding' });
     const partition = plan.finish();
     verifyPartition({ source, partition });
