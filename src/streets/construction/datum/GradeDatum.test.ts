@@ -68,6 +68,7 @@ describe('grade-ground datum', () => {
     expect(plan.spans[0].end).toEqual(plan.spans[1].start);
     expect(contains(roadway(plan), [48, 48])).toBe(true);
     expect(contains(plan.grade.full, [52, 52])).toBe(false);
+    expect(contains(plan.grade.corridors.flatMap(owner => owner.polygons), [52, 52])).toBe(false);
     expect(plan.roadFrontage.some(frontage => frontage.kind === 'elevation-transition')).toBe(true);
     const flat = { ...bent, level: 0, sidewalk: { left: 3, right: 6.5 },
       elevationProfile: bent.elevationProfile.map(knot => ({ ...knot, level: 0 })) };
@@ -133,6 +134,18 @@ describe('grade-ground datum', () => {
     expect(roadway(plan)).toEqual([]);
     expect(hasInteriorBeyondPrecision(difference(union(clearance.flatMap(region => region.polygons)),
       plan.projected.structures.flatMap(owner => owner.polygons)))).toBe(false);
+  });
+
+  it('retains inclusive e103 corridor ownership across its carriageway boundary', () => {
+    const source = edge('e103', [[859.086, 362.998], [920.339, 362.49]], {
+      class: 'road', width: 14, sidewalk: { left: 8.5, right: 8.5 },
+    });
+    const plan = GradeDatum.plan({ ...input([source]), boundary: rectangle(830, 330, 950, 400) });
+    const corridors = plan.grade.corridors.flatMap(owner => owner.polygons);
+    expect(plan.grade.corridors.map(owner => owner.spanId)).toEqual(plan.spans.map(span => span.id));
+    expect(contains(corridors, [886.731, 355.7676])).toBe(true);
+    expect(contains(corridors, [886.731, 362.769])).toBe(true);
+    expect(contains(roadway(plan), [886.731, 355.7676])).toBe(false);
   });
 
   it('rejects invalid datums, incomplete source profiles and invalid clearance', () => {

@@ -27,13 +27,14 @@ export class GradeDatum {
     const corridors = new StreetCorridors(input.edges);
     const spans = [...sources.values()].flatMap(source => source.spans(input.roadwayTop));
     const clipped = (polygons: Polygon[]): Polygon[] => intersection(polygons, [input.boundary]);
-    const grade: GradeDatumPlan['grade'] = { roadway: [], pedestrian: [], full: [] };
+    const grade: GradeDatumPlan['grade'] = { roadway: [], pedestrian: [], corridors: [], full: [] };
     const transitions: { spanId: string; line: [Vec2, Vec2] }[] = [];
     for (const edge of input.edges) {
       const source = sources.get(edge.id)!;
       const radius = edge.width / 2 + Math.max(edge.sidewalk.left, edge.sidewalk.right);
       const cells = new StationCells(source, radius);
       const roadway = corridors.roadway.get(edge.id) ?? [];
+      const inclusive = corridors.byEdge.get(edge.id) ?? [];
       const sidewalks = {
         left: StreetCorridors.sidewalk(edge, 'left'), right: StreetCorridors.sidewalk(edge, 'right'),
       };
@@ -47,6 +48,8 @@ export class GradeDatum {
         const slice = (polygons: Polygon[]): Polygon[] => clipped(cells.slice(polygons, span.start.distance, span.end.distance));
         const polygons = slice(roadway);
         if (polygons.length) grade.roadway.push({ spanId: span.id, polygons });
+        const complete = slice(inclusive);
+        if (complete.length) grade.corridors.push({ spanId: span.id, polygons: complete });
         for (const side of ['left', 'right'] as const) {
           const polygons = slice(sidewalks[side]);
           if (polygons.length) grade.pedestrian.push({ spanId: span.id, side, polygons });

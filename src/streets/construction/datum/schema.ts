@@ -65,6 +65,8 @@ export interface GradeDatumPlan {
   grade: {
     roadway: DatumRoadwayOwner[];
     pedestrian: DatumPedestrianOwner[];
+    /** Inclusive source corridors; final roadway/curb claims take precedence. */
+    corridors: DatumRoadwayOwner[];
     full: Polygon[];
   };
   projected: {
