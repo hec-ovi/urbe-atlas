@@ -1,4 +1,4 @@
-import type { Vec2 } from '../../../../schema/blueprint';
+import type { GroundSurface, Vec2 } from '../../../../schema/blueprint';
 import type { SidewalkBands } from '../schema/design';
 
 /** Caller-owned finish selection and numeric construction dimensions. */
@@ -6,7 +6,14 @@ export interface PavingLayout {
   id: string;
   familyId: string;
   modules: PavingModule[];
-  bands: Record<keyof SidewalkBands, { moduleId: string; borderWidth: number }>;
+  bands: Record<keyof SidewalkBands, PavingBandSetting>;
+}
+
+export interface PavingBandSetting {
+  moduleId: string;
+  borderWidth: number;
+  /** Optional whole-group pattern, measured in the band's underlying base cells. */
+  grouping?: { moduleId: string; period: [number, number]; offset: [number, number] };
 }
 
 export interface PavingModule {
@@ -15,11 +22,15 @@ export interface PavingModule {
   pitch: [number, number];
   /** Total joint width at each U/V boundary. Body = pitch - joint. */
   joint: [number, number];
+  /** Integer base-cell count in one slab. Omission is [1, 1]. */
+  baseCells?: [number, number];
 }
 
 export interface PavingDesign {
   layouts: PavingLayout[];
   defaultLayoutId: string;
+  /** Continuous roadway finish. Omission selects defaultLayoutId. */
+  roadwayLayoutId?: string;
   districtLayouts: { districtId: string; layoutId: string }[];
 }
 
@@ -38,11 +49,20 @@ export type PavingOwner =
 
 export interface PavingRegion {
   id: string;
+  /** Required in 1.1.0; source identity carries semantic levels, never geometry. */
+  sourceId?: string;
   owner: PavingOwner;
   /** Movement space is independent of finish and visible joints. */
   band: keyof SidewalkBands | 'circulation';
   layoutId: string;
   frameId: string;
+}
+
+export interface PavingSource {
+  id: string;
+  surface: GroundSurface['surface'];
+  bottom: number;
+  top: number;
 }
 
 export type PavingRole =
@@ -63,9 +83,12 @@ export interface GroundConstruction {
 }
 
 /** Additive StreetConstruction.paving, with no duplicate geometry polygons. */
-export interface PavingConstruction {
-  version: '1.0.0';
+interface PavingConstructionData {
   layouts: PavingLayout[];
   frames: PavingFrame[];
-  regions: PavingRegion[];
 }
+
+export type PavingConstruction = PavingConstructionData & (
+  | { version: '1.0.0'; regions: PavingRegion[] }
+  | { version: '1.1.0'; roadwayLayoutId: string; sources: PavingSource[]; regions: (PavingRegion & { sourceId: string })[] }
+);
