@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { GroundSurface, Polygon, StreetEdge, StreetNode, Vec2 } from '../../../../schema/blueprint';
 import { generateCity } from '../../../index';
 import { difference, union } from '../../../geom/clip';
+import { pointInPolygon } from '../../../geom/polygon';
 import { SourcePartition } from '../../../geom/partition/SourcePartition';
 import { edgeMaskView } from '../../../geom/partition/EdgeMasks';
 import { CrossingPlanner } from '../../crossings/CrossingPlanner';
@@ -214,6 +215,42 @@ describe('fitted paving producer contract', () => {
     expect(stationRegions.every(region => region.owner.kind === 'station-bay' && region.owner.stationId === 'ss0'
       && region.owner.entranceIndex === 0)).toBe(true);
     expect(edge.crossSection).toBeDefined();
+  });
+
+  it('continues metre joints through a rotated curb that cannot fit nominal-width cells', () => {
+    const at = (u: number, v: number): Vec2 => [10 + 0.6 * u - 0.8 * v, 20 + 0.8 * u + 0.6 * v];
+    const source = input([[at(0, 0), at(24, 0)]]);
+    source.design = groupedDesign();
+    const curb = [at(0, 3.5), at(24, 3.5), at(24, 3.649), at(0, 3.649)]
+      .map(point => point.map(value => Math.round(value * 1000) / 1000) as Vec2);
+    source.ground = [ground(curb, 'curb')];
+    for (const [entry, output] of [['shared', PavingPlanner.planShared(shared(source, curb))], ['standalone', PavingPlanner.plan(source)]] as const) {
+      verify(source, output);
+      const joints = output.ground.filter(owner => owner.construction?.part.kind === 'solid'
+        && owner.construction.part.role === 'joint');
+      for (let station = 1; station < 24; station++) {
+        for (const across of [3.51, 3.575, 3.639]) {
+          expect(joints.some(owner => pointInPolygon(at(station, across), owner.polygon)), `joint ${station}, width ${across}`).toBe(true);
+          expect(joints.some(owner => pointInPolygon(at(station + 0.02, across), owner.polygon))).toBe(false);
+        }
+      }
+      if (entry === 'shared') PavingPlanner.validatePublished(JSON.parse(JSON.stringify({
+        meta: { boundary: curb }, streets: { ...source.streets, construction: { ...source.streets.construction, paving: output.construction } },
+        volumetric: { ground: output.ground }, transit: { trainStations: [], subwayStations: [] },
+      })));
+    }
+    const curbModule = source.design.layouts[0].modules.find(module => module.id === 'kerb')!;
+    curbModule.pitch[0] = 2;
+    curbModule.baseCells = [2, 1];
+    const paired = PavingPlanner.planShared(shared(source, curb));
+    const pairedJoints = paired.ground.filter(owner => owner.construction?.part.kind === 'solid'
+      && owner.construction.part.role === 'joint');
+    for (let station = 1; station < 24; station++) {
+      expect(pairedJoints.some(owner => pointInPolygon(at(station, 3.575), owner.polygon))).toBe(station % 2 === 0);
+    }
+    source.design.layouts[0].modules.forEach(module => { module.joint[0] = 0; });
+    expect(PavingPlanner.plan(source).ground.some(owner => owner.construction?.part.kind === 'solid'
+      && owner.construction.part.role === 'joint')).toBe(false);
   });
 
   it('reports malformed settings and incoherent published ownership through the public entry', () => {

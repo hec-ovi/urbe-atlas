@@ -7,6 +7,7 @@ import { acceptsGroup } from './Grouping';
 import { bounds, overlaps, type Bounds } from './Geometry';
 import { Ownership, type Field } from './Ownership';
 import { Regions } from './Regions';
+import { ResidualJoints } from './ResidualJoints';
 import type { GroundMetadata } from './Publication';
 import type { GroundConstruction, PavingRole } from './schema';
 
@@ -92,6 +93,15 @@ export class SourcePaving {
           const id = this.id();
           this.partition.reserve(coreId, { id, polygon: cell.polygon, encoding: this.encoding('authored-1mm') });
           this.metadata.set(id, { regionId: region.id, part: cell.part });
+        }
+      }
+      if (region.band === 'curb') {
+        const claims = ResidualJoints.claims(this.partition.boundaries(coreId), frame, module, () => this.id());
+        if (claims.length) {
+          const remainderId = this.id();
+          this.partition.divide(coreId, { claims, remainderId });
+          for (const claim of claims) this.solid(claim.id, region.id, 'joint');
+          this.solid(remainderId, region.id, 'curb');
         }
       }
     }

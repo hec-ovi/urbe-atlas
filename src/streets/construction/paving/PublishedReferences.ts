@@ -97,7 +97,7 @@ export class PublishedReferences {
     const part = ground.construction.part;
     if (!part || part.kind !== 'grid' && part.kind !== 'solid') throw invariantFailure('published paving part is invalid');
     if (part.kind === 'solid') {
-      const roles = region.band === 'curb' || region.band === 'border' ? [region.band]
+      const roles = region.band === 'curb' ? ['curb', 'joint'] : region.band === 'border' ? ['border']
         : ['body', 'joint', 'border', 'crossing-field', 'approach', 'corner-infill'];
       if (!roles.includes(part.role)) throw invariantFailure('published paving solid role disagrees with its band');
       if ((part.role === 'crossing-field' || part.role === 'approach') && region.band !== 'circulation') {
