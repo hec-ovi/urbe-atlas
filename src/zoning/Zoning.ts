@@ -14,12 +14,15 @@ import { isHeavy } from './bands';
 import { makeEnvelope } from './envelopes';
 import { lotHosts } from './profiles';
 import type { FootprintHost } from './FootprintHost';
+import { BASE_MIX } from './UseMix';
+import { parcelTier } from './TierPolicy';
+import { residentialCapacity } from './ResidentialCapacity';
+import { populationForecast } from './PopulationForecast';
+import type { DistrictCapacityInput, PopulationForecast } from './population-schema';
 import {
   ANCHOR_FACILITIES,
-  FLOOR_AREA_PER_RESIDENT,
   MIN_FACILITY_AREA,
   RESIDENTS_PER_FACILITY,
-  RESIDENTIAL_EFFICIENCY,
 } from './ratios';
 
 export interface ZonedParcel {
@@ -38,39 +41,11 @@ export interface LotInput {
   onRoad: boolean;
 }
 
-const TIERS: WealthTier[] = ['poor', 'mid', 'rich', 'high_rich'];
-
-const BASE_MIX: Record<DistrictKind, [ParcelType, number][]> = {
-  downtown: [
-    ['offices', 0.42],
-    ['corpo', 0.14],
-    ['hotel', 0.12],
-    ['commerce', 0.16],
-    ['residential', 0.16],
-  ],
-  commercial: [
-    ['commerce', 0.42],
-    ['offices', 0.26],
-    ['hotel', 0.08],
-    ['residential', 0.24],
-  ],
-  residential: [
-    ['residential', 0.86],
-    ['commerce', 0.14],
-  ],
-  industrial: [
-    ['factory', 0.82],
-    ['commerce', 0.08],
-    ['offices', 0.10],
-  ],
-  mixed: [
-    ['residential', 0.52],
-    ['offices', 0.18],
-    ['commerce', 0.30],
-  ],
-};
-
 export class Zoning {
+  static populationForecast(districts: readonly DistrictCapacityInput[]): PopulationForecast {
+    return populationForecast(districts);
+  }
+
   static assign(lots: LotInput[], districts: PlannedDistrict[], cityCenter: Vec2, rng: Rng, host: FootprintHost): ZonedParcel[] {
     // --- base types from the district mix, limited to what the lot hosts ---
     const hosts = (index: number, type: ParcelType): boolean => lotHosts(lots[index].polygon as Vec2[], type, host);
@@ -165,17 +140,8 @@ export class Zoning {
   /** Capacity model: lot coverage 0.55, average floors, usable share, m2 per resident. */
   static residentsFor(lotArea: number, envelope: Envelope): number {
     const avgFloors = (envelope.minFloors + envelope.maxFloors) / 2;
-    return Math.round((lotArea * 0.55 * avgFloors * RESIDENTIAL_EFFICIENCY) / FLOOR_AREA_PER_RESIDENT);
+    return Math.round(residentialCapacity(lotArea, avgFloors));
   }
-}
-
-function parcelTier(districtTier: WealthTier, kind: DistrictKind, rng: Rng): WealthTier {
-  if (kind === 'industrial') return rng.chance(0.75) ? 'poor' : 'mid';
-  let idx = TIERS.indexOf(districtTier);
-  const roll = rng.next();
-  if (roll < 0.12) idx = Math.max(0, idx - 1);
-  else if (roll > 0.88) idx = Math.min(TIERS.length - 1, idx + 1);
-  return TIERS[idx];
 }
 
 function totalResidents(parcels: ZonedParcel[], lots: LotInput[]): number {
@@ -183,7 +149,7 @@ function totalResidents(parcels: ZonedParcel[], lots: LotInput[]): number {
   for (const p of parcels) {
     if (p.type !== 'residential') continue;
     const avgFloors = (p.envelope.minFloors + p.envelope.maxFloors) / 2;
-    sum += (area(lots[p.lotIndex].polygon as Vec2[]) * 0.55 * avgFloors * RESIDENTIAL_EFFICIENCY) / FLOOR_AREA_PER_RESIDENT;
+    sum += residentialCapacity(area(lots[p.lotIndex].polygon as Vec2[]), avgFloors);
   }
   return sum;
 }

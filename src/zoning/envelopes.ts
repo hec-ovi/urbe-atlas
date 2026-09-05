@@ -64,6 +64,22 @@ const TIER_FLOOR_FACTOR: Record<WealthTier, number> = {
 };
 
 export function makeEnvelope(type: ParcelType, tier: WealthTier, districtMaxFloors: number, rng: Rng): Envelope {
+  const { floor, cap, floorHeight } = envelopeRange(type, tier, districtMaxFloors);
+  const maxFloors = Math.max(floor, Math.min(cap, floor + rng.int(0, Math.max(0, cap - floor))));
+  return envelopeAt(floor, maxFloors, floorHeight);
+}
+
+export function expectedResidentialFloors(tier: WealthTier, districtMaxFloors: number): number {
+  const { floor, cap, floorHeight } = envelopeRange('residential', tier, districtMaxFloors);
+  let sum = 0;
+  for (let maximum = floor; maximum <= cap; maximum++) {
+    const envelope = envelopeAt(floor, maximum, floorHeight);
+    sum += (envelope.minFloors + envelope.maxFloors) / 2;
+  }
+  return sum / (cap - floor + 1);
+}
+
+function envelopeRange(type: ParcelType, tier: WealthTier, districtMaxFloors: number): { floor: number; cap: number; floorHeight: number } {
   let lo: number;
   let hi: number;
   let floorHeight: number;
@@ -81,7 +97,10 @@ export function makeEnvelope(type: ParcelType, tier: WealthTier, districtMaxFloo
   floorHeight = Math.max(floorHeight, minFloorHeight(type));
   const cap = Math.max(1, Math.min(hi, districtMaxFloors));
   const floor = Math.max(1, Math.min(lo, cap));
-  const maxFloors = Math.max(floor, Math.min(cap, floor + rng.int(0, Math.max(0, cap - floor))));
+  return { floor, cap, floorHeight };
+}
+
+function envelopeAt(floor: number, maxFloors: number, floorHeight: number): Envelope {
   const minFloors = Math.max(1, Math.round(floor + (maxFloors - floor) * 0.3));
   return {
     minFloors,
