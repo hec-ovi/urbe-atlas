@@ -51,22 +51,17 @@ export class PreviewApp {
   constructor(private readonly fetchManifest: ManifestFetcher = (url) => fetch(url)) {
     this.parcelLink = new ParcelLink();
     this.inspector = new InspectorPanel(
-      (parcel) => this.parcelLink.destinationFor(parcel, this.blueprint?.meta.seed ?? ''),
+      () => ({ error: 'Exterior assets for this exact blueprint have not been verified. Generate exteriors before opening a building.' }),
       () => this.map.clearSelection(),
     );
     this.map = new MapView(
       (hit) => {
         this.inspector.select(hit);
-        this.tabs.show('visualization');
-        if (hit.kind === 'parcel') this.openParcel(hit.parcel);
       },
-      (hit) => this.inspector.preview(hit),
     );
     this.map3d = new Map3DView(
       (parcel) => {
         this.inspector.select({ kind: 'parcel', parcel });
-        this.tabs.show('visualization');
-        this.openParcel(parcel);
       },
     );
     this.panel = new ParamsPanel({
@@ -87,7 +82,7 @@ export class PreviewApp {
     ]);
     this.tabs = new ViewTabs(
       [this.panel.root],
-      [visualizationIntro, this.modeSwitch.root, this.overview.root, this.layers.root, this.inspector.root, this.parcelLink.root, new LegendWidget().root],
+      [visualizationIntro, this.modeSwitch.root, this.overview.root, this.layers.root, this.parcelLink.root, new LegendWidget().root],
       (active) => {
         if (active === 'visualization') this.setMode('3d');
         requestAnimationFrame(() => this.resize());
@@ -105,7 +100,7 @@ export class PreviewApp {
     this.toolbar = new MapToolbar({ onFit: () => this.fitView(), onDownload: () => this.exportBlueprint(),
       onImport: (file) => void this.loadSaved(async () => JSON.parse(await file.text()), file.name) });
     this.map3d.canvas.hidden = true;
-    this.mapWrap.append(this.map.canvas, this.map3d.canvas, this.toolbar.root, this.progress.root, this.notifications.root);
+    this.mapWrap.append(this.map.canvas, this.map3d.canvas, this.toolbar.root, this.inspector.root, this.progress.root, this.notifications.root);
     this.root = el('div', { class: 'preview', 'data-theme': 'dark' });
     this.root.append(sidebar, this.mapWrap);
   }
@@ -186,6 +181,7 @@ export class PreviewApp {
   }
 
   private installBlueprint(blueprint: CityBlueprint): void {
+    this.inspector.close();
     this.map.setBlueprint(blueprint);
     if (this.mode === '3d') {
       this.map3d.setBlueprint(blueprint);
@@ -257,16 +253,6 @@ export class PreviewApp {
     } catch (e) {
       this.notifications.error(`${file.name}: ${e instanceof Error ? e.message : String(e)}`);
     }
-  }
-
-  /** Opens the selected parcel synchronously from its right-click event. */
-  private openParcel(parcel: CityBlueprint['parcels'][number]): void {
-    const destination = this.parcelLink.destinationFor(parcel, this.blueprint?.meta.seed ?? '');
-    if ('error' in destination) {
-      this.notifications.error(`${parcel.id}: ${destination.error}`);
-      return;
-    }
-    window.open(destination.url, '_blank', 'noopener');
   }
 
   private scheduleManifestLoad(): void {

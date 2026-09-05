@@ -5,7 +5,7 @@
  * hidden) and as decks with piers where a highway runs above it, rail as
  * tracks at grade and tunnels under it, stations as platforms with entrance
  * posts at the surface. Geometry merges per colour, so the city is a few
- * dozen draw calls. Drag orbits, wheel zooms, and right-click inspects a
+ * dozen draw calls. Drag orbits, wheel zooms, and click inspects a
  * building.
  */
 import * as THREE from 'three';
@@ -15,6 +15,7 @@ import type { CityBlueprint, ElevationPoint, Parcel, PlantingKind, Polygon, Poly
 import { DIAGNOSTIC_COLORS, FURNITURE_COLORS, GROUND_COLORS, HYDROLOGY_COLORS, TRANSIT_COLORS, parcelHsl, streetColor } from '../components/colors';
 import { defaultFilters, type FilterKey, type Filters } from './filters';
 import { streetSurfaceRegions } from './StreetSurfaceRegions';
+import { ClickSelection } from '../components/ClickSelection';
 
 const SKY = 0x0e1117;
 const FLOOR_GAP = 0.08;
@@ -51,11 +52,11 @@ export class Map3DView {
   constructor(private readonly onParcelInspect?: (parcel: Parcel) => void) {
     this.canvas = document.createElement('canvas');
     this.canvas.className = 'map-view map-view-3d';
-    this.canvas.setAttribute('aria-label', '3D city blueprint. Drag to orbit, use the wheel to zoom, and right-click a building to inspect.');
+    this.canvas.setAttribute('aria-label', '3D city blueprint. Drag to orbit, use the wheel to zoom, and click a building to inspect.');
     this.canvas.tabIndex = 0;
     this.scene.background = new THREE.Color(SKY);
     this.scene.add(new THREE.HemisphereLight(0xdfe6f2, 0x2a2622, 1.5), new THREE.DirectionalLight(0xffffff, 1.1).translateY(400).translateX(150));
-    this.canvas.addEventListener('contextmenu', (e) => { e.preventDefault(); this.pick(e); });
+    new ClickSelection(this.canvas, (event) => this.pick(event));
   }
 
   /** Starts drawing; needs a WebGL2 context, so a page without one shows an empty canvas. */
@@ -129,6 +130,7 @@ export class Map3DView {
     const centre = box.getCenter(new THREE.Vector3());
     const span = Math.max(box.max.x - box.min.x, box.max.z - box.min.z, 100);
     this.camera.position.set(centre.x + span * 0.55, span * 0.7, centre.z + span * 0.55);
+    this.camera.lookAt(centre);
     this.camera.far = span * 20;
     this.camera.updateProjectionMatrix();
     if (this.controls) { this.controls.target.copy(centre); this.controls.update(); }
@@ -444,12 +446,15 @@ export class Map3DView {
     }
   }
 
-  /** The parcel under a right-click becomes the persistent selection; left clicks only orbit. */
+  /** Select the visible envelope under a completed click gesture. */
   private pick(event: MouseEvent): void {
-    if (!this.onParcelInspect || !this.renderer) return;
+    if (!this.onParcelInspect || !this.blueprint) return;
     const rect = this.canvas.getBoundingClientRect();
+    if (!rect.width || !rect.height) return;
     const pointer = new THREE.Vector2(((event.clientX - rect.left) / rect.width) * 2 - 1, -((event.clientY - rect.top) / rect.height) * 2 + 1);
     const raycaster = new THREE.Raycaster();
+    this.camera.updateMatrixWorld();
+    this.scene.updateMatrixWorld(true);
     raycaster.setFromCamera(pointer, this.camera);
     const zones = [...this.layers.entries()].filter(([key, g]) => key.startsWith('zone.') && g.visible).map(([, g]) => g);
     const hit = raycaster.intersectObjects(zones, true)[0];

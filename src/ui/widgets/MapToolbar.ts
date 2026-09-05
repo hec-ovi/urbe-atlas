@@ -24,7 +24,7 @@ export class MapToolbar {
       input.value = '';
     });
     this.root = el('div', { class: 'map-toolbar', 'aria-label': 'Map controls' }, [
-      el('div', { class: 'toolbar-context' }, [this.city, el('span', { text: 'Drag to pan · Wheel to zoom · Right-click to inspect' })]),
+      el('div', { class: 'toolbar-context' }, [this.city, el('span', { text: 'Drag to move · Wheel to zoom · Click to inspect' })]),
       el('div', { class: 'toolbar-actions' }, [button('Open blueprint', () => input.click()), input, button('Fit city', events.onFit), this.download]),
     ]);
   }

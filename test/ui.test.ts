@@ -24,12 +24,12 @@ beforeEach(() => {
   document.body.replaceChildren();
 });
 
-/** Right-clicks a grid over the map until `hit` reports the pick landed. */
+/** Clicks a grid over the map until `hit` reports the pick landed. */
 async function inspectUntil(canvas: HTMLElement, hit: () => boolean): Promise<void> {
   const user = userEvent.setup();
   for (let x = 30; x < CANVAS && !hit(); x += 30) {
     for (let z = 30; z < CANVAS && !hit(); z += 30) {
-      await user.pointer({ target: canvas, coords: { clientX: x, clientY: z }, keys: '[MouseRight]' });
+      await user.pointer({ target: canvas, coords: { clientX: x, clientY: z }, keys: '[MouseLeft]' });
     }
   }
 }
@@ -250,7 +250,7 @@ describe('MapView', () => {
     expect(view.canvas.width).toBe(400);
   });
 
-  it('pins a map feature only from a right-click', async () => {
+  it('selects a map feature from a click', async () => {
     const blueprint = generateCity(SMALL);
     const selected = vi.fn();
     const view = new MapView(selected);
@@ -547,69 +547,6 @@ describe('PreviewApp', () => {
     expect(footprint.value).toBe('rectangle');
   });
 
-  it('opens the right-clicked building while preserving the selected output', async () => {
-    const app = mount();
-    await app.generate(SMALL);
-    app.resize();
-    const canvas = app.root.querySelector('canvas') as HTMLCanvasElement;
-    const opened = vi.spyOn(window, 'open').mockReturnValue({} as Window);
-    const user = userEvent.setup();
-    const template = getByLabelText(app.root, 'URL template');
-    await user.clear(template);
-    await user.type(template, 'https://engine.test/?mode=city&parcel=p136&out=/out/selected');
-
-    await user.click(canvas);
-    expect(opened).not.toHaveBeenCalled();
-    await inspectUntil(canvas, () => opened.mock.calls.length > 0);
-    const selected = app.root.querySelector('.inspector-heading strong')!.textContent!.split(' · ')[0];
-    const firstLink = getByRole(app.root, 'link', { name: 'Open building view' }) as HTMLAnchorElement;
-    const first = new URL(firstLink.href);
-    expect(first.searchParams.get('mode')).toBe('building');
-    expect(first.searchParams.get('parcel')).toBe(selected);
-    expect(first.searchParams.get('parcel')).not.toBe('p136');
-    expect(first.searchParams.get('out')).toBe('/out/selected');
-    expect(opened).toHaveBeenLastCalledWith(first.toString(), '_blank', 'noopener');
-
-    await user.clear(template);
-    await user.type(template, 'https://engine.test/?out=/out/revised');
-    expect(new URL((getByRole(app.root, 'link', { name: 'Open building view' }) as HTMLAnchorElement).href).searchParams.get('out'))
-      .toBe('/out/revised');
-
-    opened.mockClear();
-    let secondParcel = selected;
-    for (let x = 15; x < CANVAS && secondParcel === selected; x += 25) {
-      for (let z = 15; z < CANVAS && secondParcel === selected; z += 25) {
-        await user.pointer({ target: canvas, coords: { clientX: x, clientY: z }, keys: '[MouseRight]' });
-        const last = app.root.querySelector<HTMLAnchorElement>('.inspector-open')?.href;
-        if (last) secondParcel = new URL(last).searchParams.get('parcel') ?? selected;
-      }
-    }
-    expect(secondParcel).not.toBe(selected);
-    expect(app.root.querySelector('.inspector-heading strong')!.textContent).toContain(secondParcel);
-    expect(new URL(String(opened.mock.lastCall![0])).searchParams.get('parcel')).toBe(secondParcel);
-
-    await user.click(getByRole(app.root, 'button', { name: 'Clear selection' }));
-    expect(getByText(app.root, 'Hover to preview. Right-click a feature to keep its measurements here.')).toBeTruthy();
-    opened.mockRestore();
-  });
-
-  it('keeps an actionable link error in the inspector when no output is assembled', async () => {
-    const app = mount();
-    await app.generate(SMALL);
-    app.resize();
-    const user = userEvent.setup();
-    const template = getByLabelText(app.root, 'URL template');
-    await user.clear(template);
-    await user.type(template, 'https://engine.test/?parcel=p136');
-    const opened = vi.spyOn(window, 'open').mockReturnValue(null);
-    const canvas = app.root.querySelector('canvas') as HTMLCanvasElement;
-    await inspectUntil(canvas, () => app.root.querySelector('.inspector-link-error') !== null);
-    expect(opened).not.toHaveBeenCalled();
-    expect(getByRole(app.root, 'status').textContent).toContain('No assembled output is selected');
-    expect(getByRole(app.root, 'status').textContent).toContain('out=');
-    expect(getByRole(app.root, 'log').textContent).toContain('No assembled output is selected');
-    opened.mockRestore();
-  });
 
   it('loads exact interior ids from the selected assembled manifest', async () => {
     const fixture = generateCity(SMALL);
@@ -630,6 +567,7 @@ describe('PreviewApp', () => {
     const mapIds = vi.spyOn(MapView.prototype, 'setInteriorParcels');
     const map3dIds = vi.spyOn(Map3DView.prototype, 'setInteriorParcels');
     const app = mount(fetchManifest);
+    await userEvent.type(getByLabelText(app.root, 'URL template'), 'http://localhost:5306/?out=/out/preview');
     await app.generate(SMALL);
     await waitFor(() => expect(getByText(app.root, '1 building has interiors')).toBeTruthy());
     expect(fetchManifest).toHaveBeenCalledWith('http://localhost:5306/out/preview/manifest.json');

@@ -12,6 +12,7 @@ import {
   streetColor,
 } from '../components/colors';
 import { defaultFilters, type Filters } from './filters';
+import { ClickSelection } from '../components/ClickSelection';
 
 export interface Layers {
   ground: boolean;
@@ -48,7 +49,7 @@ export class MapView {
   ) {
     this.canvas = document.createElement('canvas');
     this.canvas.className = 'map-view';
-    this.canvas.setAttribute('aria-label', '2D city blueprint. Drag to pan, use the wheel to zoom, and right-click to inspect.');
+    this.canvas.setAttribute('aria-label', '2D city blueprint. Drag to pan, use the wheel to zoom, and click to inspect.');
     this.canvas.tabIndex = 0;
     this.canvas.addEventListener('mousedown', (event) => {
       if (event.button !== 0) return;
@@ -57,8 +58,7 @@ export class MapView {
       this.lastZ = event.clientY;
       this.canvas.classList.add('dragging');
     });
-    this.canvas.addEventListener('contextmenu', (event) => {
-      event.preventDefault();
+    new ClickSelection(this.canvas, (event) => {
       const hit = this.hitAtEvent(event);
       if (!hit) return;
       this.selected = hit;

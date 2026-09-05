@@ -33,7 +33,7 @@ export class LegendWidget {
       other.append(
         el('div', { class: 'legend-row' }, [
           el('span', { class: 'swatch', style: `background:${streetColor(cls)}` }),
-          el('span', { class: 'legend-label', text: cls }),
+          el('span', { class: 'legend-label', text: cls === 'road' ? 'avenues' : cls }),
         ]),
       );
     }

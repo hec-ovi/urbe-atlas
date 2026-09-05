@@ -1,0 +1,88 @@
+// @vitest-environment happy-dom
+import { afterEach, expect, it, vi } from 'vitest';
+import { getByRole, queryByRole } from '@testing-library/dom';
+import userEvent from '@testing-library/user-event';
+import type { CityBlueprint } from '../../schema/blueprint';
+import { PreviewApp } from './views/PreviewApp';
+import { Map3DView } from './views/Map3DView';
+import { Notifications } from './widgets/Notifications';
+
+const footprint: [number, number][] = [[30, 30], [70, 30], [70, 70], [30, 70]];
+const parcel = { id: 'p0', blockId: 'b0', districtId: 'd0', type: 'residential', tier: 'poor', lot: footprint, footprint,
+  access: { edgeId: 'e0', point: [30, 50] }, envelope: { minFloors: 1, maxFloors: 4, floorHeight: 3, maxHeight: 12 } };
+const blueprint = {
+  meta: { version: '0.4.0', seed: 'selection', units: 'meters', gridAngle: 0,
+    boundary: [[0, 0], [100, 0], [100, 100], [0, 100]], bounds: { min: [0, 0], max: [100, 100] },
+    params: { seed: 'selection', size: { width: 100, depth: 100 } } },
+  districts: [], parcels: [parcel], blocks: [],
+  streets: { nodes: [], edges: [], crossings: [], signals: [], planting: [], highwayStructures: [] },
+  transit: { busStops: [], busRoutes: [], trainStations: [], trainLines: [], subwayStations: [], subwayLines: [] },
+  volumetric: { buildings: [{ parcelId: 'p0', footprint, height: 12 }], ground: [] },
+  stats: { population: 0, parcelCounts: {}, perDistrict: [] },
+};
+afterEach(() => { document.body.replaceChildren(); vi.restoreAllMocks(); vi.useRealTimers(); });
+
+it('left click selects a persistent closable popup; right click and drags never open it or navigate', async () => {
+  const app = new PreviewApp();
+  document.body.append(app.root);
+  const wrap = app.root.querySelector('.map-wrap')!;
+  Object.defineProperties(wrap, { clientWidth: { value: 600 }, clientHeight: { value: 600 } });
+  await app.loadBlueprint(blueprint);
+  app.resize();
+  const canvas = app.root.querySelector('canvas')!;
+  const user = userEvent.setup();
+  const opened = vi.spyOn(window, 'open');
+  await user.pointer({ target: canvas, coords: { clientX: 300, clientY: 300 }, keys: '[MouseRight]' });
+  expect(queryByRole(app.root, 'dialog')).toBeNull();
+  await user.pointer([
+    { target: canvas, coords: { clientX: 300, clientY: 300 }, keys: '[MouseLeft>]' },
+    { coords: { clientX: 340, clientY: 300 } },
+    { coords: { clientX: 300, clientY: 300 }, keys: '[/MouseLeft]' },
+  ]);
+  expect(queryByRole(app.root, 'dialog')).toBeNull();
+  await user.pointer({ target: canvas, coords: { clientX: 300, clientY: 300 }, keys: '[MouseLeft]' });
+  const popup = getByRole(app.root, 'dialog', { name: 'Building details' });
+  expect(popup.closest('.sidebar')).toBeNull();
+  const open = getByRole(popup, 'button', { name: 'Open building preview' }) as HTMLButtonElement;
+  expect(open.disabled).toBe(true);
+  await user.click(open);
+  expect(opened).not.toHaveBeenCalled();
+  await user.pointer({ target: canvas, coords: { clientX: 5, clientY: 5 } });
+  expect(queryByRole(app.root, 'dialog')).toBe(popup);
+  await user.click(getByRole(popup, 'button', { name: 'Close building details' }));
+  expect(queryByRole(app.root, 'dialog')).toBeNull();
+});
+
+it('3D envelope picking uses left click and suppresses right click and orbit drags', async () => {
+  const selected = vi.fn();
+  const view = new Map3DView(selected);
+  document.body.append(view.canvas);
+  vi.spyOn(view.canvas, 'getBoundingClientRect').mockReturnValue(new DOMRect(0, 0, 600, 600));
+  view.resize(600, 600);
+  view.setBlueprint(blueprint as unknown as CityBlueprint);
+  const user = userEvent.setup();
+  await user.pointer({ target: view.canvas, coords: { clientX: 300, clientY: 300 }, keys: '[MouseRight]' });
+  expect(selected).not.toHaveBeenCalled();
+  await user.pointer([
+    { target: view.canvas, coords: { clientX: 300, clientY: 300 }, keys: '[MouseLeft>]' },
+    { coords: { clientX: 350, clientY: 300 } },
+    { coords: { clientX: 300, clientY: 300 }, keys: '[/MouseLeft]' },
+  ]);
+  expect(selected).not.toHaveBeenCalled();
+  await user.pointer({ target: view.canvas, coords: { clientX: 300, clientY: 300 }, keys: '[MouseLeft]' });
+  expect(selected).toHaveBeenCalledWith(parcel);
+});
+
+it('notification toasts expire and can be dismissed manually', async () => {
+  vi.useFakeTimers();
+  const log = new Notifications();
+  document.body.append(log.root);
+  log.info('Saved city ready');
+  await vi.advanceTimersByTimeAsync(8150);
+  expect(log.root.children).toHaveLength(0);
+  log.error('Missing asset');
+  const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+  await user.click(getByRole(log.root, 'button', { name: 'Dismiss' }));
+  await vi.advanceTimersByTimeAsync(150);
+  expect(log.root.children).toHaveLength(0);
+});

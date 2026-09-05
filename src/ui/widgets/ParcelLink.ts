@@ -1,13 +1,9 @@
 /**
  * URL template used by a selected parcel's open action, so the map can hand a
- * building to the engine viewer. The default targets the local engine; empty
- * means off.
+ * building to the engine viewer. The empty default leaves output discovery off.
  */
 import type { Parcel } from '../../../schema/blueprint';
 import { el } from '../components/dom';
-
-/** Where a building opens by default: the engine's building viewer on the preview stack, the assembled world of this seed. */
-const DEFAULT_TEMPLATE = 'http://localhost:5306/?mode=building&parcel={parcelId}&out=/out/{seed}';
 
 const HINT = 'Requires an out= world output. Tokens: {seed} {parcelId} {blockId} {districtId} {type} {tier} {x} {z}';
 
@@ -25,7 +21,7 @@ export class ParcelLink {
       type: 'text',
       id: 'parcel-link',
       placeholder: 'off',
-      value: DEFAULT_TEMPLATE,
+      value: '',
     });
     this.root = el('div', { class: 'parcel-link' }, [
       el('h3', { text: 'Parcel link' }),

@@ -3,6 +3,7 @@ import { el } from '../components/dom';
 
 /** Oldest messages drop off once the stack is this deep. */
 const KEEP = 5;
+const VISIBLE_MS = 8000;
 
 export class Notifications {
   readonly root: HTMLElement;
@@ -27,10 +28,13 @@ export class Notifications {
       item.append(el('a', { class: 'notification-link', href: link.href, target: '_blank', rel: 'noopener', text: link.label }));
     }
     const dismiss = el('button', { type: 'button', class: 'notification-dismiss', 'aria-label': 'Dismiss', text: '×' });
-    dismiss.addEventListener('click', () => {
+    const remove = () => {
+      clearTimeout(timer);
       item.classList.add('dismissing');
       setTimeout(() => item.remove(), 150);
-    });
+    };
+    const timer = setTimeout(remove, VISIBLE_MS);
+    dismiss.addEventListener('click', remove);
     item.append(dismiss);
     this.root.prepend(item);
     while (this.root.children.length > KEEP) this.root.lastElementChild?.remove();

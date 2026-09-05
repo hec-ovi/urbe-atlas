@@ -41,7 +41,7 @@ export interface FilterGroup {
 export const FILTER_GROUPS: FilterGroup[] = [
   { id: 'ground', title: 'Ground surfaces', description: 'Roadway, curb, sidewalk and open space', keys: GROUND_KEYS.map((k) => `ground.${k}` as FilterKey), open: true },
   { id: 'zones', title: 'Building zones', description: 'Parcel use types', keys: ZONE_KEYS.map((k) => `zone.${k}` as FilterKey), open: true },
-  { id: 'streets', title: 'Street network', description: 'Street, road, highway and pedestrian alley', keys: STREET_KEYS.map((k) => `street.${k}` as FilterKey), open: true },
+  { id: 'streets', title: 'Street network', description: 'Street, avenue, highway and pedestrian alley', keys: STREET_KEYS.map((k) => `street.${k}` as FilterKey), open: true },
   { id: 'hydrology', title: 'Waterfront', description: 'Water surfaces and exact shoreline bands', keys: HYDROLOGY_KEYS.map((k) => `hydrology.${k}` as FilterKey), open: true },
   { id: 'diagnostics', title: 'Geometry diagnostics', description: 'Bright overlays for structure inspection', keys: DIAGNOSTIC_KEYS.map((k) => `diagnostic.${k}` as FilterKey), open: true },
   { id: 'transit', title: 'Public transit', description: 'Bus, train and underground subway', keys: TRANSIT_KEYS.map((k) => `transit.${k}` as FilterKey), open: true },
@@ -62,6 +62,7 @@ export function defaultFilters(): Filters {
 
 /** A label for one switch: the part after the group. */
 export function filterLabel(key: FilterKey): string {
+  if (key === 'street.road') return 'avenues';
   const name = key.includes('.') ? key.slice(key.indexOf('.') + 1) : key;
   return name.replace(/([a-z])([A-Z])/g, '$1 $2').replace(/_/g, ' ').toLowerCase();
 }

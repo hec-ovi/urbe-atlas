@@ -15,17 +15,15 @@ export class InspectorPanel {
     private readonly onClear?: () => void,
   ) {
     this.content = el('div', { class: 'inspector-content' });
-    this.clear = el('button', { type: 'button', class: 'inspector-clear', text: 'Clear selection' }) as HTMLButtonElement;
+    this.clear = el('button', { type: 'button', class: 'inspector-clear', text: 'Close', 'aria-label': 'Close building details' }) as HTMLButtonElement;
     this.clear.hidden = true;
     this.clear.addEventListener('click', () => {
-      this.pinned = null;
-      this.clear.hidden = true;
-      this.render(null, false);
+      this.close();
       this.onClear?.();
     });
-    this.root = el('section', { class: 'inspector', 'aria-label': 'Map inspector' }, [
+    this.root = el('section', { class: 'inspector selection-popup', role: 'dialog', 'aria-label': 'Building details', hidden: '' }, [
       el('div', { class: 'panel-title' }, [
-        el('div', {}, [el('p', { class: 'eyebrow', text: 'Selection' }), el('h3', { text: 'Inspector' })]),
+        el('div', {}, [el('p', { class: 'eyebrow', text: 'Selection' }), el('h3', { text: 'Details' })]),
         this.clear,
       ]),
       this.content,
@@ -33,11 +31,14 @@ export class InspectorPanel {
     this.render(null, false);
   }
 
-  preview(hit: MapHit | null): void {
-    if (!this.pinned) this.render(hit, false);
+  close(): void {
+    this.pinned = null;
+    this.root.hidden = true;
+    this.render(null, false);
   }
 
   select(hit: MapHit): void {
+    this.root.hidden = false;
     this.pinned = hit;
     this.clear.hidden = false;
     this.render(hit, true);
@@ -51,7 +52,6 @@ export class InspectorPanel {
   private render(hit: MapHit | null, pinned: boolean): void {
     this.content.replaceChildren();
     if (!hit) {
-      this.content.append(el('p', { class: 'inspector-empty', text: 'Hover to preview. Right-click a feature to keep its measurements here.' }));
       return;
     }
     const state = el('span', { class: `inspection-state ${pinned ? 'pinned' : ''}`, text: pinned ? 'Selected' : 'Hover' });
@@ -73,6 +73,7 @@ export class InspectorPanel {
       if (pinned) {
         const destination = this.destinationFor(parcel);
         if (!destination.url) {
+          this.content.append(el('button', { type: 'button', class: 'inspector-open', disabled: '', text: 'Open building preview' }));
           this.content.append(el('p', {
             class: 'inspector-link-error',
             role: 'status',
@@ -156,5 +157,6 @@ function length(path: Polyline): number {
 }
 
 function humanize(value: string): string {
+  if (value === 'road') return 'Avenue';
   return value.replace(/_/g, ' ').replace(/^./, (letter) => letter.toUpperCase());
 }

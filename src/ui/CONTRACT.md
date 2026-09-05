@@ -16,9 +16,9 @@ Purpose: presents Atlas creation and blueprint inspection in a dark browser work
 ## Out and events
 
 - `PreviewApp.root` is the mountable element. `viewMode` reports the active map mode. `generate` resolves after the generated blueprint is rendered or its error is shown.
-- The Creation tab renders city controls, presets, import and export. Building footprint offers Rectangle (default) and Follow parcel. Street profiles and paving layouts round-trip through parameter files. The Visualization tab renders the summary, filters, inspector, parcel link, legend, and 2D or 3D map.
-- The 2D canvas renders blueprint polygons and supports left-drag pan, cursor-anchored wheel zoom, hover preview, and right-click selection.
-- The WebGL2 canvas renders parcel envelopes and floor marks, partitioned ground, crossings, street furniture, highway structures, transit, water surfaces, shoreline bands, and optional diagnostics. Highway deck faces share their mitered cross-sections and omit zero-area triangles at grade ramp tips. Station-access diagnostics remain visible through the structures whose internal route they trace. Drag orbits, wheel zooms, and right-click selects a visible parcel.
+- The Creation tab renders city controls, presets, import and export. Building footprint offers Rectangle (default) and Follow parcel. Street profiles and paving layouts round-trip through parameter files. The Visualization tab renders the summary, filters, parcel link, legend, and 2D or 3D map. The `road` class is labeled avenues.
+- The 2D canvas renders blueprint polygons and supports left-drag pan, cursor-anchored wheel zoom and left-click selection.
+- The WebGL2 canvas renders parcel envelopes and floor marks, partitioned ground, crossings, street furniture, highway structures, transit, water surfaces, shoreline bands, and optional diagnostics. Highway deck faces share their mitered cross-sections and omit zero-area triangles at grade ramp tips. Station-access diagnostics remain visible through the structures whose internal route they trace. Drag orbits, wheel zooms, and left-click selects a visible parcel.
 - Downloads return the current parameter set or the current CityBlueprint unchanged as JSON.
 - `ParamsPanel` emits `onGenerate(params)`, `onExport(params)`, and `onImport(file)`.
 - `LayerToggles` emits `onChange(filters)`; `ViewModeSwitch` emits `onChange(mode)`; `ViewTabs` emits `onChange(tab)`.
@@ -35,9 +35,9 @@ Purpose: presents Atlas creation and blueprint inspection in a dark browser work
 - `widgets/ParamsPanel`: validated AtlasParams form. Methods: `read`, `setParams`, `setStatus`, `setBusy`.
 - `widgets/ViewTabs` and `widgets/ViewModeSwitch`: creation or visualization pane and flat or 3D map selection.
 - `widgets/LayerToggles`: grouped visibility controls with item and group isolation, global resets, and `setInteriorCount(count)`.
-- `widgets/InspectorPanel` and `widgets/ParcelLink`: hover or pinned measurements and the selected parcel's building URL or inline reason it is unavailable.
+- `widgets/InspectorPanel`: nonmodal floating selection details, retained until Close, another selection or a new blueprint. `widgets/ParcelLink`: explicit assembled-output template, empty by default.
 - `widgets/MapToolbar`: seed and size, fit action, and blueprint download. `widgets/BlueprintOverview` renders totals; `widgets/LegendWidget` renders the full color key.
-- `widgets/Notifications` and `widgets/ProgressOverlay`: message log and blocking generation stages (`preparing | generating | rendering | ready | error`).
+- `widgets/Notifications`: dismissible toasts lasting eight seconds, separate from selection details. `widgets/ProgressOverlay`: blocking generation stages (`preparing | generating | rendering | ready | error`).
 - `components/paramsFile`, `blueprintFile`, `rangeField`, `colors`, and `dom`: validated file exchange, synchronized numeric input, palettes, and element creation.
 
 ## Errors
@@ -59,7 +59,8 @@ No failure escapes a `PreviewApp` event handler.
 - The form is disabled for the complete generation interval. Progress moves through named stages and notifications preserve file and generation results.
 - 3D geometry is deferred until the 3D view is first selected. Both views apply the same filters and exact interior parcel subset.
 - Renderers consume published geometry and elevations. Water and shoreline layers stay independent; street and road surfaces stay disjoint and inside roadway ground.
-- A normal click never pins or navigates. Right-click pins a feature and immediately opens a selected parcel in a new building view. The persistent inspector link remains available, always forces `mode=building` and the selected parcel id, and preserves the configured `out=` value.
+- A left click selects without navigation. Movement beyond four screen pixels, pointer cancellation or release outside the canvas prevents selection. Right clicks never select or navigate.
+- Building preview remains disabled with an inline reason while exact-blueprint exterior completion is unverified. An output path is never inferred from the seed.
 - An optional manifest affects the UI only after exact seed, version, parcel-set, subset, and floor-shape validation.
 - Downloaded blueprints are unchanged. Downloaded parameter files hold the full resolved form state.
 - Presets and Reset select rectangular buildings; omitted footprint shape imports use the root default. Changing form controls preserves imported street profiles and paving layouts.
