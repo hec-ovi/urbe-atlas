@@ -1,26 +1,17 @@
 // @vitest-environment happy-dom
-import { afterEach, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { getByRole, queryByRole } from '@testing-library/dom';
 import userEvent from '@testing-library/user-event';
 import type { CityBlueprint } from '../../schema/blueprint';
 import { PreviewApp } from './views/PreviewApp';
 import { Map3DView } from './views/Map3DView';
 import { Notifications } from './widgets/Notifications';
+import { selectionBlueprint } from './fixtures/selectionBlueprint';
 
-const footprint: [number, number][] = [[30, 30], [70, 30], [70, 70], [30, 70]];
-const parcel = { id: 'p0', blockId: 'b0', districtId: 'd0', type: 'residential', tier: 'poor', lot: footprint, footprint,
-  access: { edgeId: 'e0', point: [30, 50] }, envelope: { minFloors: 1, maxFloors: 4, floorHeight: 3, maxHeight: 12 } };
-const blueprint = {
-  meta: { version: '0.4.0', seed: 'selection', units: 'meters', gridAngle: 0,
-    boundary: [[0, 0], [100, 0], [100, 100], [0, 100]], bounds: { min: [0, 0], max: [100, 100] },
-    params: { seed: 'selection', size: { width: 100, depth: 100 } } },
-  districts: [], parcels: [parcel], blocks: [],
-  streets: { nodes: [], edges: [], crossings: [], signals: [], planting: [], highwayStructures: [] },
-  transit: { busStops: [], busRoutes: [], trainStations: [], trainLines: [], subwayStations: [], subwayLines: [] },
-  volumetric: { buildings: [{ parcelId: 'p0', footprint, height: 12 }], ground: [] },
-  stats: { population: 0, parcelCounts: {}, perDistrict: [] },
-};
-afterEach(() => { document.body.replaceChildren(); vi.restoreAllMocks(); vi.useRealTimers(); });
+const blueprint = selectionBlueprint();
+const parcel = blueprint.parcels[0];
+beforeEach(() => vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, json: async () => ({ contractVersion: '1.0', available: false, reason: 'Test service unavailable' }) }))));
+afterEach(() => { document.body.replaceChildren(); vi.restoreAllMocks(); vi.unstubAllGlobals(); vi.useRealTimers(); });
 
 it('left click selects a persistent closable popup; right click and drags never open it or navigate', async () => {
   const app = new PreviewApp();

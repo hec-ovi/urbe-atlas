@@ -530,6 +530,8 @@ input[type='range']::-moz-range-thumb {
 .inspector-content { padding: 11px; }
 .selection-popup { position: absolute; z-index: 12; top: 80px; right: 18px; width: min(350px, calc(100% - 36px)); max-height: calc(100% - 110px); overflow: auto; background: var(--bg-panel, #111820); box-shadow: 0 12px 32px #0008; }
 .selection-popup[hidden] { display: none; }
+.exterior-preview { padding: 12px; border-bottom: 1px solid var(--border-soft); }
+.exterior-preview button { width: 100%; }
 .inspector-empty { margin: 0; color: var(--text-muted); font-size: 11px; }
 
 .summary-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1px; background: var(--border-soft); }

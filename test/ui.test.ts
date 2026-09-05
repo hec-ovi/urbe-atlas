@@ -22,6 +22,7 @@ const CANVAS = 600;
 
 beforeEach(() => {
   document.body.replaceChildren();
+  vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, json: async () => ({ contractVersion: '1.0', available: false, reason: 'Test service unavailable' }) })));
 });
 
 /** Clicks a grid over the map until `hit` reports the pick landed. */

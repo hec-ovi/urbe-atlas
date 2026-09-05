@@ -21,14 +21,17 @@ import { ProgressOverlay } from '../widgets/ProgressOverlay';
 import { BlueprintOverview } from '../widgets/BlueprintOverview';
 import { InspectorPanel } from '../widgets/InspectorPanel';
 import { MapToolbar } from '../widgets/MapToolbar';
+import { ExteriorPreview } from '../widgets/ExteriorPreview';
 import { downloadBlueprint } from '../components/blueprintFile';
 import { readBlueprint } from '../components/blueprintInput';
+import { isWorldManifest } from '../components/worldManifest';
 import { downloadParams, paramsFileName, parseParams } from '../components/paramsFile';
 import { el } from '../components/dom';
 
 export class PreviewApp {
   readonly root: HTMLElement;
   private readonly inspector: InspectorPanel;
+  private readonly exteriors: ExteriorPreview;
   private readonly map: MapView;
   private readonly map3d: Map3DView;
   private readonly tabs: ViewTabs;
@@ -51,9 +54,10 @@ export class PreviewApp {
   constructor(private readonly fetchManifest: ManifestFetcher = (url) => fetch(url)) {
     this.parcelLink = new ParcelLink();
     this.inspector = new InspectorPanel(
-      () => ({ error: 'Exterior assets for this exact blueprint have not been verified. Generate exteriors before opening a building.' }),
+      (parcel) => this.exteriors.destinationFor(parcel),
       () => this.map.clearSelection(),
     );
+    this.exteriors = new ExteriorPreview(() => this.inspector.refresh(), (message) => this.notifications.error(message));
     this.map = new MapView(
       (hit) => {
         this.inspector.select(hit);
@@ -82,7 +86,7 @@ export class PreviewApp {
     ]);
     this.tabs = new ViewTabs(
       [this.panel.root],
-      [visualizationIntro, this.modeSwitch.root, this.overview.root, this.layers.root, this.parcelLink.root, new LegendWidget().root],
+      [visualizationIntro, this.modeSwitch.root, this.exteriors.root, this.overview.root, this.layers.root, this.parcelLink.root, new LegendWidget().root],
       (active) => {
         if (active === 'visualization') this.setMode('3d');
         requestAnimationFrame(() => this.resize());
@@ -188,6 +192,7 @@ export class PreviewApp {
       this.pending3d = null;
     } else this.pending3d = blueprint;
     this.blueprint = blueprint;
+    this.exteriors.setBlueprint(blueprint);
     this.overview.setBlueprint(blueprint);
     this.toolbar.setBlueprint(blueprint);
     void this.loadInteriorManifest(blueprint);
@@ -291,37 +296,6 @@ export class PreviewApp {
 
 export type ManifestFetcher = (url: string) => Promise<Pick<Response, 'ok' | 'json'>>;
 
-interface WorldManifest {
-  contractVersion: '1.0.0';
-  seed: string;
-  atlasVersion: string;
-  named: boolean;
-  namingTheme: string | null;
-  parcels: string[];
-  interiors: string[];
-  floors: Record<string, string[]>;
-}
-
-function isWorldManifest(value: unknown): value is WorldManifest {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
-  const manifest = value as Record<string, unknown>;
-  const fields = new Set(['contractVersion', 'seed', 'atlasVersion', 'named', 'namingTheme', 'parcels', 'interiors', 'floors']);
-  if (Object.keys(manifest).some((key) => !fields.has(key))) return false;
-  const strings = (candidate: unknown): candidate is string[] =>
-    Array.isArray(candidate) && candidate.every((item) => typeof item === 'string' && item.length > 0)
-      && new Set(candidate).size === candidate.length;
-  if (manifest.contractVersion !== '1.0.0'
-    || typeof manifest.seed !== 'string' || manifest.seed.length === 0
-    || typeof manifest.atlasVersion !== 'string' || manifest.atlasVersion.length === 0
-    || typeof manifest.named !== 'boolean'
-    || (manifest.namingTheme !== null && typeof manifest.namingTheme !== 'string')
-    || !strings(manifest.parcels) || !strings(manifest.interiors)
-    || !manifest.floors || typeof manifest.floors !== 'object' || Array.isArray(manifest.floors)) return false;
-  const parcelIds = new Set(manifest.parcels);
-  if (!manifest.interiors.every((id) => parcelIds.has(id))) return false;
-  return Object.entries(manifest.floors).every(([parcelId, floors]) =>
-    parcelIds.has(parcelId) && strings(floors) && floors.length > 0 && floors.every((floor) => /^-?[0-9]{3}$/.test(floor)));
-}
 
 function nextFrame(): Promise<void> {
   return new Promise((resolve) => {

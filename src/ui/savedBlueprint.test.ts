@@ -25,6 +25,7 @@ function fixture() {
 
 beforeEach(() => {
   document.body.replaceChildren();
+  vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, json: async () => ({ contractVersion: '1.0', available: false, reason: 'Test service unavailable' }) })));
   vi.spyOn(MapView.prototype, 'setBlueprint').mockImplementation(() => undefined);
   vi.spyOn(Map3DView.prototype, 'setBlueprint').mockImplementation(() => undefined);
 });

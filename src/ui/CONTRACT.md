@@ -12,6 +12,7 @@ Purpose: presents Atlas creation and blueprint inspection in a dark browser work
 - `setMode(mode)` takes `2d | 3d`; `resize()` fits both canvases; `setInteriorParcels(parcelIds)` applies an exact parcel subset.
 - Parameter files are JSON AtlasParams. Unknown top-level fields are dropped, defaults are resolved, and the root runtime validation runs before the form changes.
 - The optional assembled-world [manifest](../../../engine/src/assembly/schema/world-manifest.schema.json) is fetched beside the non-empty `out=` path in the parcel URL template. It must be contract 1.0.0 and match the displayed seed, Atlas version, complete parcel-id set, interior subset, and floor tags.
+- Exterior generation consumes the Engine [server contract](../../../engine/src/server/CONTRACT.md): capability, exact-blueprint POST and job polling. The Vite adapter proxies only `/api/exteriors` and its children to `ATLAS_ENGINE_API_URL` (default `http://127.0.0.1:5306`). `VITE_ENGINE_PREVIEW_URL` independently selects the browser viewer (default `http://localhost:5306/`).
 
 ## Out and events
 
@@ -36,6 +37,7 @@ Purpose: presents Atlas creation and blueprint inspection in a dark browser work
 - `widgets/ViewTabs` and `widgets/ViewModeSwitch`: creation or visualization pane and flat or 3D map selection.
 - `widgets/LayerToggles`: grouped visibility controls with item and group isolation, global resets, and `setInteriorCount(count)`.
 - `widgets/InspectorPanel`: nonmodal floating selection details, retained until Close, another selection or a new blueprint. `widgets/ParcelLink`: explicit assembled-output template, empty by default.
+- `widgets/ExteriorPreview`: capability-gated Generate exteriors, progress and verified viewer destinations. `setBlueprint` discards prior job availability. HTTP requests and response identity checks remain independent of generation code.
 - `widgets/MapToolbar`: seed and size, fit action, and blueprint download. `widgets/BlueprintOverview` renders totals; `widgets/LegendWidget` renders the full color key.
 - `widgets/Notifications`: dismissible toasts lasting eight seconds, separate from selection details. `widgets/ProgressOverlay`: blocking generation stages (`preparing | generating | rendering | ready | error`).
 - `components/paramsFile`, `blueprintFile`, `rangeField`, `colors`, and `dom`: validated file exchange, synchronized numeric input, palettes, and element creation.
@@ -49,6 +51,7 @@ The mounted UI exposes this closed failure set:
 - Saved blueprint: invalid JSON or render-input structure, disallowed URL, fetch failure, or rendering failure appears in the log and unlocks the UI. Structural failures leave the displayed city unchanged.
 - Parcel link: disabled template, invalid URL, missing `out=`, or invalid output path, returned as `ParcelDestination.error` and shown in the inspector.
 - Manifest: missing, failed, malformed, stale, or mismatched input leaves the interior list empty and reports it unavailable. It never widens the filter.
+- Exterior service: unavailable capability, failed request/job, invalid response, mismatched identity or incomplete completion leaves building previews disabled and reports the reason. Stale responses cannot affect a different displayed blueprint.
 
 No failure escapes a `PreviewApp` event handler.
 
@@ -61,6 +64,7 @@ No failure escapes a `PreviewApp` event handler.
 - Renderers consume published geometry and elevations. Water and shoreline layers stay independent; street and road surfaces stay disjoint and inside roadway ground.
 - A left click selects without navigation. Movement beyond four screen pixels, pointer cancellation or release outside the canvas prevents selection. Right clicks never select or navigate.
 - Building preview remains disabled with an inline reason while exact-blueprint exterior completion is unverified. An output path is never inferred from the seed.
+- Exterior generation starts only on its enabled button click. Job hash must match SHA-256 of recursively key-sorted displayed JSON. Opening requires a successful job, all requested shell pairs completed, a matching manifest and the selected parcel in the completed set. Viewer links preserve the job's output and force the selected parcel and building mode. Legacy manifests alone never enable Open.
 - An optional manifest affects the UI only after exact seed, version, parcel-set, subset, and floor-shape validation.
 - Downloaded blueprints are unchanged. Downloaded parameter files hold the full resolved form state.
 - Presets and Reset select rectangular buildings; omitted footprint shape imports use the root default. Changing form controls preserves imported street profiles and paving layouts.
@@ -70,3 +74,4 @@ No failure escapes a `PreviewApp` event handler.
 
 - [Atlas root contract](../../CONTRACT.md): AtlasParams, CityBlueprint, `generateCity`, and AtlasError.
 - [Engine assembly contract](../../../engine/src/assembly/CONTRACT.md): optional world manifest 1.0.0.
+- [Engine server contract](../../../engine/src/server/CONTRACT.md): exterior capability and exact-city jobs.
