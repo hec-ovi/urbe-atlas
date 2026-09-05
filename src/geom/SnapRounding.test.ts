@@ -33,6 +33,29 @@ const edgeKey = (a: Polygon[number], b: Polygon[number]): string => [JSON.string
 const edges = (polygons: Polygon[]): Set<string> => new Set(polygons.flatMap((polygon) => polygon.map((a, i) => edgeKey(a, polygon[(i + 1) % polygon.length]))));
 
 describe('grid-cell crossing normalization', () => {
+  it('nodes an exact nonadjacent vertex contact into simple cycles without changing area', () => {
+    const touching: Polygon = [
+      [1449.535, 2122.994], [1448.119, 2176.502], [1448.268, 2176.528],
+      [1448.268, 2176.529], [1447.97, 2176.475], [1449.386, 2122.967],
+    ];
+    const source = toGrid(touching);
+    const output = normalizePaths([source]);
+    const expected = [
+      [touching[1], touching[2], touching[3]],
+      [touching[0], touching[1], touching[4], touching[5]],
+    ];
+    expect(canonical(output.map(toPolygon))).toEqual(canonical(expected));
+    expect(output.map(toPolygon).every(isSimpleRing)).toBe(true);
+    const twiceArea = (path: GridPath): bigint => path.reduce((sum, p, i) => {
+      const q = path[(i + 1) % path.length];
+      return sum + BigInt(p.x) * BigInt(q.y) - BigInt(q.x) * BigInt(p.y);
+    }, 0n);
+    expect(output.reduce((sum, path) => sum + twiceArea(path), 0n)).toBe(twiceArea(source));
+    expect(output.flat().every((point) => source.some((vertex) => point.x === vertex.x && point.y === vertex.y))).toBe(true);
+    expect(normalizePaths(output)).toEqual(output);
+    expect(canonical(union([touching]))).toEqual(canonical(expected));
+  });
+
   it('publishes stable simple grid rings while preserving the two sidewalk bodies', () => {
     expect(isSimpleRing(sidewalk)).toBe(false);
     const output = union([sidewalk]);

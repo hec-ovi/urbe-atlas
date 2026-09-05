@@ -18,6 +18,14 @@ function orientation(a: GridPoint, b: GridPoint, c: GridPoint): number {
   return d > 0n ? 1 : d < 0n ? -1 : 0;
 }
 
+/** Exact vertex contact in the interior of an integer-grid segment. */
+export function interiorContact(point: GridPoint, edge: GridSegment): boolean {
+  return !same(point, edge.a) && !same(point, edge.b)
+    && point.x >= Math.min(edge.a.x, edge.b.x) && point.x <= Math.max(edge.a.x, edge.b.x)
+    && point.y >= Math.min(edge.a.y, edge.b.y) && point.y <= Math.max(edge.a.y, edge.b.y)
+    && orientation(edge.a, edge.b, point) === 0;
+}
+
 /** Nearest integer; an exact half goes toward positive infinity like snap(). */
 function nearest(numerator: bigint, denominator: bigint): number {
   if (denominator < 0n) return nearest(-numerator, -denominator);

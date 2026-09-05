@@ -1,6 +1,7 @@
 import { invariantFailure } from '../errors';
 import { crossingCells, pointKey, segments, type GridSegment } from './GridIntersections';
 import { GridCellIndex } from './GridCellIndex';
+import { nodeGridContacts } from './GridContacts';
 import { traversesGridCell } from './GridCellTraversal';
 import { simpleCycles } from './SimpleCycles';
 import type { GridPath } from './schema';
@@ -17,7 +18,7 @@ function route(edge: GridSegment, cells: GridCellIndex): GridPath {
 
 /** Resolve snapped crossings while keeping every published vertex on the grid. */
 export function normalizePaths(paths: GridPath[]): GridPath[] {
-  paths = paths.flatMap(simpleCycles);
+  paths = nodeGridContacts(paths.flatMap(simpleCycles));
   const crossings = crossingCells(segments(paths));
   if (crossings.length === 0) return paths;
   const cells = new Map(paths.flat().map((p) => [pointKey(p), p]));
@@ -27,7 +28,7 @@ export function normalizePaths(paths: GridPath[]): GridPath[] {
     const b = path[(i + 1) % path.length];
     return pointKey(a) === pointKey(b) ? [] : route({ a, b }, points).slice(0, -1);
   }));
-  const result = routed.flatMap(simpleCycles);
+  const result = nodeGridContacts(routed.flatMap(simpleCycles));
   const remaining = crossingCells(segments(result));
   if (remaining.length > 0) {
     throw invariantFailure('polygon snap-rounding has an unresolved grid-cell crossing', { paths: result, crossings: remaining });

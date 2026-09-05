@@ -19,6 +19,7 @@ Types: [schema.ts](schema.ts). Entry points: [clip.ts](clip.ts).
 
 - Input coordinates are finite and within the integer clipping kernel's range. Boolean and offset coordinates use a 1 mm lattice.
 - Crossing normalization routes all affected edges through shared grid-cell centres, then separates repeated vertices into simple rings. A centre is at most half a cell from its source segment on each axis. Features narrower than one cell can collapse. No whole polygon is buffered or inset for normalization.
+- Exact vertex-on-edge contacts are noded at their existing integer coordinates and decomposed into simple cycles. Contact-only inputs preserve their signed area exactly; no neighbouring vertex is moved onto an edge.
 - The same paths produce the same output. Normalizing an already normalized path set changes nothing. Reversing a shared segment preserves its routed boundary.
 - Regions with holes are partitioned into hole-free rings. Rings below one square millimetre are omitted.
 - Segment coverage checks every boundary crossing and the inward directions at touched vertices. Concave excursions fail even when both endpoints are covered. Boundary-collinear segments and inward tangencies are covered. These checks neither snap coordinates nor apply a distance tolerance; uncertain floating-point orientation signs use the exact represented coordinates.
