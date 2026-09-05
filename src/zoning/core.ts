@@ -71,10 +71,19 @@ export interface CoreFit {
 
 /** Best core the footprint hosts. */
 export function coreFit(footprint: Polygon): CoreFit {
-  const compact = fitsRect(footprint, COMPACT_RECT);
-  if (compact || fitsRect(footprint, STANDARD_RECT)) return { floorCap: Infinity, compact };
-  if (fitsRect(footprint, WALKUP_TWO_STAIRS_RECT)) return { floorCap: INTERIOR.walkupMaxFloors, compact: false };
-  const oneStair = area(footprint) <= INTERIOR.twoStairsAreaOver && fitsRect(footprint, WALKUP_RECT);
+  return classifyCore((rect) => fitsRect(footprint, rect), area(footprint));
+}
+
+/** Exact core capacity of an orthogonal plate before its world coordinates are rounded. */
+export function coreFitForRect(width: number, depth: number): CoreFit {
+  return classifyCore(([a, b]) => (width >= a && depth >= b) || (width >= b && depth >= a), width * depth);
+}
+
+function classifyCore(fits: (rect: Rect) => boolean, footprintArea: number): CoreFit {
+  const compact = fits(COMPACT_RECT);
+  if (compact || fits(STANDARD_RECT)) return { floorCap: Infinity, compact };
+  if (fits(WALKUP_TWO_STAIRS_RECT)) return { floorCap: INTERIOR.walkupMaxFloors, compact: false };
+  const oneStair = footprintArea <= INTERIOR.twoStairsAreaOver && fits(WALKUP_RECT);
   return { floorCap: oneStair ? INTERIOR.twoStairsFloorsOver : 0, compact: false };
 }
 

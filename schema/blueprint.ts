@@ -61,8 +61,18 @@ export interface BlueprintMeta {
   units: 'meters';
   /** The city grid: the angle in radians every gridded district's streets and every district cut follow. */
   gridAngle: number;
+  /** Shared building construction grid. Present on generated worlds; optional when reading older artifacts. */
+  buildingGrid?: BuildingGrid;
   /** Irregular outer city boundary. */
   boundary: Polygon;
+}
+
+export interface BuildingGrid {
+  origin: Vec2;
+  /** Rotation in radians, equal to the city grid angle. */
+  angle: number;
+  /** Construction cell size in metres. */
+  spacing: number;
 }
 
 export interface District {

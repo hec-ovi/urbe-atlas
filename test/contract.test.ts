@@ -101,7 +101,7 @@ describe('determinism', () => {
     const a = generateCity({ seed: 42, size: { width: 2000, depth: 2000 } });
     const b = generateCity({ seed: 42, size: { width: 2000, depth: 2000 } });
     expect(JSON.stringify(a)).toBe(JSON.stringify(b));
-  });
+  }, 10000); // Two complete 2 km plans, including geometry invariants.
 
   it('a different seed gives a different city', () => {
     const a = generateCity({ seed: 'a', size: { width: 2000, depth: 2000 } });

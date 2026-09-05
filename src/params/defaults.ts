@@ -1,4 +1,4 @@
-import type { AtlasParams, DistrictKind, FeatureToggles, WealthTier } from '../../schema/params';
+import type { AtlasParams, DistrictKind, FeatureToggles, FootprintShape, WealthTier } from '../../schema/params';
 import { invalidParams, unsatisfiable } from '../errors';
 import { validateHydrologyParams } from '../hydro/Hydrology';
 import type { HydrologyParams } from '../hydro/types';
@@ -7,6 +7,7 @@ export interface ResolvedParams {
   seed: string | number;
   size: { width: number; depth: number };
   irregularity: number;
+  footprintShape: FootprintShape;
   districtCount: [number, number];
   maxFloors: number;
   maxFloorsByDistrict: Partial<Record<DistrictKind, number>>;
@@ -55,6 +56,11 @@ export function resolveParams(input: AtlasParams): ResolvedParams {
   const irregularity = input.irregularity ?? 0.35;
   if (!(irregularity >= 0 && irregularity <= 1)) {
     throw invalidParams('irregularity must be in [0, 1]', { field: 'irregularity' });
+  }
+
+  const footprintShape = input.footprintShape === undefined ? 'rectangle' : input.footprintShape;
+  if (footprintShape !== 'rectangle' && footprintShape !== 'parcel') {
+    throw invalidParams('footprintShape must be rectangle or parcel', { field: 'footprintShape' });
   }
 
   if (input.districtCount !== undefined && !Array.isArray(input.districtCount)) {
@@ -136,6 +142,7 @@ export function resolveParams(input: AtlasParams): ResolvedParams {
     seed,
     size: { width: size.width, depth: size.depth },
     irregularity,
+    footprintShape,
     districtCount: [dMin, dMax],
     maxFloors,
     maxFloorsByDistrict,

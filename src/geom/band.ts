@@ -24,6 +24,7 @@ const TOLERANCE = 1e-9;
 /** Polygon in a frame: points as [u, v], whether each edge i (to i+1) is a side, and its chord readings once read. */
 interface Framed {
   axis: Vec2;
+  origin: Vec2;
   pts: Vec2[];
   side: boolean[];
   readings: Reading[] | null;
@@ -92,7 +93,11 @@ function frames(poly: Polygon): Framed[] {
 
 /** The polygon seen along `axis`; null when its end edges outweigh its side edges. */
 function frame(poly: Polygon, axis: Vec2): Framed | null {
-  const pts = poly.map((p): Vec2 => [p[0] * axis[0] + p[1] * axis[1], -p[0] * axis[1] + p[1] * axis[0]]);
+  const origin = poly[0];
+  const pts = poly.map((p): Vec2 => {
+    const x = p[0] - origin[0], z = p[1] - origin[1];
+    return [x * axis[0] + z * axis[1], -x * axis[1] + z * axis[0]];
+  });
   let sides = 0;
   let ends = 0;
   const side = pts.map((a, i) => {
@@ -103,7 +108,7 @@ function frame(poly: Polygon, axis: Vec2): Framed | null {
     else ends += l;
     return isSide;
   });
-  return sides >= ends ? { axis, pts, side, readings: null } : null;
+  return sides >= ends ? { axis, origin, pts, side, readings: null } : null;
 }
 
 /** Narrowest body chord along the frame; 0 when no chord runs between two sides. */
@@ -197,7 +202,7 @@ function slab(f: Framed, run: [number, number]): Polygon {
     vMax = Math.max(vMax, p[1]);
   }
   const [ux, uz] = f.axis;
-  const toWorld = (u: number, v: number): Vec2 => [u * ux - v * uz, u * uz + v * ux];
+  const toWorld = (u: number, v: number): Vec2 => [f.origin[0] + u * ux - v * uz, f.origin[1] + u * uz + v * ux];
   return [toWorld(run[0], vMin - 1), toWorld(run[1], vMin - 1), toWorld(run[1], vMax + 1), toWorld(run[0], vMax + 1)];
 }
 

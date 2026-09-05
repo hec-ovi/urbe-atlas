@@ -9,6 +9,7 @@ export type Seed = string | number;
 export type DistrictKind = 'downtown' | 'commercial' | 'residential' | 'industrial' | 'mixed';
 
 export type WealthTier = 'poor' | 'mid' | 'rich' | 'high_rich';
+export type FootprintShape = 'rectangle' | 'parcel';
 
 export interface AtlasParams {
   seed: Seed;
@@ -16,6 +17,8 @@ export interface AtlasParams {
   size?: { width: number; depth: number };
   /** 0..1: controls boundary shape/bending and, from 0.4, a radial downtown. Default 0.35. */
   irregularity?: number;
+  /** Building footprints on the shared city grid, or explicit lot-following shapes. Default rectangle. */
+  footprintShape?: FootprintShape;
   /** District count range, inclusive. Default scales with area (about 2 per sqrt(km2), range 0.7x-1.3x): a village gets [1, 2-3], the default 3 km city [4, 8]. */
   districtCount?: [min: number, max: number];
   /** Global building floor cap. Default 40. */

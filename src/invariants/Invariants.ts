@@ -4,6 +4,7 @@ import { invariantFailure } from '../errors';
 import { COMPACT_RECT, coreFit } from '../zoning/core';
 import { isHeavy, minBand } from '../zoning/bands';
 import { minFloorHeight } from '../zoning/floorMinimums';
+import { validateFootprints } from '../zoning/validateFootprints';
 import { ALLEY_WIDTH, CURB_WIDTH } from '../streets/widths';
 import { HIGHWAY_EXIT_TOLERANCE } from '../streets/Highways';
 import { bandWidth, hostsBand } from '../geom/band';
@@ -81,6 +82,7 @@ export class Invariants {
     }
 
     // footprints: the type's band end to end, core feasibility, one floor of the type's family
+    validateFootprints(bp);
     for (const p of bp.parcels) {
       if (!hostsBand(p.footprint, minBand(p.type))) {
         throw invariantFailure(

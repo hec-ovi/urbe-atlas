@@ -10,7 +10,7 @@
 import type { Polygon } from '../../schema/blueprint';
 import { intersection, offset, union } from '../geom/clip';
 import { area, bounds } from '../geom/polygon';
-import { hostFootprint, HostedFootprint, HostingProfile } from './Hosting';
+import { FootprintHost, HostedFootprint, HostingProfile } from '../zoning/FootprintHost';
 
 export interface LotCandidate {
   polygon: Polygon;
@@ -47,9 +47,9 @@ const TOUCH = 0.25;
 const MIN_SHARED = 2;
 
 export class Buildability {
-  static enforce(lots: LotCandidate[]): BuildabilityResult {
+  static enforce(lots: LotCandidate[], hoster: FootprintHost): BuildabilityResult {
     const polygons = lots.map((l) => l.polygon);
-    const hosted = lots.map((l) => host(l.polygon, l.profiles));
+    const hosted = lots.map((l) => host(l.polygon, l.profiles, hoster));
     const alive = lots.map(() => true);
     const openAreas = new Map<number, Polygon[]>();
     const lotsOfBlock = new Map<number, number[]>();
@@ -78,7 +78,7 @@ export class Buildability {
       }
       alive[i] = false;
       polygons[neighbour] = merged[0];
-      hosted[neighbour] = host(merged[0], lots[neighbour].profiles);
+      hosted[neighbour] = host(merged[0], lots[neighbour].profiles, hoster);
       if (hosted[neighbour] === null) queue.push(neighbour);
     }
 
@@ -92,9 +92,9 @@ export class Buildability {
 }
 
 /** First profile the lot hosts, with the footprint it yields. */
-function host(lot: Polygon, profiles: HostingProfile[]): Hosted | null {
+function host(lot: Polygon, profiles: HostingProfile[], hoster: FootprintHost): Hosted | null {
   for (let k = 0; k < profiles.length; k++) {
-    const hosted = hostFootprint(lot, profiles[k]);
+    const hosted = hoster.fit(lot, profiles[k]);
     if (hosted) return { ...hosted, profile: k };
   }
   return null;

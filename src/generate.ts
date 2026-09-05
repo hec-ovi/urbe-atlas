@@ -1,6 +1,7 @@
 /** The atlas pipeline: seed + params to a complete CityBlueprint. */
 import type {
   Block,
+  BuildingGrid,
   BusStop,
   CityBlueprint,
   District,
@@ -30,9 +31,12 @@ import { Obstacles, Planting } from './streets/Planting';
 import { carriagewayWidth, sidewalkWidth } from './streets/widths';
 import { BlockBuilder, BuiltBlock } from './blocks/BlockBuilder';
 import { Buildability } from './blocks/Buildability';
+import { FootprintHost } from './zoning/FootprintHost';
 import { Subdivision, SubdivisionConfig } from './blocks/Subdivision';
 import { Zoning, LotInput } from './zoning/Zoning';
 import { hostingProfiles } from './zoning/profiles';
+import type { FootprintPolicy } from './zoning/FootprintPolicy';
+import { INTERIOR } from './zoning/core';
 import { TransitPlanner } from './transit/TransitPlanner';
 import { Invariants } from './invariants/Invariants';
 import { bufferLine, difference, intersection, offset, snapPoint, union } from './geom/clip';
@@ -46,8 +50,8 @@ import { GROUND_LEVELS, type GroundSurfaceKind } from './streets/surfaces';
 import { GroundRoadway } from './streets/GroundRoadway';
 import { planHydrology, withHydrologyStructures } from './hydro/Hydrology';
 
-export const BLUEPRINT_VERSION = '0.14.1';
-export const HYDROLOGY_BLUEPRINT_VERSION = '0.15.1';
+export const BLUEPRINT_VERSION = '0.16.0';
+export const HYDROLOGY_BLUEPRINT_VERSION = BLUEPRINT_VERSION;
 
 const SUBDIVISION: Record<DistrictKind, SubdivisionConfig> = {
   downtown: { minLotArea: 500, maxLotArea: 2600, chanceNoDivide: 0.12 },
@@ -67,6 +71,9 @@ export function generateCity(input: AtlasParams): CityBlueprint {
   const waterSurfaces = plannedHydrology?.bodies.flatMap((body) => body.surfaces) ?? [];
   const planned = DistrictPlanner.plan(Rng.from(seed, 'districts'), boundary, params);
   const gridAngle = cityGridAngle(Rng.from(seed, 'grid'));
+  const buildingGrid: BuildingGrid = { origin: [0, 0], angle: gridAngle, spacing: INTERIOR.snap };
+  const footprintPolicy: FootprintPolicy = { shape: params.footprintShape, grid: buildingGrid };
+  const footprintHost = new FootprintHost(footprintPolicy);
   const field = StreetGrowth.buildField(boundary, params, planned, gridAngle);
   let lines = StreetGrowth.grow(field, boundary, Rng.from(seed, 'streets'), params, planned);
 
@@ -294,7 +301,7 @@ export function generateCity(input: AtlasParams): CityBlueprint {
     districtIndex: l.districtIndex,
     onRoad: blockHasRoad[l.blockIndex],
   }));
-  const zoned = Zoning.assign(lotInputs, planned, cityCenter, Rng.from(seed, 'zoning'));
+  const zoned = Zoning.assign(lotInputs, planned, cityCenter, Rng.from(seed, 'zoning'), footprintHost);
 
   // buildability: the footprint hosts its type's band and core, else the
   // district's light type's, else the lot is no parcel
@@ -303,7 +310,7 @@ export function generateCity(input: AtlasParams): CityBlueprint {
       polygon: l.polygon,
       blockIndex: l.blockIndex,
       profiles: hostingProfiles(zoned[i].type, Zoning.fallbackType(planned[l.districtIndex].kind)),
-    })),
+    })), footprintHost,
   );
   for (const [blockIndex, polygons] of buildable.openAreas) blockOpenAreas[blockIndex].push(...polygons);
   if (buildable.lots.length === 0) throw unsatisfiable('no buildable parcels produced; enlarge size');
@@ -491,6 +498,7 @@ export function generateCity(input: AtlasParams): CityBlueprint {
       bounds: bounds(boundary),
       units: 'meters',
       gridAngle,
+      buildingGrid,
       boundary,
     },
     districts,

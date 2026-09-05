@@ -26,7 +26,7 @@ describe('street elevation profiles', () => {
       expect(new Set(node.connections.map((connection) => connection.level)).size).toBe(node.connections.length);
       expect(node.connections.flatMap((connection) => connection.edgeIds).sort()).toEqual([...node.edgeIds].sort());
     }
-  });
+  }, 10000); // The branching highway fixture builds and validates a full 3 km city.
 
   it('rejects a profile that ends before its road does', () => {
     const broken = structuredClone(city()) as CityBlueprint;
