@@ -4,7 +4,7 @@ Purpose: verifies saved ground polygons against an independent land boundary.
 
 ## In and out
 
-`verifyPublishedCover(input): void`, [verifyPublishedCover.ts](verifyPublishedCover.ts), takes [PublishedCoverInput](schema.ts): one simple boundary, simple exclusion polygons and uniquely identified simple pieces. Rings may use either winding. The land domain is the boundary minus the union of exclusions. Empty pieces are valid only for an empty domain. Inputs are unchanged.
+`verifyPublishedCover(input): void`, [verifyPublishedCover.ts](verifyPublishedCover.ts), takes [PublishedCoverInput](schema.ts): one simple boundary, simple exclusion polygons and uniquely identified simple pieces. Rings may use either winding. Pieces are unclosed rings without consecutive or cyclic duplicate coordinates; boundary and exclusion rings normalize adjacent duplicates and repeated closing points. The land domain is the boundary minus the union of exclusions. Empty pieces are valid only for an empty domain. Inputs are unchanged.
 
 ## Invariants
 

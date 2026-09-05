@@ -93,4 +93,15 @@ describe('published ground cover contract', () => {
     }
     fail({ ...input, pieces: [piece('', rectangle(0, 0, 1, 1))] });
   });
+
+  it('rejects collapsed piece edges while retaining domain ring normalization', () => {
+    const ring = rectangle(0, 0, 1, 1), exclusion = rectangle(2, 2, 3, 3);
+    const input: PublishedCoverInput = { boundary: [...ring, ring[0]],
+      exclusions: [[exclusion[0], ...exclusion, exclusion[0]]], pieces: [piece('one', ring)] };
+    verifyPublishedCover(input);
+    for (const polygon of [
+      [ring[0], ring[1], ring[1], ring[2], ring[3]],
+      [...ring, ring[0]],
+    ]) fail({ ...input, pieces: [piece('one', polygon)] });
+  });
 });

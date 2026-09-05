@@ -7,11 +7,15 @@ import { conversionWitnesses } from './Conversion';
 import { verifyIncidence } from './Incidence';
 import type { PublishedCoverInput } from './schema';
 
-function polygon(value: Polygon, pool: PointPool) {
+function polygon(value: Polygon, pool: PointPool, strictEdges = false) {
   if (!Array.isArray(value) || value.some(point => !Array.isArray(point) || point.length !== 2
     || point.some(coordinate => typeof coordinate !== 'number' || !Number.isFinite(coordinate)))) {
     throw invariantFailure('published polygons require finite coordinate pairs');
   }
+  if (strictEdges && value.some((point, index) => {
+    const next = value[(index + 1) % value.length];
+    return point[0] === next[0] && point[1] === next[1];
+  })) throw invariantFailure('published pieces cannot contain zero-length edges');
   return readRing(value, pool);
 }
 
@@ -24,7 +28,7 @@ export function verifyPublishedCover(input: PublishedCoverInput): void {
     const pieces = input.pieces.map(piece => {
       if (typeof piece.id !== 'string' || !piece.id.length || ids.has(piece.id)) throw invariantFailure('published piece IDs must be unique nonempty strings');
       ids.add(piece.id);
-      try { return polygon(piece.polygon, pool); }
+      try { return polygon(piece.polygon, pool, true); }
       catch (error) {
         throw invariantFailure('published piece is malformed', { piece: piece.id, cause: error instanceof Error ? error.message : String(error) });
       }
