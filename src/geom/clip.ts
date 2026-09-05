@@ -1,6 +1,6 @@
 /**
  * Fixed-point wrapper around clipper2-ts: the single geometry kernel.
- * All coords snap to a 1 mm integer grid before any boolean/offset,
+ * Construction coords snap to a 1 mm integer grid before any boolean/offset,
  * which is what keeps seed -> output byte-identical.
  */
 import {
@@ -17,7 +17,7 @@ import type { Polygon, Vec2 } from '../../schema/blueprint';
 import { ensureCCW, area } from './polygon';
 import { normalizePaths } from './SnapRounding';
 import type { GridPath as IntPath } from './schema';
-import { interiorBeyondPrecision } from './InteriorPrecision';
+import { precisionInterior as diagnosticInterior } from './InteriorPrecision';
 import { traversesGridCell } from './GridCellTraversal';
 
 const SCALE = 1000; // 1 unit = 1 mm
@@ -33,7 +33,12 @@ export function segmentVisitsGridCell(a: Vec2, b: Vec2, center: Vec2): boolean {
 
 /** Whether the whole region survives half a boundary-width inset at diagnostic precision. */
 export function hasInteriorBeyondPrecision(polygons: Polygon[], boundaryWidth = GRID_STEP): boolean {
-  return interiorBeyondPrecision(polygons, boundaryWidth);
+  return precisionInterior(polygons, boundaryWidth).length > 0;
+}
+
+/** Nonzero-fill diagnostic contours, without snapping their output to the construction grid. */
+export function precisionInterior(polygons: Polygon[], boundaryWidth = GRID_STEP): Polygon[] {
+  return diagnosticInterior(polygons, boundaryWidth);
 }
 
 function toPath(poly: Polygon): IntPath {
