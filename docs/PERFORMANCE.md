@@ -15,5 +15,6 @@
 | `urbe`, two 1.5 km district plans | 7.05 |
 | 42 small-city seed/size pairs | 17.33 |
 | `station-access`, 1.6 km, concurrent suite | 5.06 |
+| `alleys`, two 1.2 km generations with reserved domains and exact extensions | 7.18 |
 
 The release gate uses `npm test -- --maxWorkers=4` to bound concurrent city-generation workers. Fixture-specific budgets leave room for that full suite. Unit tests retain the default timeout. A budget change requires another complete measurement and an owning-box performance review; these timings are evidence, not output guarantees.

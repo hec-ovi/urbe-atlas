@@ -467,7 +467,7 @@ describe('alleys', () => {
     const hasAlley = (bp: CityBlueprint): boolean => bp.streets.edges.some((e) => e.class === 'alley');
     expect(hasAlley(generateCity(params))).toBe(true);
     expect(hasAlley(generateCity({ ...params, features: { alleys: false } }))).toBe(false);
-  });
+  }, 15_000); // Two complete 1.2 km generations, measured at 7.18 seconds sequentially.
 });
 
 describe('committed samples', () => {
