@@ -1,5 +1,7 @@
 # Box map
 
+- src/streets/construction/datum: profile-based grade ownership, independent structure projections, land faces and clearance. src/streets/construction/datum/CONTRACT.md. Depends on street corridors, Highway envelopes and geometry.
+
 - src/streets/alleys: block cuts with real surrounding-street terminals inside the reserved domain. src/streets/alleys/CONTRACT.md. Depends on street domain, Atlas graph paths and geometry.
 
 - src/streets/construction/highway: early highway envelopes and later obstacle-aware supports. src/streets/construction/highway/CONTRACT.md. Depends on Atlas structure types and geometry; root route selection consumes its runs.
