@@ -1,5 +1,6 @@
 /** Minimum-area oriented bounding box via rotating calipers over the convex hull. */
 import type { Polygon, Vec2 } from '../../schema/blueprint';
+import { convexHull } from './ConvexHull';
 
 export interface OBB {
   center: Vec2;
@@ -10,29 +11,11 @@ export interface OBB {
   width: number;
 }
 
-function convexHull(points: readonly Vec2[]): Vec2[] {
-  const pts = [...points].sort((a, b) => a[0] - b[0] || a[1] - b[1]);
-  if (pts.length <= 2) return pts;
-  const cross = (o: Vec2, a: Vec2, b: Vec2): number =>
-    (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]);
-  const lower: Vec2[] = [];
-  for (const p of pts) {
-    while (lower.length >= 2 && cross(lower[lower.length - 2], lower[lower.length - 1], p) <= 0) lower.pop();
-    lower.push(p);
-  }
-  const upper: Vec2[] = [];
-  for (let i = pts.length - 1; i >= 0; i--) {
-    const p = pts[i];
-    while (upper.length >= 2 && cross(upper[upper.length - 2], upper[upper.length - 1], p) <= 0) upper.pop();
-    upper.push(p);
-  }
-  lower.pop();
-  upper.pop();
-  return [...lower, ...upper];
-}
+const floatingTurn = (origin: Vec2, a: Vec2, b: Vec2): number =>
+  (a[0] - origin[0]) * (b[1] - origin[1]) - (a[1] - origin[1]) * (b[0] - origin[0]);
 
 export function orientedBoundingBox(poly: Polygon): OBB {
-  const hull = convexHull(poly);
+  const hull = convexHull(poly, floatingTurn);
   let best: OBB | null = null;
   let bestArea = Infinity;
   for (let i = 0; i < hull.length; i++) {
