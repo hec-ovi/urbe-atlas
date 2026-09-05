@@ -1,5 +1,7 @@
 # Box map
 
+- test/runtime: native event-loop turns between completed tests. test/runtime/CONTRACT.md. Depends on Vitest's public runner and Node timers; selected by vite.config.ts.
+
 - src/streets/construction/paving: fitted paving data, canonical whole-cell spans and functional ground ownership. src/streets/construction/paving/CONTRACT.md. Depends on street construction and the Atlas ground schema; finish settings come from the caller.
 
 - src/geom: fixed-point polygon operations, shared crossing normalization and non-publishing precision checks. src/geom/CONTRACT.md. Depends on root Atlas coordinates and the existing integer clipping library.
