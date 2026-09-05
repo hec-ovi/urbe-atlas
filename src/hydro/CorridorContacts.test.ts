@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import type { CityBlueprint, StreetEdge } from '../../schema/blueprint';
 import { AtlasError } from '../errors';
 import { StreetCorridors } from '../streets/construction/StreetCorridors';
-import { withHydrologyStructures } from './Hydrology';
+import { planHydrology, withHydrologyStructures } from './Hydrology';
 import { checkCityHydrology } from './CityHydrologyInvariants';
 import { checkHydrology } from './HydrologyInvariants';
 import type { HydroPolygon, HydrologyCrossingInput, HydrologyPlan } from './types';
@@ -118,6 +118,23 @@ describe('exact hydrology corridor contract', () => {
     expect(() => checkHydrology(plan, { width: 400, depth: 400 })).toThrow(/outside its water contact/);
   });
 
+  it('accepts exact contact through several connected shoreline segments', () => {
+    const size = { width: 900, depth: 900 };
+    const plan = planHydrology({ seed: 'hydro-lagoon', size, boundary: rectangle(0, 0, 900, 900), config: { type: 'lagoon' } })!;
+    const corridor: HydroPolygon[] = [[
+      [470, 500], [506, 500], [515.994, 515.925], [512.159, 517.583],
+      [494.506, 521.75], [476.257, 522.846], [475.598, 522.772],
+    ]];
+    const result = withHydrologyStructures(plan, [{
+      network: 'street', refId: 'contact', path: [[478.52, 491.245], [499.808, 525.875]],
+      width: 38, level: 0, corridor,
+    }])!;
+    expect(result.structures).toHaveLength(1);
+    expect(result.structures[0].corridor).toEqual(corridor);
+    expect(() => checkHydrology(result, size)).not.toThrow();
+    result.structures[0].corridor![0][4][1] += 0.003;
+    expect(() => checkHydrology(result, size)).toThrow(/outside its water contact/);
+  });
 
   it('rejects malformed exact corridors and crossing metadata with deterministic contract errors', () => {
     const plan = water(rectangle(40, 34, 60, 38));

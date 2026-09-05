@@ -35,7 +35,7 @@ Purpose: deterministically plans one bounded water body and classifies the exact
 - Same seed, size, boundary and type produce byte-identical output. The hydrology stream never changes no-water generation.
 - Surface and shoreline rings are CCW, finite, non-self-intersecting, snapped to the 1 mm grid and bounded by the requested city extent.
 - A shoreline has one construction-band polygon per segment and closes implicitly without a duplicate final point.
-- Exact corridor reservations equal the source footprint intersected with its named water body on the 1 mm geometry grid. Shoreline containment allows that distance of rounding error, independent of contact length. Separate components remain separate structures; land and the clear narrow side are never reserved. Legacy centered crossings retain full-width classification. City validation checks every reservation's geometry, source, kind, width and level.
+- Exact corridor reservations equal the source footprint intersected with its named water body on the 1 mm geometry grid. Shoreline containment checks the geometric remainder outside its 1 mm boundary allowance, independent of contact length. Separate components remain separate structures; land and the clear narrow side are never reserved. Legacy centered crossings retain full-width classification. City validation checks every reservation's geometry, source, kind, width and level.
 
 ## How to modify this blackbox safely
 

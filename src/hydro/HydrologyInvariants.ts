@@ -1,6 +1,6 @@
 import { AtlasError } from '../errors';
 import { validCorridor } from './CrossingValidation';
-import { bufferLine, intersection } from '../geom/clip';
+import { bufferLine, difference } from '../geom/clip';
 import { area } from '../geom/polygon';
 import type { HydroPoint, HydroPolygon, HydrologyPlan } from './types';
 
@@ -38,10 +38,9 @@ export function checkHydrology(plan: HydrologyPlan, size: { width: number; depth
       || (structure.corridor !== undefined && !validCorridor(structure.corridor))) fail(`invalid water structure ${structure.id}`);
     if (structure.corridor) {
       const surfaces = contactDomains.get(structure.waterBodyId)!;
-      const contactArea = structure.corridor.reduce((sum, polygon) => sum + area(polygon), 0);
-      const wetArea = intersection(structure.corridor, surfaces).reduce((sum, polygon) => sum + area(polygon), 0);
-      if (contactArea - wetArea > GEOMETRY_GRID ** 2) fail(`water structure ${structure.id} reserves land outside its water contact`, {
-        contactArea, wetArea, maximumBoundaryError: GEOMETRY_GRID,
+      const outsideArea = difference(structure.corridor, surfaces).reduce((sum, polygon) => sum + area(polygon), 0);
+      if (outsideArea > GEOMETRY_GRID ** 2) fail(`water structure ${structure.id} reserves land outside its water contact`, {
+        outsideArea, maximumBoundaryError: GEOMETRY_GRID,
       });
     }
   }
