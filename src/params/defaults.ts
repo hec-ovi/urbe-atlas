@@ -2,12 +2,15 @@ import type { AtlasParams, DistrictKind, FeatureToggles, FootprintShape, WealthT
 import { invalidParams, unsatisfiable } from '../errors';
 import { validateHydrologyParams } from '../hydro/Hydrology';
 import type { HydrologyParams } from '../hydro/types';
+import type { StreetDesign } from '../streets/construction/schema/design';
+import { resolveStreetDesign } from '../streets/construction/Design';
 
 export interface ResolvedParams {
   seed: string | number;
   size: { width: number; depth: number };
   irregularity: number;
   footprintShape: FootprintShape;
+  streetDesign: StreetDesign;
   districtCount: [number, number];
   maxFloors: number;
   maxFloorsByDistrict: Partial<Record<DistrictKind, number>>;
@@ -62,6 +65,7 @@ export function resolveParams(input: AtlasParams): ResolvedParams {
   if (footprintShape !== 'rectangle' && footprintShape !== 'parcel') {
     throw invalidParams('footprintShape must be rectangle or parcel', { field: 'footprintShape' });
   }
+  const streetDesign = resolveStreetDesign(input.streetDesign);
 
   if (input.districtCount !== undefined && !Array.isArray(input.districtCount)) {
     throw invalidParams('districtCount must be [min, max]', { field: 'districtCount' });
@@ -143,6 +147,7 @@ export function resolveParams(input: AtlasParams): ResolvedParams {
     size: { width: size.width, depth: size.depth },
     irregularity,
     footprintShape,
+    streetDesign,
     districtCount: [dMin, dMax],
     maxFloors,
     maxFloorsByDistrict,

@@ -3,6 +3,7 @@ import { generateCity } from '../src';
 import { bufferLine, difference, intersection, offset } from '../src/geom/clip';
 import type { Polygon } from '../schema/blueprint';
 import { CURB_WIDTH } from '../src/streets/widths';
+import { StreetCorridors } from '../src/streets/construction/StreetCorridors';
 
 /** The contract tolerates only the geometry kernel's shared-boundary slivers. */
 function expectNoBand(regions: Polygon[], message: string): void {
@@ -23,8 +24,12 @@ describe('street ground ownership', () => {
     const roadGround = city.volumetric.ground.filter((region) => region.surface === 'roadway').map((region) => region.polygon);
     const sidewalkGround = city.volumetric.ground.filter((region) => region.surface === 'sidewalk').map((region) => region.polygon);
     const raisedPaving = city.volumetric.ground.filter((region) => region.surface === 'sidewalk' || region.surface === 'curb').map((region) => region.polygon);
+    const fullCorridors = intersection(new StreetCorridors(city.streets.edges).full, [city.meta.boundary]);
     expect(roads.length).toBeGreaterThan(0);
     expect(alleys.length).toBeGreaterThan(0);
+    expect([...new Set(roads.map((edge) => edge.width))].sort((a, b) => a - b)).toEqual([7, 14, 21]);
+    expectNoBand(difference(fullCorridors, [...roadGround, ...raisedPaving]), 'every reserved sidewalk has physical ground');
+    expectNoBand(intersection(fullCorridors, city.parcels.map((parcel) => parcel.lot)), 'parcels keep the complete per-side corridor clear');
     for (const edge of roads) {
       const required = intersection(bufferLine(edge.path, edge.width), [city.meta.boundary]);
       expectNoBand(difference(required, roadGround), `${edge.id} full carriageway is roadway`);

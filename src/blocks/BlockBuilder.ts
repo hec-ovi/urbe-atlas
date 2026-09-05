@@ -9,7 +9,7 @@ import { difference, GRID_STEP, intersection, offset } from '../geom/clip';
 import { filletCorners } from '../geom/fillet';
 import { area } from '../geom/polygon';
 import { PolygonIndex } from '../geom/PolygonIndex';
-import { CURB_WIDTH } from '../streets/widths';
+import { ALLEY_WIDTH, CURB_WIDTH } from '../streets/widths';
 import { SharedBoundary } from './SharedBoundary';
 
 /** Face land left over by the roadway: what a block is cut from. */
@@ -25,8 +25,6 @@ export interface BuiltBlock {
   /** The kerb: the outer CURB_WIDTH of the block, minus the stretches an alley takes. */
   curb: Polygon[];
   sidewalk: Polygon[];
-  /** Ring width used for this block's sidewalk, meters. */
-  sidewalkWidth: number;
   /** Buildable area inside the sidewalk ring. */
   interior: Polygon[];
   edgeIds: string[];
@@ -62,25 +60,25 @@ export class BlockBuilder {
     edgeBuffers: Map<string, Polygon[]>,
     alleyPaths: Map<string, Polyline>,
     alleyPaving: Polygon[],
-    sidewalkWidthOfFace: (face: Face) => number,
+    fullCorridors: Polygon[],
     curbRng: Rng,
   ): BuiltBlock[] {
     const blocks: BuiltBlock[] = [];
     const pedestrian = new PolygonIndex(alleyPaving);
     const road = new PolygonIndex([...edgeBuffers.values()].flat());
+    const reserved = new PolygonIndex(fullCorridors);
     for (const { faceIndex, pieceIndex, polygon } of this.pieces(faces, edgeBuffers)) {
       const face = faces[faceIndex];
       const rng = curbRng.fork(`${faceIndex}:${pieceIndex}`);
-      const sw = sidewalkWidthOfFace(face);
       const shared = new SharedBoundary(face.edgeIds.flatMap((id) => alleyPaths.has(id) ? [alleyPaths.get(id)!] : []));
-      const piece = filletCorners(shared.clean(polygon, MIN_SOURCE_EDGE, sw), (corner) =>
+      const piece = filletCorners(shared.clean(polygon, MIN_SOURCE_EDGE, ALLEY_WIDTH[1] / 2), (corner) =>
         shared.contains(corner) ? 0 : rng.range(CURB_RADIUS[0], CURB_RADIUS[1]),
       );
-      const interior = difference(offset([piece], -sw), pedestrian.near(piece)).filter((p) => area(p) >= 60);
-      if (interior.length === 0) continue;
-      // three bands off the same ring, so the kerb follows every return with
-      // both its edges parallel to it: kerb, then sidewalk, then the interior
       const behindCurb = offset([piece], -CURB_WIDTH);
+      const interior = difference(behindCurb, [...reserved.near(piece), ...pedestrian.near(piece)]).filter((p) => area(p) >= 60);
+      if (interior.length === 0) continue;
+      // The curb follows the outer boundary. The interior comes from each
+      // street's full reservation, including its own left and right widths.
       const kerb = difference([piece], behindCurb);
       const returns = difference([polygon], [piece]);
       // Two independently snapped offsets share this closed frontage boundary.
@@ -95,7 +93,7 @@ export class BlockBuilder {
         ...cutCurb.filter((polygon) => area(polygon) < MIN_CURB_AREA),
       ];
       blocks.push({
-        boundary: piece, curb, sidewalk, sidewalkWidth: sw, interior,
+        boundary: piece, curb, sidewalk, interior,
         edgeIds: face.edgeIds, returns,
       });
     }

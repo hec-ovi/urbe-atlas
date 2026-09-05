@@ -1,9 +1,10 @@
 /** Contract checks for construction-ready pedestrian crossing geometry. */
 import type { CityBlueprint } from '../../schema/blueprint';
 import { invariantFailure } from '../errors';
-import { area, centroid, isSimpleRing } from '../geom/polygon';
+import { area, isSimpleRing } from '../geom/polygon';
 import { add, dot, normalize, perp, scale, sub } from '../geom/vec';
 import { CROSSING } from '../streets/Crossings';
+import { GRID_STEP } from '../geom/clip';
 
 /** Allows accumulated 1 mm fixed-point rounding across all four polygon corners. */
 const POSITION_EPS = 0.005;
@@ -30,21 +31,12 @@ export function checkCrossings(bp: CityBlueprint): void {
       }
       const direction = normalize(sub(segment.to, segment.from));
       const along = perp(direction);
-      const middle = scale(add(segment.from, segment.to), 0.5);
+      const span = segment.roadway ?? segment;
+      const middle = scale(add(span.from, span.to), 0.5);
       for (const marking of segment.markings) {
         if (!isSimpleRing(marking)
-          || Math.abs(area(marking) - edge.width * CROSSING.stripeLength) > 0.01) {
+          || Math.abs(area(marking) - edge.width * CROSSING.stripeLength) > 2 * GRID_STEP * (edge.width + CROSSING.stripeLength)) {
           throw invariantFailure(`crossing ${crossing.nodeId}:${edge.id} has an invalid stripe`);
-        }
-        const centerOffset = sub(centroid(marking), middle);
-        const acrossOffset = dot(centerOffset, direction);
-        const alongOffset = dot(centerOffset, along);
-        if (Math.abs(acrossOffset) > POSITION_EPS
-          || Math.abs(alongOffset) > segment.width / 2 + POSITION_EPS) {
-          throw invariantFailure(
-            `crossing ${crossing.nodeId}:${edge.id} stripe leaves its marking region`,
-            { acrossOffset, alongOffset },
-          );
         }
         let minAcross = Infinity;
         let maxAcross = -Infinity;
@@ -60,6 +52,7 @@ export function checkCrossings(bp: CityBlueprint): void {
           maxAlong = Math.max(maxAlong, alongPosition);
         }
         if (Math.abs(maxAcross - minAcross - edge.width) > POSITION_EPS
+          || Math.abs((minAcross + maxAcross) / 2) > POSITION_EPS
           || Math.abs(maxAlong - minAlong - CROSSING.stripeLength) > POSITION_EPS
           || Math.max(Math.abs(minAlong), Math.abs(maxAlong)) > segment.width / 2 + POSITION_EPS) {
           throw invariantFailure(`crossing ${crossing.nodeId}:${edge.id} stripe does not fit its marking region`);

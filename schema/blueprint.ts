@@ -10,6 +10,8 @@
 
 import type { AtlasParams, DistrictKind, WealthTier } from './params';
 import type { HydrologyPlan } from '../src/hydro/types';
+import type { StreetConstruction, StreetCrossSection } from '../src/streets/construction/schema/sections';
+import type { EntranceBay } from '../src/transit/reservations/schema';
 
 export type Vec2 = [x: number, z: number];
 export type Vec3 = [x: number, y: number, z: number];
@@ -97,6 +99,8 @@ export interface StreetGraph {
   planting: PlantingPoint[];
   /** Reproducible deck, ramp and support geometry for every elevated highway run. */
   highwayStructures: HighwayStructure[];
+  /** Exact through-run cross sections. Optional when reading older blueprints. */
+  construction?: StreetConstruction;
 }
 
 /**
@@ -195,6 +199,8 @@ export interface StreetEdge {
   width: number;
   /** Sidewalk width per side in meters, 0 = none (highways). Left/right relative to path direction. */
   sidewalk: { left: number; right: number };
+  /** Exact grade lane offsets and independent functional sidewalk bands. Highways omit this. */
+  crossSection?: StreetCrossSection;
   districtIds: string[];
   /** Flat or maximum carriageway height: 0 at grade, 8 on a highway deck (src/levels.ts). */
   level: number;
@@ -214,6 +220,8 @@ export interface CrossingSegment {
   /** Pedestrian centerline from one sidewalk walking band to the other. */
   from: Vec2;
   to: Vec2;
+  /** Exact marking span, independent of unequal sidewalk walking-band offsets. */
+  roadway?: { from: Vec2; to: Vec2 };
   /** Clear crossing width along the street direction. */
   width: number;
   /** Stripe polygons fitted by construction to the carriageway width. */
@@ -275,6 +283,8 @@ export interface Transit {
   trainLines: RailLine[];
   subwayStations: Station[];
   subwayLines: RailLine[];
+  /** Demand fixed before parcels so subway entrance land can be reserved. */
+  subwayDemand?: { populationEstimate: number; lineTarget: number };
 }
 
 export interface BusStop {
@@ -303,6 +313,8 @@ export interface Station {
   box: { bottom: number; top: number };
   /** Street-level entrance points, each on a sidewalk. */
   entrances: Vec2[];
+  /** Reserved sidewalk-connected land in the same order as underground entrances. */
+  entranceBays?: EntranceBay[];
   /** One shaft per entrance, in the same order: the way down to the platform. Empty for a station at grade, whose entrances open onto the platform itself. */
   shafts: Shaft[];
   /** One navigable route per underground entrance, in entrance order. Empty at grade. */

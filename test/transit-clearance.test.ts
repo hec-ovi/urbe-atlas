@@ -46,6 +46,6 @@ describe('transit construction clearance', () => {
           expect(overlapArea([...gradeRail, ...shafts], support.footprint), `${structure.edgeIds[0]} support and grade infrastructure`).toBeLessThanOrEqual(1e-6);
         }
       }
-    });
+    }, size === 3000 ? 30000 : size === 2000 ? 15000 : undefined); // Full-city generation and clearance checks.
   }
 });

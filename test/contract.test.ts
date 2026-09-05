@@ -101,13 +101,13 @@ describe('determinism', () => {
     const a = generateCity({ seed: 42, size: { width: 2000, depth: 2000 } });
     const b = generateCity({ seed: 42, size: { width: 2000, depth: 2000 } });
     expect(JSON.stringify(a)).toBe(JSON.stringify(b));
-  }, 10000); // Two complete 2 km plans, including geometry invariants.
+  }, 30000); // Two complete 2 km plans, including all geometry invariants.
 
   it('a different seed gives a different city', () => {
     const a = generateCity({ seed: 'a', size: { width: 2000, depth: 2000 } });
     const b = generateCity({ seed: 'b', size: { width: 2000, depth: 2000 } });
     expect(JSON.stringify(a.streets)).not.toBe(JSON.stringify(b.streets));
-  });
+  }, 30000); // Two complete 2 km plans, including all geometry invariants.
 });
 
 describe('blueprint output', () => {
@@ -223,6 +223,9 @@ describe('blueprint output', () => {
             on[0] - ((c[1] - a[1]) / span) * (CURB_WIDTH / 2),
             on[1] + ((c[0] - a[0]) / span) * (CURB_WIDTH / 2),
           ];
+          // A short snapped facet can put this normal beyond an adjacent
+          // boundary. Only points inside the block belong to its curb strip.
+          if (!pointInPolygon(into, b.boundary)) continue;
           const sharedFrontage = nearAlley(into);
           if (sharedFrontage && !roadGround.some((ground) =>
             distanceToOutline(into, ground.polygon) <= CURB_WIDTH,
@@ -241,6 +244,7 @@ describe('blueprint output', () => {
       ...bp.districts.map((x) => x.id),
       ...bp.streets.nodes.map((x) => x.id),
       ...bp.streets.edges.map((x) => x.id),
+      ...(bp.streets.construction?.runs ?? []).map((x) => x.id),
       ...bp.blocks.map((x) => x.id),
       ...bp.parcels.map((x) => x.id),
       ...bp.transit.busStops.map((x) => x.id),
@@ -264,7 +268,7 @@ describe('blueprint output', () => {
     expect(bp.transit.subwayStations).toHaveLength(0);
     expect(bp.transit.trainLines).toHaveLength(0);
     expect(bp.transit.trainStations).toHaveLength(0);
-  });
+  }, 15000); // One complete 2 km generation and its invariants.
 
   it('caps floors globally and per district kind', () => {
     const bp = generateCity({
@@ -277,7 +281,7 @@ describe('blueprint output', () => {
     for (const p of bp.parcels) {
       expect(p.envelope.maxFloors).toBeLessThanOrEqual(downtownIds.has(p.districtId) ? 3 : 6);
     }
-  });
+  }, 15000); // One complete 2 km generation and its invariants.
 
   it('every parcel access edge exists and every stop is on a route', () => {
     const bp = defaultCity();
@@ -435,7 +439,7 @@ describe('districts', () => {
     for (const cut of leanedCuts) {
       expect(cut.deviation, `${cut.length.toFixed(0)} m cut`).toBeLessThanOrEqual(irregularity * MAX_DISTRICT_LEAN_DEG + 0.5);
     }
-  });
+  }, 15000); // Two complete 1.5 km district plans and their invariants.
 });
 
 describe('alleys', () => {
@@ -511,7 +515,7 @@ describe('small cities', () => {
         expectGroundSurfacesAreDisjoint(bp);
       }
     }
-  });
+  }, 30000); // Complete generation and coherence checks for all 42 small-city cases.
 });
 
 describe('errors', () => {

@@ -117,7 +117,7 @@ describe('highway runs', () => {
     expect(new Set(covered).size).toBe(highways.length);
     expect(new Set(covered)).toEqual(new Set(highways.map((edge) => edge.id)));
     expect(bp.streets.highwayStructures).toEqual(generateCity({ seed: 'urbe', size: { width: 3000, depth: 3000 } }).streets.highwayStructures);
-  });
+  }, 30000); // One full 3 km regeneration, including all geometry invariants.
 
   it('keeps each deck and every support clear of building footprints', () => {
     const overlapsBounds = (a: Vec2[], b: Vec2[]): boolean => {

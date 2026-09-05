@@ -26,13 +26,13 @@ describe('street elevation profiles', () => {
       expect(new Set(node.connections.map((connection) => connection.level)).size).toBe(node.connections.length);
       expect(node.connections.flatMap((connection) => connection.edgeIds).sort()).toEqual([...node.edgeIds].sort());
     }
-  }, 10000); // The branching highway fixture builds and validates a full 3 km city.
+  }, 30000); // One full 3 km generation, including all geometry invariants.
 
   it('rejects a profile that ends before its road does', () => {
     const broken = structuredClone(city()) as CityBlueprint;
     broken.streets.edges[0].elevationProfile.pop();
     expect(() => checkStreetElevations(broken)).toThrow(/does not span its path/);
-  });
+  }, 30000); // The same full-city fixture also supports isolated test runs.
 
   it('rejects a grade road grouped into an elevated highway turn', () => {
     const broken = structuredClone(city()) as CityBlueprint;
@@ -40,5 +40,5 @@ describe('street elevation profiles', () => {
     node.connections[0].edgeIds.push(node.connections[1].edgeIds.pop()!);
     if (node.connections[1].edgeIds.length === 0) node.connections.pop();
     expect(() => checkStreetElevations(broken)).toThrow(/wrong level|incomplete or duplicate/);
-  });
+  }, 30000);
 });

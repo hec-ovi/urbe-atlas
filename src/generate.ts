@@ -28,8 +28,9 @@ import type { Face } from './streets/Faces';
 import { Crossings } from './streets/Crossings';
 import { Signals } from './streets/Signals';
 import { Obstacles, Planting } from './streets/Planting';
-import { carriagewayWidth, sidewalkWidth } from './streets/widths';
-import { BlockBuilder, BuiltBlock } from './blocks/BlockBuilder';
+import { BlockBuilder } from './blocks/BlockBuilder';
+import { StreetSections } from './streets/construction/StreetSections';
+import { StreetCorridors } from './streets/construction/StreetCorridors';
 import { Buildability } from './blocks/Buildability';
 import { FootprintHost } from './zoning/FootprintHost';
 import { Subdivision, SubdivisionConfig } from './blocks/Subdivision';
@@ -41,16 +42,15 @@ import { TransitPlanner } from './transit/TransitPlanner';
 import { Invariants } from './invariants/Invariants';
 import { bufferLine, difference, intersection, offset, snapPoint, union } from './geom/clip';
 import { area, bounds, centroid, distanceToOutline, pointInPolygon } from './geom/polygon';
-import { directionAt, length as lineLength, pointAt } from './geom/polyline';
-import { closestOnSegment, cross, dist, sub } from './geom/vec';
-import { LEVELS } from './levels';
+import { length as lineLength, pointAt } from './geom/polyline';
+import { closestOnSegment, dist } from './geom/vec';
 import { cityGridAngle } from './grid';
 import { RAIL, STATION } from './transit/stations';
 import { GROUND_LEVELS, type GroundSurfaceKind } from './streets/surfaces';
 import { GroundRoadway } from './streets/GroundRoadway';
 import { planHydrology, withHydrologyStructures } from './hydro/Hydrology';
 
-export const BLUEPRINT_VERSION = '0.16.0';
+export const BLUEPRINT_VERSION = '0.17.0';
 export const HYDROLOGY_BLUEPRINT_VERSION = BLUEPRINT_VERSION;
 
 const SUBDIVISION: Record<DistrictKind, SubdivisionConfig> = {
@@ -102,14 +102,8 @@ export function generateCity(input: AtlasParams): CityBlueprint {
     StreetGraphBuilder.build(traced, { simplifyTolerance: 1.5, snapRadius: 10 });
   const facesOf = (edges: ReturnType<typeof buildGraph>['edges']): Face[] =>
     FaceExtractor.faces(edges, 400, area(boundary) / 2);
-  const roadwayOf = (edges: ReturnType<typeof buildGraph>['edges']): Map<string, Polygon[]> => {
-    const buffers = new Map<string, Polygon[]>();
-    for (const e of edges) {
-      const width = carriagewayWidth(e.class);
-      if (width > 0) buffers.set(e.id, bufferLine(e.path, width));
-    }
-    return buffers;
-  };
+  const sectionsOf = (graph: ReturnType<typeof buildGraph>): ReturnType<typeof StreetSections.plan> =>
+    StreetSections.plan(graph.edges, graph.nodes, params.streetDesign, (point) => planned[districtOfPoint(point)].kind);
 
   let graph = buildGraph(lines);
   if (graph.edges.length < 8) throw unsatisfiable('street network too small; enlarge size', { edges: graph.edges.length });
@@ -125,7 +119,7 @@ export function generateCity(input: AtlasParams): CityBlueprint {
     throw unsatisfiable('street network never planar for this seed and size; change either', { edges: graph.edges.length });
   }
   if (params.features.alleys) {
-    const land = BlockBuilder.pieces(faces, roadwayOf(graph.edges));
+    const land = BlockBuilder.pieces(faces, new StreetCorridors(sectionsOf(graph).edges).roadway);
     const alleys = AlleyPlanner.plan(
       land.map((piece) => piece.polygon),
       graph.nodes.map((n) => n.position),
@@ -149,33 +143,21 @@ export function generateCity(input: AtlasParams): CityBlueprint {
   if (params.features.highways) ensureUsableHighway(graph.edges, graph.nodes, boundary);
 
   // --- street edges with widths and districts ---------------------------
+  const streetPlan = sectionsOf(graph);
   const edgeDistrict = new Map<string, number>();
-  const streetEdges: StreetEdge[] = graph.edges.map((e) => {
+  const streetEdges: StreetEdge[] = streetPlan.edges.map((e) => {
     const mid = pointAt(e.path, lineLength(e.path) / 2);
     const di = districtOfPoint(mid);
     edgeDistrict.set(e.id, di);
     const districtIds = [...new Set([districtOfPoint(e.path[0]), di, districtOfPoint(e.path[e.path.length - 1])])]
       .sort((a, b) => a - b)
       .map((i) => `d${i}`);
-    const sw = sidewalkWidth(e.class, planned[di].kind);
     return {
-      id: e.id,
-      class: e.class,
-      from: e.from,
-      to: e.to,
-      path: e.path,
-      width: carriagewayWidth(e.class),
-      sidewalk: { left: sw, right: sw },
+      ...e,
       districtIds,
-      level: e.class === 'highway' ? LEVELS.highway : LEVELS.ground,
-      elevationProfile: [],
     };
   });
   applyHighwayElevationProfiles(streetEdges);
-  const sidewalkOf = (edgeId: string): number => {
-    const e = streetEdgeById.get(edgeId)!;
-    return Math.max(e.sidewalk.left, e.sidewalk.right);
-  };
   const streetEdgeById = new Map(streetEdges.map((e) => [e.id, e]));
   // Curved joins can extend the deck into a face beyond its centerline
   // offset, so construction clearance is reserved from the exact buffered
@@ -202,7 +184,7 @@ export function generateCity(input: AtlasParams): CityBlueprint {
   const vehicleEdges = streetEdges.filter((edge) => edge.class !== 'alley');
   const vehicleEdgeIds = new Set(vehicleEdges.map((edge) => edge.id));
   const vehicleNodes = graph.nodes.filter((node) => node.edgeIds.some((id) => vehicleEdgeIds.has(id)));
-  const planner = new TransitPlanner(vehicleNodes, vehicleEdges, sidewalkOf);
+  const planner = new TransitPlanner(vehicleNodes, vehicleEdges);
   const nodeById = new Map(graph.nodes.map((node) => [node.id, node]));
   const transitRng = Rng.from(seed, 'transit');
   const trainPlan = params.features.trains
@@ -226,24 +208,17 @@ export function generateCity(input: AtlasParams): CityBlueprint {
       alleyPaths.set(e.id, e.path);
     }
   }
-  const roadwayBuffers = roadwayOf(graph.edges);
-  const alleyPaving = streetEdges.filter((edge) => edge.class === 'alley')
-    .flatMap((edge) => bufferLine(edge.path, edge.sidewalk.left + edge.sidewalk.right));
+  const corridors = new StreetCorridors(streetEdges);
+  const roadwayBuffers = corridors.roadway;
+  const alleyPaving = corridors.pedestrian;
   const builtBlocks = BlockBuilder.build(
     faces,
     roadwayBuffers,
     alleyPaths,
     alleyPaving,
-    (face: Face) => {
-      const di = districtOfPoint(centroid(face.polygon));
-      const cls = face.edgeIds.some((id: string) => alleyEdgeIds.has(id)) ? 'alley' : 'street';
-      return sidewalkWidth(cls, planned[di].kind);
-    },
+    corridors.full,
     Rng.from(seed, 'curbs'),
   );
-  for (const e of streetEdges) {
-    if (e.class === 'alley') adoptFlankingSidewalks(e, builtBlocks);
-  }
 
   // --- parcels ----------------------------------------------------------
   const lotRng = Rng.from(seed, 'parcels');
@@ -269,7 +244,22 @@ export function generateCity(input: AtlasParams): CityBlueprint {
           offset([station.platform], RAIL.buildingClearance)),
       ])
     : [];
-  const infrastructureNoBuild = union([...highwayNoBuild, ...trainNoBuild]);
+  const existingInfrastructure = union([...highwayNoBuild, ...trainNoBuild]);
+  const capacity = Zoning.populationForecast(planned.map((district, index) => ({
+    districtId: `d${index}`, kind: district.kind, tier: district.tier, maxFloors: district.maxFloors,
+    landArea: builtBlocks.reduce((sum, block, blockIndex) => blockDistrict[blockIndex] !== index ? sum : sum
+      + difference(block.interior, [...waterSurfaces, ...existingInfrastructure]).reduce((total, polygon) => total + area(polygon), 0), 0),
+  })));
+  const subwayPlan = params.features.subways ? planner.planSubway({
+    districts: planned,
+    districtOfNode: (nodeId) => districtOfPoint(nodeById.get(nodeId)!.position),
+    cityCenter, boundary, populationEstimate: capacity.populationEstimate,
+    entranceObstacles: [...waterSurfaces, ...existingInfrastructure, ...alleyPaving],
+    stationExclusion: waterSurfaces,
+    rng: transitRng,
+  }) : undefined;
+  const subwayBayPaving = subwayPlan?.subwayStations.flatMap((station) => station.entranceBays?.map((bay) => bay.footprint) ?? []) ?? [];
+  const infrastructureNoBuild = union([...existingInfrastructure, ...subwayBayPaving]);
   builtBlocks.forEach((block, blockIndex) => {
     const districtIndex = blockDistrict[blockIndex];
     const cfg = SUBDIVISION[planned[districtIndex].kind];
@@ -387,27 +377,22 @@ export function generateCity(input: AtlasParams): CityBlueprint {
 
   // --- transit -----------------------------------------------------------
   const population = zonedParcels.reduce((s, z) => s + z.residents, 0);
-  const anchors = parcels
-    .filter((p) => p.type === 'hospital' || p.type === 'mall' || p.type === 'corpo')
-    .map((p) => centroid(p.lot));
   const transit = planner.plan({
     districts: planned,
     districtOfNode: (nodeId) => districtOfPoint(nodeById.get(nodeId)!.position),
     cityCenter,
     boundary,
     population,
-    anchors,
     features: params.features,
     trainPlan,
-    entranceObstacles: [...parcels.map((parcel) => parcel.footprint), ...waterSurfaces],
-    stationExclusion: offset(waterSurfaces, Math.hypot(STATION.subway.platformLength, STATION.subway.platformWidth) / 2 + 1),
+    subwayPlan,
     rng: transitRng,
   });
   pruneUnusedStops(transit.busStops, transit.busRoutes.flatMap((r) => r.stopIds));
   if (waterSurfaces.length > 0) pruneWaterStops(transit, waterSurfaces);
 
   // --- crossings, ground, volumetric -------------------------------------
-  const crossings = Crossings.build(graph.nodes, graph.edges, sidewalkOf);
+  const crossings = Crossings.build(graph.nodes, streetEdges);
   const streetNodes = streetNodesWithConnections(graph.nodes, streetEdges);
   const signals = Signals.build(streetNodes, streetEdges);
 
@@ -425,14 +410,12 @@ export function generateCity(input: AtlasParams): CityBlueprint {
     Rng.from(seed, 'planting'),
   ).filter((item) => !waterSurfaces.some((surface) => pointInPolygon(item.position, surface)));
   const subwayShafts = transit.subwayStations.flatMap((station) => station.shafts.map((shaft) => shaft.footprint));
-  const pedestrianPaving = builtBlocks.flatMap((block) => [...block.curb, ...block.sidewalk]);
-  const structures = highwayStructures(streetEdges, [...trainNoBuild, ...subwayShafts, ...pedestrianPaving]);
 
   // Ground ownership follows the full network, including unbounded and small faces.
   const ground: GroundSurface[] = [];
-  const addGround = (surface: GroundSurfaceKind, polygon: Polygon): void => {
+  const addGround = (surface: GroundSurfaceKind, polygon: Polygon, reserved: Polygon[] = subwayBayPaving): void => {
     const levels = GROUND_LEVELS[surface];
-    const pieces = waterSurfaces.length > 0 ? difference([polygon], waterSurfaces) : [polygon];
+    const pieces = difference([polygon], [...waterSurfaces, ...reserved]);
     for (const piece of pieces) ground.push({ surface, polygon: piece, bottom: levels.bottom, top: levels.top });
   };
   for (const poly of GroundRoadway.build(boundary, [...roadwayBuffers.values()].flat(), faces, builtBlocks)) {
@@ -442,12 +425,15 @@ export function generateCity(input: AtlasParams): CityBlueprint {
   for (const b of builtBlocks) for (const poly of b.sidewalk) addGround('sidewalk', poly);
   for (const p of parcels) addGround('block', p.lot);
   for (const open of blockOpenAreas) for (const poly of open) addGround('open', poly);
-  for (const poly of difference(intersection(alleyPaving, [boundary]), ground.map((region) => region.polygon))) {
+  for (const poly of difference(intersection(corridors.full, [boundary]), ground.map((region) => region.polygon))) {
     addGround('sidewalk', poly);
   }
+  for (const poly of subwayBayPaving) addGround('sidewalk', poly, []);
   // the fringe is whatever the placed cover leaves of the boundary, so the partition is exact by construction
   const fringe = difference([boundary], ground.map((g) => g.polygon));
   for (const poly of fringe) addGround('open', poly);
+  const pedestrianPaving = ground.filter((region) => region.surface === 'curb' || region.surface === 'sidewalk').map((region) => region.polygon);
+  const structures = highwayStructures(streetEdges, [...trainNoBuild, ...subwayShafts, ...pedestrianPaving]);
 
   const heightRng = Rng.from(seed, 'volumetric');
   const volumetric = {
@@ -468,6 +454,7 @@ export function generateCity(input: AtlasParams): CityBlueprint {
       refId: edge.id,
       path: edge.path,
       width: edge.width + edge.sidewalk.left + edge.sidewalk.right,
+      corridor: corridors.byEdge.get(edge.id),
       level: edge.level,
     })).filter((edge) => edge.width > 0),
     ...transit.trainLines.map((line) => ({ network: 'train' as const, refId: line.id, path: line.path, width: line.width, level: line.level })),
@@ -502,7 +489,8 @@ export function generateCity(input: AtlasParams): CityBlueprint {
       boundary,
     },
     districts,
-    streets: { nodes: streetNodes, edges: streetEdges, crossings, signals, planting, highwayStructures: structures },
+    streets: { nodes: streetNodes, edges: streetEdges, crossings, signals, planting, highwayStructures: structures,
+      construction: { version: '1.0.0', runs: streetPlan.runs } },
     blocks,
     parcels,
     transit,
@@ -521,22 +509,6 @@ export function generateCity(input: AtlasParams): CityBlueprint {
 
   Invariants.check(blueprint);
   return blueprint;
-}
-
-/**
- * An alley is the pair of sidewalk bands its flanking blocks lay along it, so
- * its declared widths are those bands. A side with no block keeps the default.
- */
-function adoptFlankingSidewalks(edge: StreetEdge, blocks: BuiltBlock[]): void {
-  const half = lineLength(edge.path) / 2;
-  const mid = pointAt(edge.path, half);
-  const dir = directionAt(edge.path, half);
-  for (const block of blocks) {
-    if (!block.edgeIds.includes(edge.id)) continue;
-    const side = cross(dir, sub(centroid(block.boundary), mid));
-    if (side > 0) edge.sidewalk.left = block.sidewalkWidth;
-    else if (side < 0) edge.sidewalk.right = block.sidewalkWidth;
-  }
 }
 
 /** Point on the block's sidewalk band closest to any vertex of the lot. */

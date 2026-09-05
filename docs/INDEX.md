@@ -10,3 +10,8 @@
 - src/ui: preview box (canvas map view with parcel picking, nondegenerate highway deck faces, depth-visible diagnostic paths, footprint shape and city controls with parameter import/export, progress cover, notifications, parcel link template, legend, layer toggles). src/ui/CONTRACT.md. Depends on the root contract and the optional Engine assembly manifest contract.
 - src/zoning: district population forecasts, use eligibility and complete rectangular or lot-following footprints on the published building grid. src/zoning/CONTRACT.md. Depends on Atlas geometry and mirrored Interior core feasibility; Buildability consumes its hosting policy.
 - src/transit: bus service and early rail plans with full sidewalk-connected subway bays. src/transit/CONTRACT.md. Depends on street construction and zoning capacity; reservations/ owns entrance land geometry.
+- src/streets/construction: continuous road profiles and per-side pedestrian reservations before parcels. src/streets/construction/CONTRACT.md. Depends on the Atlas graph, geometry and district contracts.
+
+## Measurements
+
+- [Generation](PERFORMANCE.md): reproducible full-city fixture timings and scoped test budgets.

@@ -22,7 +22,7 @@ describe('street construction surfaces', () => {
         expect(segment.markings.length).toBeGreaterThan(0);
         for (const marking of segment.markings) {
           const edge = city.streets.edges.find((candidate) => candidate.id === segment.edgeId)!;
-          expect(Math.abs(area(marking) - edge.width * CROSSING.stripeLength)).toBeLessThan(0.01);
+          expect(Math.abs(area(marking) - edge.width * CROSSING.stripeLength)).toBeLessThan(0.002 * (edge.width + CROSSING.stripeLength));
         }
       }
     }

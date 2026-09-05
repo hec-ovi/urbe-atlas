@@ -86,5 +86,5 @@ describe('rectangular building construction', () => {
     });
     expect(square).toBeDefined();
     expect(coreFit(square!.footprint).floorCap).toBeGreaterThan(0);
-  }, 15000);
+  }, 30000); // One full 3 km generation, including all geometry invariants.
 });

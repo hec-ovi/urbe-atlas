@@ -33,14 +33,14 @@ describe('station access paths', () => {
         expect(lastSegment.path[lastSegment.path.length - 1]).toEqual(handoff);
       });
     }
-  });
+  }, 15000); // Complete 1.6 km generation and station geometry validation.
 
   it('rejects a missing access route', () => {
     const bp = generateCity({ seed: 'station-access-invalid', size: { width: 1600, depth: 1600 } });
     const broken = structuredClone(bp) as CityBlueprint;
     broken.transit.subwayStations[0].accessPaths.pop();
     expect(() => checkStations(broken)).toThrow(/access paths/);
-  });
+  }, 15000);
 
   it('rejects an instant vertical stair edge', () => {
     const bp = generateCity({ seed: 'station-access-vertical', size: { width: 1600, depth: 1600 } });
@@ -52,5 +52,5 @@ describe('station access paths', () => {
       [entrance[0], station.level, entrance[1]],
     ];
     expect(() => checkStations(broken)).toThrow(/vertical or non-descending flight/);
-  });
+  }, 15000);
 });

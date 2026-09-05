@@ -10,7 +10,7 @@
 import type { StreetEdge, StreetNode, TrafficSignal, Vec2 } from '../../schema/blueprint';
 import { length as lineLength, directionAt, distanceTo, pointAt } from '../geom/polyline';
 import { approachSetback } from './Crossings';
-import { CURB_WIDTH } from './widths';
+import { sidewalkBand } from './construction/SidewalkSection';
 
 /**
  * Arms that meet at grade with a carriageway to stop. A highway is a deck
@@ -33,7 +33,8 @@ export class Signals {
         .filter((e): e is StreetEdge => e !== undefined && SIGNALLED.has(e.class));
       if (arms.length < 3 || !arms.some((e) => TRIGGERS.has(e.class))) continue;
       // a junction is signalled whole or not at all: one head on every arm
-      const heads = arms.map((edge) => headOn(node, edge));
+      const width = Math.max(...arms.map((edge) => edge.width));
+      const heads = arms.map((edge) => headOn(node, edge, width));
       if (heads.some((h) => h === null)) continue;
       out.push(...(heads as TrafficSignal[]));
     }
@@ -41,9 +42,9 @@ export class Signals {
   }
 }
 
-function headOn(node: StreetNode, edge: StreetEdge): TrafficSignal | null {
+function headOn(node: StreetNode, edge: StreetEdge, junctionWidth: number): TrafficSignal | null {
   const armLength = lineLength(edge.path);
-  const back = approachSetback(edge.width, armLength);
+  const back = approachSetback(junctionWidth, armLength);
   const atStart = edge.from === node.id;
   const arc = atStart ? back : armLength - back;
   if (arc <= 0 || arc >= armLength) return null;
@@ -54,7 +55,9 @@ function headOn(node: StreetNode, edge: StreetEdge): TrafficSignal | null {
   const right: Vec2 = [toward[1], -toward[0]];
   // the kerb the approach keeps to is the path's left when the arm leaves the node, its right when it arrives
   const sidewalk = atStart ? edge.sidewalk.left : edge.sidewalk.right;
-  const reach = edge.width / 2 + CURB_WIDTH + sidewalk / 2;
+  const band = sidewalkBand(edge, atStart ? 'left' : 'right', 'furnishing');
+  if (band.width <= 0) return null;
+  const reach = edge.width / 2 + band.offset;
   const base = pointAt(edge.path, arc);
   const position: Vec2 = [base[0] + right[0] * reach, base[1] + right[1] * reach];
   // a tight bend pinches the offset line back toward the roadway: verify the pole on its own edge

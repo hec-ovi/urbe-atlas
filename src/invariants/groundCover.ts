@@ -58,7 +58,7 @@ export function checkGroundCover(bp: CityBlueprint): void {
       if (shared.length === 0 || offset(shared, -OVERLAP_EPS).length === 0) continue;
       throw invariantFailure(
         `ground surfaces ${i} (${ground[i].surface}) and ${j} (${ground[j].surface}) overlap`,
-        { overlap: shared.reduce((s, p) => s + area(p), 0) },
+        { overlap: shared.reduce((s, p) => s + area(p), 0), first: ground[i], second: ground[j] },
       );
     }
   }

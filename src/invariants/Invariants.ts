@@ -22,6 +22,8 @@ import { checkBusRouteTopology } from './routes';
 import { checkCrossings } from './crossings';
 import { checkCityHydrology } from '../hydro/CityHydrologyInvariants';
 import { intersection } from '../geom/clip';
+import { validateStreetSections } from '../streets/construction/validateSections';
+import { validateStationEntrances } from '../transit/reservations/validateStationEntrances';
 
 /** Shortest run of kerb the generator ever publishes as its own piece, meters. */
 const MIN_CURB_RUN = 0.5;
@@ -109,6 +111,7 @@ export class Invariants {
 
     // street edges: no degenerate run, no centerline folded over its own band
     checkStreetEdges(bp);
+    validateStreetSections(bp);
     checkStreetElevations(bp);
     checkHighwayStructures(bp);
 
@@ -171,17 +174,7 @@ export class Invariants {
         throw invariantFailure(`bus stop ${s.id} is not on its edge sidewalk band`, { distance: d });
       }
     }
-    // station entrances sit in a sidewalk band beside some street or road
-    const sidewalked = bp.streets.edges.filter((e) => e.sidewalk.left > 0 || e.sidewalk.right > 0);
-    for (const st of [...bp.transit.trainStations, ...bp.transit.subwayStations]) {
-      for (const entrance of st.entrances) {
-        const ok = sidewalked.some((e) => {
-          const d = distanceTo(e.path, entrance);
-          return d >= e.width / 2 - 0.5 && d <= e.width / 2 + Math.max(e.sidewalk.left, e.sidewalk.right) + 0.5;
-        });
-        if (!ok) throw invariantFailure(`station ${st.id} entrance is not on a sidewalk band`, { entrance });
-      }
-    }
+    validateStationEntrances(bp);
     for (const r of bp.transit.busRoutes) {
       if (r.stopIds.length < 2) throw invariantFailure(`bus route ${r.id} serves fewer than 2 stops`);
       for (const id of r.edgeIds) {
@@ -232,7 +225,7 @@ export class Invariants {
     for (const b of bp.blocks) {
       if (!isSimpleRing(b.boundary)) throw invariantFailure(`block ${b.id} boundary is not a simple ring`);
       for (const poly of b.sidewalk) {
-        if (!isSimpleRing(poly)) throw invariantFailure(`block ${b.id} has a sidewalk polygon that is not a simple ring`);
+        if (!isSimpleRing(poly)) throw invariantFailure(`block ${b.id} has a sidewalk polygon that is not a simple ring`, { polygon: poly });
       }
       // a kerb piece is a run of strip, never a sliver left by a boolean
       for (const poly of b.curb) {

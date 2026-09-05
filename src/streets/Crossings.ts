@@ -2,10 +2,10 @@
  * Pedestrian crossings: at every intersection, one segment across each
  * sidewalked arm, linking the sidewalks on both sides of that roadway.
  */
-import type { Crossing, Polygon, Vec2 } from '../../schema/blueprint';
-import type { BuiltEdge, BuiltNode } from './Graph';
+import type { Crossing, Polygon, StreetEdge, Vec2 } from '../../schema/blueprint';
+import type { BuiltNode } from './Graph';
 import { length as lineLength, offsetAt } from '../geom/polyline';
-import { carriagewayWidth } from './widths';
+import { sidewalkBand } from './construction/SidewalkSection';
 import { add, dist, normalize, perp, scale, sub } from '../geom/vec';
 import { snapPoint } from '../geom/clip';
 
@@ -26,28 +26,28 @@ export function approachSetback(carriageway: number, armLength: number): number 
 }
 
 export class Crossings {
-  static build(nodes: BuiltNode[], edges: BuiltEdge[], sidewalkOf: (edgeId: string) => number): Crossing[] {
+  static build(nodes: BuiltNode[], edges: StreetEdge[]): Crossing[] {
     const edgeById = new Map(edges.map((e) => [e.id, e]));
     const out: Crossing[] = [];
     for (const node of nodes) {
       if (node.edgeIds.length < 2) continue;
       const segments: Crossing['segments'] = [];
+      const junctionWidth = Math.max(...node.edgeIds.map((id) => edgeById.get(id)!)
+        .filter((edge) => edge.class !== 'highway').map((edge) => edge.width));
       for (const edgeId of node.edgeIds) {
         const edge = edgeById.get(edgeId)!;
-        const sw = sidewalkOf(edgeId);
-        if (sw <= 0) continue;
-        if (edge.class === 'alley') continue; // no carriageway to cross
-        const w = carriagewayWidth(edge.class);
+        if (edge.sidewalk.left <= 0 || edge.sidewalk.right <= 0 || edge.width <= 0) continue;
+        const w = edge.width;
         const l = lineLength(edge.path);
-        const back = approachSetback(w, l);
+        const back = approachSetback(junctionWidth, l);
         const arc = edge.from === node.id ? back : l - back;
-        const side = w / 2 + sw / 2;
         const roadwayFrom = offsetAt(edge.path, arc, w / 2);
         const roadwayTo = offsetAt(edge.path, arc, -w / 2);
         segments.push({
           edgeId,
-          from: offsetAt(edge.path, arc, side),
-          to: offsetAt(edge.path, arc, -side),
+          from: offsetAt(edge.path, arc, w / 2 + sidewalkBand(edge, 'left', 'walking').offset),
+          to: offsetAt(edge.path, arc, -(w / 2 + sidewalkBand(edge, 'right', 'walking').offset)),
+          roadway: { from: roadwayFrom, to: roadwayTo },
           width: CROSSING.width,
           markings: zebraMarkings(roadwayFrom, roadwayTo),
         });

@@ -10,6 +10,8 @@ export type DistrictKind = 'downtown' | 'commercial' | 'residential' | 'industri
 
 export type WealthTier = 'poor' | 'mid' | 'rich' | 'high_rich';
 export type FootprintShape = 'rectangle' | 'parcel';
+import type { StreetDesign } from '../src/streets/construction/schema/design';
+export type { StreetDesign } from '../src/streets/construction/schema/design';
 
 export interface AtlasParams {
   seed: Seed;
@@ -19,6 +21,8 @@ export interface AtlasParams {
   irregularity?: number;
   /** Building footprints on the shared city grid, or explicit lot-following shapes. Default rectangle. */
   footprintShape?: FootprintShape;
+  /** Numeric road and sidewalk profiles, resolved before parcels. Defaults to the construction catalog. */
+  streetDesign?: StreetDesign;
   /** District count range, inclusive. Default scales with area (about 2 per sqrt(km2), range 0.7x-1.3x): a village gets [1, 2-3], the default 3 km city [4, 8]. */
   districtCount?: [min: number, max: number];
   /** Global building floor cap. Default 40. */
