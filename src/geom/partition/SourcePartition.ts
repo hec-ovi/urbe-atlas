@@ -5,7 +5,7 @@ import { PointPool, type Point, type Region, type Ring } from './Exact';
 import { connected, simple } from './Regions';
 import { readRing } from './RingInput';
 import { chain, nodeSegments, segments } from './Segments';
-import type { Division, PartitionComponent, PartitionInput, Polygon, SharedPartition } from './schema';
+import type { Division, PartitionComponent, PartitionCoordinates, PartitionInput, PartitionReservation, Polygon, SharedPartition } from './schema';
 
 interface Owner {
   id: string;
@@ -35,7 +35,10 @@ export class SourcePartition {
   divide(ownerId: string, input: Division): void {
     const owner = this.editable(ownerId);
     this.available([...input.claims.map(claim => claim.id), input.remainderId]);
-    const source = this.remaining(owner), masks = input.claims.map(claim => claim.masks.map(mask => readRing(mask, this.pool)));
+    const source = this.remaining(owner), masks = input.claims.map(claim => {
+      const reader = this.pool.reader(claim.encoding);
+      return claim.masks.map(mask => readRing(mask, reader));
+    });
     let regions: Region[] | undefined;
     const read = (index: number) => (regions ??= overlay(source, masks, this.pool))[index];
     const ids = [...input.claims.map(claim => claim.id), input.remainderId];
@@ -61,8 +64,8 @@ export class SourcePartition {
     return structuredClone(owner.components);
   }
 
-  covers(ownerId: string, polygon: Polygon): boolean {
-    const owner = this.readable(ownerId), ring = readRing(polygon, this.pool), region = owner.read();
+  covers(ownerId: string, polygon: Polygon, input: PartitionCoordinates = {}): boolean {
+    const owner = this.readable(ownerId), ring = readRing(polygon, this.pool.reader(input.encoding)), region = owner.read();
     if (overlay([ring], [region], this.pool)[1].length) return false;
     const box = extent([ring]);
     for (const id of owner.reservations) {
@@ -72,12 +75,12 @@ export class SourcePartition {
     return true;
   }
 
-  reserve(ownerId: string, input: { id: string; polygon: Polygon }): void {
+  reserve(ownerId: string, input: PartitionReservation): void {
     const owner = this.editable(ownerId);
     this.available([input.id]);
-    if (!this.covers(ownerId, input.polygon)) throw invariantFailure('partition reservation is not completely contained', { ownerId, id: input.id });
-    const ring = input.polygon.map(point => this.pool.input(point));
-    const normalized = readRing(input.polygon, this.pool);
+    if (!this.covers(ownerId, input.polygon, input)) throw invariantFailure('partition reservation is not completely contained', { ownerId, id: input.id });
+    const reader = this.pool.reader(input.encoding), ring = input.polygon.map(point => reader.input(point));
+    const normalized = readRing(input.polygon, reader);
     if (ring.length !== normalized.length || ring.some((point, index) => point.key !== normalized[index].key)) {
       throw invariantFailure('partition reservation must be an unclosed CCW canonical ring', { id: input.id });
     }

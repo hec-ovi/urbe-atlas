@@ -27,6 +27,25 @@ describe('source-preserving partition contract', () => {
     verifyPartition({ source: offGrid, partition: derived.finish() });
   });
 
+  it('shares original source authority through explicitly encoded mixed operations', () => {
+    const source = rectangle(.001, .003, 10.001, 10.003), cell = rectangle(1.0001, 1.0002, 2.0001, 2.0002);
+    const plan = SourcePartition.create({ id: 'source', source, coordinateScale: 1000 });
+    plan.divide('source', { claims: [
+      { id: 'derived', masks: [rectangle(-1, -1, 5.0001, 11)], encoding: 'binary' },
+      { id: 'authored', masks: [rectangle(6.001, 1.001, 8.001, 8.001)], encoding: 'authored-1mm' },
+    ], remainderId: 'rest' });
+    expect(() => plan.covers('derived', cell)).toThrowError(expect.objectContaining({ code: 'E_INVARIANT' }));
+    expect(plan.covers('derived', cell, { encoding: 'binary' })).toBe(true);
+    plan.reserve('derived', { id: 'fixed', polygon: cell, encoding: 'binary' });
+    const partition = plan.finish();
+    verifyPartition({ source, partition, coordinateScale: 1000 });
+    expect(partition.certificate.source.map(id => partition.vertices[id])).toEqual(source);
+    expect(partition.pieces.filter(piece => piece.fixed).map(piece => piece.vertices.map(id => partition.vertices[id]))).toEqual([cell]);
+    const unmarked = SourcePartition.create({ id: 'source', source: rectangle(0, 0, 3, 3) });
+    unmarked.reserve('source', { id: 'authored', polygon: rectangle(.001, .001, 1.001, 1.001), encoding: 'authored-1mm' });
+    verifyPartition({ source: rectangle(0, 0, 3, 3), partition: unmarked.finish() });
+  });
+
   it('preserves an oblique source through the public split that loses its snapped remainder', () => {
     const source: Polygon = [[98.81, 236.753], [99.39, 236.305], [99.394, 236.303]];
     const mask: Polygon = [[96.29524550470775, 225.730243166496], [103.32603035407236, 238.41164941351548],

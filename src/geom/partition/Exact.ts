@@ -1,5 +1,5 @@
 import { invariantFailure } from '../../errors';
-import type { ExactVertex, Polygon, Vec2 } from './schema';
+import type { ExactVertex, PartitionEncoding, Polygon, Vec2 } from './schema';
 
 export interface Point { x: bigint; y: bigint; w: bigint; key: string; value: Vec2 }
 export type Ring = Point[];
@@ -26,10 +26,18 @@ function binary(value: number): [bigint, bigint] {
 }
 
 export class PointPool {
-  private readonly points = new Map<string, Point>();
+  private readonly points: Map<string, Point>;
 
-  constructor(private readonly coordinateScale?: 1000) {
+  constructor(private readonly coordinateScale?: 1000, points?: Map<string, Point>) {
     if (coordinateScale !== undefined && coordinateScale !== 1000) throw invariantFailure('partition coordinate scale must be 1000');
+    this.points = points ?? new Map();
+  }
+
+  reader(encoding?: PartitionEncoding): PointPool {
+    if (encoding === undefined) return this;
+    if (encoding === 'authored-1mm') return new PointPool(1000, this.points);
+    if (encoding === 'binary') return new PointPool(undefined, this.points);
+    throw invariantFailure('partition coordinate encoding is unknown');
   }
 
   make(x: bigint, y: bigint, w: bigint, original?: Vec2): Point {
