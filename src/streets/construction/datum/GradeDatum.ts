@@ -7,15 +7,14 @@ import { roadFrontage } from './Frontage';
 import { landFaces } from './LandFaces';
 import { PathStations } from './PathStations';
 import { StationCells } from './StationCells';
-import type { DatumClearanceInput, DatumClearanceRegion, GradeDatumInput, GradeDatumPlan } from './schema';
+import { physicalPlan, validateBoundary } from './PhysicalOwners';
+import type { DatumClearanceInput, DatumClearanceRegion, DatumPhysicalInput, DatumPhysicalPlan, GradeDatumInput, GradeDatumPlan } from './schema';
 
 export class GradeDatum {
   static plan(input: GradeDatumInput): GradeDatumPlan {
     if (!Number.isFinite(input.roadwayTop) || !Number.isFinite(input.pedestrianTop)
       || input.pedestrianTop < input.roadwayTop) throw invalidParams('datum ground levels are invalid');
-    if (input.boundary.length < 3 || input.boundary.some(point => point.some(value => !Number.isFinite(value)))) {
-      throw invariantFailure('datum has no finite city boundary');
-    }
+    validateBoundary(input.boundary);
     const sources = new Map<string, PathStations>();
     for (const edge of input.edges) {
       if (sources.has(edge.id)) throw invariantFailure(`datum repeats edge ${edge.id}`);
@@ -59,29 +58,8 @@ export class GradeDatum {
       .filter(owner => owner.polygons.length > 0);
     grade.full = union([...roadway, ...grade.pedestrian.flatMap(owner => owner.polygons)]);
     const land = landFaces(input.boundary, spans, roadway);
-    const physical: GradeDatumPlan['physical'] = [];
-    const claimed = new Set<string>();
-    const byId = new Map(input.edges.map(edge => [edge.id, edge]));
-    for (const structure of input.structures) {
-      if (structure.edgeIds.length === 0 || !Number.isFinite(structure.deckThickness)
-        || structure.deckThickness <= 0 || structure.deckThickness >= structure.level) {
-        throw invariantFailure('datum structure has no valid deck ownership');
-      }
-      for (const edgeId of structure.edgeIds) {
-        const edge = byId.get(edgeId);
-        if (!edge || claimed.has(edgeId) || edge.width !== structure.width || edge.level !== structure.level) {
-          throw invariantFailure(`datum structure conflicts with edge ${edgeId}`);
-        }
-        claimed.add(edgeId);
-        physical.push({
-          kind: 'deck', edgeId, path: edge.path, width: edge.width,
-          spanIds: spans.filter(span => span.edgeId === edgeId).map(span => span.id),
-          polygons: clipped(corridors.roadway.get(edgeId) ?? []),
-          topProfile: edge.elevationProfile,
-          undersideProfile: edge.elevationProfile.map(knot => ({ ...knot, level: knot.level - structure.deckThickness })),
-        });
-      }
-    }
+    const physical = physicalPlan(input).physical.map(owner => ({ ...owner,
+      spanIds: spans.filter(span => span.edgeId === owner.edgeId).map(span => span.id) }));
     return {
       boundary: input.boundary, spans, grade, land, physical,
       projected: {
@@ -97,4 +75,6 @@ export class GradeDatum {
   static clearanceFootprints(input: DatumClearanceInput): DatumClearanceRegion[] {
     return clearanceFootprints(input);
   }
+
+  static physicalPlan(input: DatumPhysicalInput): DatumPhysicalPlan { return physicalPlan(input); }
 }

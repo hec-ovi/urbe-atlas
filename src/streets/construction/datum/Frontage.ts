@@ -1,6 +1,7 @@
 import type { Polygon, Vec2 } from '../../../../schema/blueprint';
 import { invariantFailure } from '../../../errors';
-import { bufferLine, GRID_STEP, intersection, offset } from '../../../geom/clip';
+import { bufferLine, GRID_STEP, offset } from '../../../geom/clip';
+import { SourcePartition } from '../../../geom/partition/SourcePartition';
 import { bounds } from '../../../geom/polygon';
 import { sharedBoundary } from './Boundaries';
 import type { GradeDatumPlan } from './schema';
@@ -19,7 +20,7 @@ export function roadFrontage(
     const spanIds = [...new Set(candidates.filter(owner =>
       box.min[0] < owner.box.max[0] && box.max[0] > owner.box.min[0]
       && box.min[1] < owner.box.max[1] && box.max[1] > owner.box.min[1]
-      && intersection(neighborhood, [owner.polygon]).length > 0).map(owner => owner.spanId))].sort();
+      && overlaps(neighborhood, owner.polygon)).map(owner => owner.spanId))].sort();
     if (spanIds.length === 0) throw invariantFailure(`datum face ${face.id} has frontage without a grade source`, { a, b });
     const transition = transitions.some(cut => {
       if (!spanIds.includes(cut.spanId)) return false;
@@ -31,4 +32,13 @@ export function roadFrontage(
     });
     return { landId: face.id, spanIds, kind: transition ? 'elevation-transition' : 'road-edge', path: [a, b] };
   }));
+}
+
+/** A correspondence thinner than one grid cell still has positive area. */
+function overlaps(neighborhood: Polygon[], polygon: Polygon): boolean {
+  return neighborhood.some(source => {
+    const query = SourcePartition.create({ id: 'query', source, coordinateScale: 1000 });
+    query.divide('query', { claims: [{ id: 'match', masks: [polygon] }], remainderId: 'outside' });
+    return query.loops('match').length > 0;
+  });
 }

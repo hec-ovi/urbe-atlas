@@ -68,7 +68,7 @@ export function landFaces(boundary: Polygon, spans: DatumSpan[], roadway: Polygo
       && boxes[other].min[0] < box.max[0] && boxes[other].max[0] > box.min[0]
       && boxes[other].min[1] < box.max[1] && boxes[other].max[1] > box.min[1]).flat();
     const polygons = difference(intersection(face, [boundary]), [...roadway, ...inner]);
-    if (polygons.length) land.push({ id: `gf:${index}`, kind: 'street-enclosed', polygons });
+    if (polygons.length) land.push({ id: `gf:${index}`, kind: 'street-enclosed', enclosedArea: sizes[index], polygons });
   });
   const fringe = difference([boundary], [...roadway, ...bounded.flat()]);
   if (fringe.length) land.push({ id: 'gf:outer', kind: 'outer-fringe', polygons: fringe });

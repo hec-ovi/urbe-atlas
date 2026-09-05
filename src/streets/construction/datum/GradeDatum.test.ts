@@ -125,6 +125,9 @@ describe('grade-ground datum', () => {
     const completed = supportHighwayEnvelopes(envelopes);
     const supports = completed.flatMap(structure => structure.supports.map(support => ({ structureEdgeIds: structure.edgeIds, support })));
     const supported = GradeDatum.clearanceFootprints({ plan, supports, groundTop: 0, clearHeight: 2 });
+    const physical = GradeDatum.physicalPlan({ boundary: plan.boundary, edges: [highway], structures: envelopes });
+    expect(physical.physical).toEqual(plan.physical.map(({ spanIds: _spanIds, ...owner }) => owner));
+    expect(GradeDatum.clearanceFootprints({ plan: physical, supports, groundTop: 0, clearHeight: 2 })).toEqual(supported);
     expect(supported.filter(region => region.source.kind === 'support')).toHaveLength(supports.length);
     expect(JSON.stringify(plan)).toBe(snapshot);
     expect(roadway(plan)).toEqual([]);
@@ -137,6 +140,10 @@ describe('grade-ground datum', () => {
       .toThrow(expect.objectContaining({ code: 'E_INVALID_PARAMS' }));
     expect(() => GradeDatum.plan(input([edge('e0', [[10, 10], [20, 10]], { elevationProfile: [] })])))
       .toThrow(expect.objectContaining({ code: 'E_INVARIANT' }));
+    expect(() => GradeDatum.physicalPlan({ boundary: rectangle(0, 0, 100, 100), edges: [], structures: [{
+      edgeIds: ['missing'], path: [[0, 50], [100, 50]], width: 15, level: 8, deckThickness: 1,
+      ramps: { start: 0, end: 0 }, elevationProfile: [{ distance: 0, level: 8 }, { distance: 100, level: 8 }],
+    }] })).toThrow(expect.objectContaining({ code: 'E_INVARIANT' }));
     const plan = GradeDatum.plan(input([]));
     expect(() => GradeDatum.clearanceFootprints({ plan, supports: [], groundTop: 0, clearHeight: -1 }))
       .toThrow(expect.objectContaining({ code: 'E_INVALID_PARAMS' }));

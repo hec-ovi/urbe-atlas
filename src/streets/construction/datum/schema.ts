@@ -13,6 +13,8 @@ export interface GradeDatumInput {
   pedestrianTop: number;
 }
 
+export type DatumPhysicalInput = Pick<GradeDatumInput, 'boundary' | 'edges' | 'structures'>;
+
 export interface DatumStation {
   distance: number;
   point: Vec2;
@@ -51,6 +53,12 @@ export interface DatumPhysicalOwner {
   topProfile: ElevationPoint[];
 }
 
+export interface DatumPhysicalPlan {
+  boundary: Polygon;
+  physical: Omit<DatumPhysicalOwner, 'spanIds'>[];
+  projected: { structures: { edgeIds: string[] }[] };
+}
+
 export interface GradeDatumPlan {
   boundary: Polygon;
   spans: DatumSpan[];
@@ -66,12 +74,15 @@ export interface GradeDatumPlan {
   };
   physical: DatumPhysicalOwner[];
   /** Clipped planar faces; this classification does not grant building eligibility. */
-  land: {
+  land: ({
     id: string;
-    kind: 'street-enclosed' | 'outer-fringe';
     /** Hole partitions and clipped components retain their source-face identity. */
     polygons: Polygon[];
-  }[];
+  } & ({
+    kind: 'street-enclosed';
+    /** Bounded centerline face area before road subtraction or city clipping. */
+    enclosedArea: number;
+  } | { kind: 'outer-fringe' }))[];
   roadFrontage: {
     landId: string;
     spanIds: string[];
@@ -81,7 +92,7 @@ export interface GradeDatumPlan {
 }
 
 export interface DatumClearanceInput {
-  plan: GradeDatumPlan;
+  plan: DatumPhysicalPlan;
   /** Supplied after support placement against the completed grade ground. */
   supports: { structureEdgeIds: string[]; support: HighwaySupport }[];
   groundTop: number;
