@@ -55,7 +55,7 @@ export class StreamlineTracer {
   private readonly samples = { major: new SeparationGrid(30), minor: new SeparationGrid(30) };
   readonly lines: TracedLine[] = [];
 
-  constructor(field: TensorField, domain: StreetDomain) {
+  constructor(field: TensorField, domain: StreetDomain, private readonly mode: 'regular' | 'field' = 'field') {
     this.field = field;
     this.domain = domain;
   }
@@ -94,14 +94,18 @@ export class StreamlineTracer {
         }
       }
       if (selfHit) break;
-      // proximity to same-family lines: stop and join, always reaching forward
+      // Regular lines meet at their actual crossings; field lines can join a sample.
       if (i * params.dstep > params.dtest * 2) {
-        const onward = continues(p, step);
-        const near = this.samples[family].nearestWithin(next, params.dtest,
-          (q) => onward(q) && this.domain.coversSegment(p, q));
-        if (near) {
-          out.push(near);
-          return out;
+        if (this.mode === 'regular') {
+          if (this.samples[family].hasWithin(next, params.dtest)) return out;
+        } else {
+          const onward = continues(p, step);
+          const near = this.samples[family].nearestWithin(next, params.dtest,
+            (q) => onward(q) && this.domain.coversSegment(p, q));
+          if (near) {
+            out.push(near);
+            return out;
+          }
         }
       }
       out.push(next);
@@ -110,7 +114,7 @@ export class StreamlineTracer {
       p = next;
     }
     // join a dangling end to any nearby line of either family, still going forward
-    if (out.length > 0 && prev !== null) {
+    if (this.mode === 'field' && out.length > 0 && prev !== null) {
       const last = out[out.length - 1];
       const continuesForward = continues(last, prev);
       const onward = (q: Vec2): boolean => continuesForward(q) && this.domain.coversSegment(last, q);

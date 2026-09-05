@@ -54,7 +54,7 @@ export class StreetGrowth {
     params: ResolvedParams,
     districts: PlannedDistrict[],
   ): TracedLine[] {
-    const tracer = new StreamlineTracer(field, domain);
+    const tracer = new StreamlineTracer(field, domain, params.irregularity === 0 ? 'regular' : 'field');
     const size = Math.min(params.size.width, params.size.depth);
     const { min, max } = bounds(domain.boundary);
 

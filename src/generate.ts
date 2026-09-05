@@ -105,7 +105,9 @@ export function generateCity(input: AtlasParams): CityBlueprint {
   // twice: once to read those blocks, once with the alleys inside it, which
   // makes them nodes and edges of the same planar network.
   const buildGraph = (traced: typeof lines): ReturnType<typeof StreetGraphBuilder.build> =>
-    StreetGraphBuilder.build(traced, { simplifyTolerance: 1.5, snapRadius: 10, domain: streetDomain });
+    StreetGraphBuilder.build(traced, {
+      simplifyTolerance: 1.5, snapRadius: params.irregularity === 0 ? 0 : 10, domain: streetDomain,
+    });
   const facesOf = (edges: ReturnType<typeof buildGraph>['edges']): Face[] =>
     FaceExtractor.faces(edges, 400, area(boundary) / 2);
   const sectionsOf = (graph: ReturnType<typeof buildGraph>): ReturnType<typeof StreetSections.plan> =>

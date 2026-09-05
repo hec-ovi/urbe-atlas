@@ -17,7 +17,7 @@ export interface AtlasParams {
   seed: Seed;
   /** City extent bounding box in meters. The city shape is irregular inside it. Default { width: 1000, depth: 1000 }. */
   size?: { width: number; depth: number };
-  /** 0..1: controls boundary shape/bending and, from 0.4, a radial downtown. Default 0.35. */
+  /** 0..1: zero keeps motor streets on the city axes at authored grid precision; positive values bend the boundary field, with a radial downtown from 0.4. Default 0.35. */
   irregularity?: number;
   /** Building footprints on the shared city grid, or explicit lot-following shapes. Default rectangle. */
   footprintShape?: FootprintShape;
