@@ -102,12 +102,16 @@ export class SourcePartition {
       if (id === undefined) { id = points.length; ids.set(point.key, id); points.push(point); }
       return id;
     };
-    const source = this.source.map(index), pieces = published.map(piece => ({ ownerId: piece.ownerId, fixed: piece.fixed, vertices: piece.ring.map(index) }));
     let cursor = 0;
-    const chains = rings.map(ring => ring.map(() => chain(edges[cursor++]).map(index)));
+    const paths = rings.map(ring => ring.map(() => chain(edges[cursor++])));
+    const source = this.source.map(index), pieces = published.map((piece, position) => ({ ownerId: piece.ownerId, fixed: piece.fixed,
+      vertices: (piece.fixed ? piece.ring : paths[position + 1].flatMap(path => path.slice(0, -1))).map(index) }));
+    const sourceChains = paths[0].map(path => path.map(index));
+    const pieceChains = pieces.map((piece, position) => piece.fixed ? paths[position + 1].map(path => path.map(index))
+      : piece.vertices.map((vertex, next) => [vertex, piece.vertices[(next + 1) % piece.vertices.length]]));
     return { vertices: points.map(point => [...point.value]), pieces,
       certificate: { exactVertices: points.map(point => ({ x: String(point.x), y: String(point.y), w: String(point.w) })),
-        source, sourceChains: chains[0], pieceChains: chains.slice(1) } };
+        source, sourceChains, pieceChains } };
   }
 
   private owner(id: string): Owner {

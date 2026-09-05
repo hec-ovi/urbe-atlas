@@ -99,6 +99,18 @@ describe('source-preserving partition contract', () => {
     expect(new Set(partition.pieces.map(piece => piece.ownerId))).toEqual(new Set(['hole', 'surrounding']));
   });
 
+  it('publishes both incidences of derived solid boundary junctions', () => {
+    const source = rectangle(80, 230, 100, 250), plan = SourcePartition.create({ id: 'source', source });
+    plan.divide('source', { claims: [{ id: 'core', masks: [rectangle(81, 230.5, 99, 249)] }], remainderId: 'border' });
+    plan.divide('core', { claims: [{ id: 'hole', masks: [
+      [[83.142, 233.409], [83.188, 233.24], [85, 231], [85, 234]],
+      rectangle(83.14199999999998, 233.40899999999993, 83.14200000000001, 233.40900000000005),
+    ] }], remainderId: 'surrounding' });
+    const partition = plan.finish();
+    verifyPartition({ source, partition });
+    expect(partition.certificate.pieceChains.every(ring => ring.every(edge => edge.length === 2))).toBe(true);
+  });
+
   it('rejects missing faces, moved emitted vertices and corrupted source chains', () => {
     const source = rectangle(0, 0, 10, 10), plan = SourcePartition.create({ id: 'source', source });
     plan.divide('source', { claims: [{ id: 'half', masks: [rectangle(0, 0, 5, 10)] }], remainderId: 'rest' });
