@@ -11,6 +11,20 @@ interface GroundSourceLevels {
   top: number;
 }
 
+export interface JunctionContributor {
+  groupId: string;
+  nodeId: string;
+  edgeId: string;
+  end: 'from' | 'to';
+  spanIds: string[];
+  runId: string;
+  /** Shared handoff station in original run metres and directed edge metres. */
+  runStation: number;
+  distance: number;
+  /** Empty for carriageway; explicit directed sides for pedestrian roles. */
+  sides: ('left' | 'right')[];
+}
+
 /** Geometry-free provenance for a source-owned construction surface. */
 export type GroundSource = GroundSourceLevels & (
   | { kind: 'roadway'; edgeId: string; spanIds: string[]; surface: 'roadway' }
@@ -19,6 +33,8 @@ export type GroundSource = GroundSourceLevels & (
     role: CorridorBandRole; surface: 'gutter-lip' | 'gutter' | 'curb' | 'sidewalk';
   }
   | { kind: 'land'; landId: string; surface: 'sidewalk' | 'block' | 'open' }
+  | { kind: 'junction'; contactId: string; contributors: JunctionContributor[];
+    role: 'roadway' | CorridorBandRole; surface: SourceGroundSurfaceKind }
 );
 
 export interface GroundSourceClaim {
