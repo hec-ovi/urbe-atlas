@@ -1,5 +1,7 @@
 # Box map
 
+- src/streets/construction/highway: early highway envelopes and later obstacle-aware supports. src/streets/construction/highway/CONTRACT.md. Depends on Atlas structure types and geometry; root route selection consumes its runs.
+
 - test/runtime: native event-loop turns between completed tests. test/runtime/CONTRACT.md. Depends on Vitest's public runner and Node timers; selected by vite.config.ts.
 
 - src/streets/construction/paving: fitted paving data, canonical whole-cell spans and functional ground ownership. src/streets/construction/paving/CONTRACT.md. Depends on street construction and the Atlas ground schema; finish settings come from the caller.
