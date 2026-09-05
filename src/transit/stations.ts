@@ -13,14 +13,14 @@ import { LEVELS } from '../levels';
 /**
  * Station dimensions, meters (docs/RESEARCH.md). A metro box holds a six-car
  * train on an island platform; a regional platform is longer and narrower.
- * The shaft is a stair box on the sidewalk, the passage an egress corridor.
+ * The shaft is a stair box in its reserved street-side bay, the passage an egress corridor.
  */
 export const STATION = {
   /** `height` is the clear volume over the platform, the box a tunnel must miss. */
   subway: { platformLength: 140, platformWidth: 8, height: 5 },
   train: { platformLength: 180, platformWidth: 6, height: 3 },
-  /** Stair box down from the sidewalk: this long along the street, this wide where the sidewalk allows. */
-  shaft: { length: 8, maxWidth: 3, minWidth: 1.6 },
+  /** Full stair box, placed in its own reserved bay beside the sidewalk. */
+  shaft: { length: 8, width: 3 },
   /** Half-run of the switchback stair centerline inside the shaft. */
   stairRun: 3,
   /** Corridor from a shaft foot to the platform. */
@@ -40,11 +40,11 @@ export const RAIL = {
   buildingClearance: 1,
 } as const;
 
-/** A street entrance: where it stands, which way its street runs, how much sidewalk it has. */
+/** A street entrance and its already reserved construction footprint. */
 export interface EntrancePlace {
   point: Vec2;
   direction: Vec2;
-  sidewalk: number;
+  shaft: Polygon;
 }
 
 /** A rectangle centred on `center`, `length` along `direction` and `width` across it, CCW. */
@@ -87,11 +87,9 @@ export function stationAccessOf(
   const shafts: Shaft[] = [];
   const accessPaths: StationAccessPath[] = [];
   entrances.forEach((e, entranceIndex) => {
-    const width = Math.min(STATION.shaft.maxWidth, Math.max(STATION.shaft.minWidth, e.sidewalk - 0.3));
-    const footprint = rectangle(e.point, e.direction, STATION.shaft.length, width);
     const handoff = pointInPolygon(e.point, platform) ? e.point : deepestReachIn(e.point, platform);
     const passage = pointInPolygon(e.point, platform) ? [] : passageBetween(e.point, handoff);
-    shafts.push({ footprint, top: LEVELS.ground, bottom: level, passage });
+    shafts.push({ footprint: e.shaft, top: LEVELS.ground, bottom: level, passage });
     const stairPath = switchbackStairs(e.point, e.direction, level);
     const segments: StationAccessPath['segments'] = [{ kind: 'stairs', path: stairPath }];
     if (dist(e.point, handoff) > 1e-9) {

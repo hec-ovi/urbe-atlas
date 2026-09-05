@@ -10,7 +10,6 @@ import type {
   BusStop,
   Polygon,
   Polyline,
-  RailLine,
   Station,
   StreetClass,
   StreetEdge,
@@ -21,12 +20,15 @@ import type { Rng } from '../core/rng';
 import type { PlannedDistrict } from '../districts/DistrictPlanner';
 import type { BuiltNode } from '../streets/Graph';
 import { closestOnSegment, dist, normalize, sub, add, scale } from '../geom/vec';
-import { directionAt, distanceTo, length as lineLength, offsetAt, pointAt, removeDoubleBacks } from '../geom/polyline';
-import { type EntrancePlace, RAIL, STATION, boxOf, platformOf, rectangle, stationAccessOf } from './stations';
-import { carriagewayWidth } from '../streets/widths';
+import { directionAt, distanceTo, length as lineLength, offsetAt } from '../geom/polyline';
+import { RAIL, boxOf, platformOf } from './stations';
 import { LEVELS } from '../levels';
-import { area, bounds, distanceToOutline, pointInPolygon } from '../geom/polygon';
-import { intersection } from '../geom/clip';
+import { bounds, distanceToOutline, pointInPolygon } from '../geom/polygon';
+import { sidewalkBand } from '../streets/construction/SidewalkSection';
+import { StreetCorridors } from '../streets/construction/StreetCorridors';
+import { invalidParams, unsatisfiable } from '../errors';
+import { SubwayPlanner } from './SubwayPlanner';
+import type { SubwayOptions, SubwayPlan, TrainOptions, TrainPlan, TransitOptions } from './schema';
 
 interface Adj {
   edge: StreetEdge;
@@ -38,7 +40,7 @@ interface Adj {
 /** Alleys are pedestrian: they never enter the planner's graph, and the cost keeps them out. */
 const CLASS_COST: Record<StreetClass, number> = { highway: 1.4, road: 0.6, street: 1.0, alley: Infinity };
 
-export type TrainPlan = Pick<Transit, 'trainStations' | 'trainLines'>;
+export type { TrainPlan } from './schema';
 
 export class TransitPlanner {
   /** 1 in a city 1.6 km across or larger; smaller cities space their bus stops closer, in proportion. */
@@ -48,11 +50,9 @@ export class TransitPlanner {
   private readonly edgeById = new Map<string, StreetEdge>();
   private readonly adjacency = new Map<string, Adj[]>();
   private readonly usage = new Map<string, number>();
-  private readonly sidewalkOf: (edgeId: string) => number;
 
-  constructor(nodes: BuiltNode[], edges: StreetEdge[], sidewalkOf: (edgeId: string) => number) {
+  constructor(nodes: BuiltNode[], edges: StreetEdge[]) {
     this.nodes = nodes;
-    this.sidewalkOf = sidewalkOf;
     for (const n of nodes) this.nodeById.set(n.id, n);
     for (const e of edges) {
       this.edgeById.set(e.id, e);
@@ -138,29 +138,34 @@ export class TransitPlanner {
     return out;
   }
 
-  plan(options: {
-    districts: PlannedDistrict[];
-    districtOfNode: (nodeId: string) => number;
-    cityCenter: Vec2;
-    boundary: Polygon;
-    population: number;
-    anchors: Vec2[];
-    features: { trains: boolean; subways: boolean };
-    trainPlan?: TrainPlan;
-    entranceObstacles?: Polygon[];
-    stationExclusion?: Polygon[];
-    rng: Rng;
-  }): Transit {
+  planSubway(options: SubwayOptions): SubwayPlan {
+    const cost: Record<StreetClass, number> = { highway: 1.2, road: 0.5, street: 1.1, alley: Infinity };
+    return new SubwayPlanner([...this.edgeById.values()], {
+      nearest: (point, minimumArms = 1) => this.nearestNode(point,
+        (node) => (this.adjacency.get(stateKey(node.id, LEVELS.ground))?.length ?? 0) >= minimumArms),
+      path: (fromId, toId) => {
+        const edges = this.shortestPath(fromId, toId, cost);
+        return edges ? edges.length === 0 ? [this.nodeById.get(fromId)!.position] : this.pathGeometry(fromId, edges) : null;
+      },
+    }).plan(options);
+  }
+
+  plan(options: TransitOptions): Transit {
     const { districts, cityCenter, population, rng } = options;
+    if (options.features.subways && !options.subwayPlan) throw invalidParams('subway service requires its pre-parcel plan');
+    if (options.features.trains && !options.trainPlan) throw invalidParams('train service requires its pre-parcel plan');
+    const subwayPlan = options.features.subways ? options.subwayPlan : undefined;
+    const trainPlan = options.features.trains ? options.trainPlan : undefined;
     const extent = bounds(options.boundary);
     this.stopScale = Math.min(1, Math.min(extent.max[0] - extent.min[0], extent.max[1] - extent.min[1]) / FULL_SIZE_EXTENT);
     const transit: Transit = {
       busStops: [],
       busRoutes: [],
-      trainStations: options.trainPlan?.trainStations ?? [],
-      trainLines: options.trainPlan?.trainLines ?? [],
-      subwayStations: [],
-      subwayLines: [],
+      trainStations: trainPlan?.trainStations ?? [],
+      trainLines: trainPlan?.trainLines ?? [],
+      subwayStations: subwayPlan?.subwayStations ?? [],
+      subwayLines: subwayPlan?.subwayLines ?? [],
+      ...(subwayPlan?.subwayDemand ? { subwayDemand: subwayPlan.subwayDemand } : {}),
     };
 
     // --- terminal pairs: districts opposite through the center -----------
@@ -193,67 +198,6 @@ export class TransitPlanner {
       transit.busRoutes.push({ id: `br${transit.busRoutes.length}`, stopIds, edgeIds } satisfies BusRoute);
     }
 
-    // --- subway ----------------------------------------------------------
-    if (options.features.subways) {
-      const lineCount = Math.min(Math.max(Math.round(3.5 * Math.pow(population / 1_000_000, 0.6)), 1), 6);
-      const hubNode = this.nearestNode(cityCenter, (n) =>
-        (this.adjacency.get(stateKey(n.id, LEVELS.ground)) ?? []).length >= 3);
-      const subRng = rng.fork('subway');
-      const subCost: Record<StreetClass, number> = { highway: 1.2, road: 0.5, street: 1.1, alley: Infinity };
-      for (let l = 0; l < lineCount; l++) {
-        const [da, db] = pairs[(l * 2 + 1) % pairs.length];
-        const a = this.nearestNode(
-          add(da.center, [subRng.range(-100, 100), subRng.range(-100, 100)]),
-          (node) => this.hasGroundConnection(node.id),
-        );
-        const b = this.nearestNode(
-          add(db.center, [subRng.range(-100, 100), subRng.range(-100, 100)]),
-          (node) => this.hasGroundConnection(node.id),
-        );
-        const leg1 = this.shortestPath(a.id, hubNode.id, subCost);
-        const leg2 = this.shortestPath(hubNode.id, b.id, subCost);
-        if (!leg1 || !leg2) continue;
-        const geometry = removeDoubleBacks(
-          [...this.pathGeometry(a.id, leg1), ...this.pathGeometry(hubNode.id, leg2).slice(1)],
-          -0.999999,
-        );
-        if (geometry.length < 2) continue;
-        // a line that cannot reach 2 stations is dropped, and takes the
-        // stations it just created with it: no station outlives its line
-        const before = transit.subwayStations.length;
-        const stationIds = this.placeStations(
-          geometry,
-          950,
-          150,
-          transit.subwayStations,
-          'ss',
-          options.districtOfNode,
-          LEVELS.subway,
-          options.entranceObstacles ?? [],
-          options.stationExclusion ?? [],
-        );
-        if (stationIds.length < 2) {
-          transit.subwayStations.length = before;
-          continue;
-        }
-        transit.subwayLines.push({
-          id: `sl${transit.subwayLines.length}`,
-          stationIds,
-          path: geometry,
-          underground: true,
-          level: LEVELS.subway,
-          width: RAIL.subwayDiameter,
-        } satisfies RailLine);
-      }
-    }
-
-    // --- train -----------------------------------------------------------
-    if (options.features.trains && !options.trainPlan) {
-      const train = this.planTrain(options);
-      transit.trainStations.push(...train.trainStations);
-      transit.trainLines.push(...train.trainLines);
-    }
-
     return transit;
   }
 
@@ -261,13 +205,7 @@ export class TransitPlanner {
    * Plans the grade-level railway before parcels are cut, so its exact track
    * bed and platform footprints can be reserved as one right-of-way.
    */
-  planTrain(options: {
-    districtOfNode: (nodeId: string) => number;
-    cityCenter: Vec2;
-    boundary: Polygon;
-    stationExclusion?: Polygon[];
-    rng: Rng;
-  }): TrainPlan {
+  planTrain(options: TrainOptions): TrainPlan {
     const extent = bounds(options.boundary);
     if (Math.min(extent.max[0] - extent.min[0], extent.max[1] - extent.min[1]) < MIN_TRAIN_CITY_EXTENT) {
       return { trainStations: [], trainLines: [] };
@@ -348,13 +286,14 @@ export class TransitPlanner {
       while (cursor < l - 26) {
         sinceLast += cursor === 26 ? 26 : 0;
         if (sinceLast >= spacing) {
-          const sidewalk = this.sidewalkOf(edge.id);
-          const half = carriagewayWidth(edge.class) / 2;
-          const side = (half + sidewalk / 2) * (forward ? -1 : 1);
+          const streetSide = forward ? 'right' : 'left';
+          const band = sidewalkBand(edge, streetSide, 'furnishing');
+          const half = edge.width / 2;
+          const side = (half + band.offset) * (forward ? -1 : 1);
           const arc = forward ? cursor : l - cursor;
           const position = offsetAt(edge.path, arc, side);
           const fromCenterline = distanceTo(edge.path, position);
-          if (fromCenterline >= half - 0.5 && fromCenterline <= half + sidewalk + 0.5) {
+          if (fromCenterline >= half - 0.5 && fromCenterline <= half + edge.sidewalk[streetSide] + 0.5) {
             const existing = (stopIndex.get(edge.id) ?? []).find((s) => dist(s.position, position) < 60);
             if (existing) {
               if (stopIds[stopIds.length - 1] !== existing.id) stopIds.push(existing.id);
@@ -383,122 +322,26 @@ export class TransitPlanner {
     return stopIds;
   }
 
-  private placeStations(
-    geometry: Polyline,
-    spacing: number,
-    mergeRadius: number,
-    all: Station[],
-    prefix: 'ss' | 'ts',
-    districtOfNode: (nodeId: string) => number,
-    level: number,
-    entranceObstacles: Polygon[],
-    stationExclusion: Polygon[],
-  ): string[] {
-    const total = lineLength(geometry);
-    const count = Math.max(2, Math.round(total / spacing) + 1);
-    const ids: string[] = [];
-    for (let i = 0; i < count; i++) {
-      const terminal = i === 0 ? geometry[0] : i === count - 1 ? geometry[geometry.length - 1] : null;
-      const platformHalf = STATION.subway.platformLength / 2;
-      const desired = i === 0
-        ? Math.min(platformHalf, total / 2)
-        : i === count - 1
-          ? Math.max(total - platformHalf, total / 2)
-          : (total * i) / (count - 1);
-      const placed = this.enterablePoint(
-        geometry,
-        desired,
-        terminal ? platformHalf : spacing / 3,
-        entranceObstacles,
-        (candidate) => !hitsAny(
-          platformOf(candidate.point, directionAt(geometry, candidate.along), 'subway'),
-          stationExclusion,
-        ) && (terminal
-          ? covers(
-            platformOf(candidate.point, directionAt(geometry, candidate.along), 'subway'),
-            terminal,
-          )
-          : true),
-      );
-      if (!placed) continue; // nowhere along here that a street can reach: no station
-      const existing = terminal ? undefined : all.find((s) => dist(s.position, placed.point) < mergeRadius);
-      if (existing) {
-        if (ids[ids.length - 1] !== existing.id) ids.push(existing.id);
-        continue;
-      }
-      const st = this.makeStation(
-        `${prefix}${all.length}`,
-        placed.point,
-        directionAt(geometry, placed.along),
-        districtOfNode,
-        level,
-        entranceObstacles,
-      );
-      all.push(st);
-      ids.push(st.id);
-    }
-    return ids;
-  }
-
-  /**
-   * A station goes where the street can reach it. The sampled point wins when
-   * its sidewalk is within a passage's length; otherwise the search slides
-   * along the line either way, and gives up rather than leave a platform
-   * nobody can enter.
-   */
-  private enterablePoint(
-    geometry: Polyline,
-    along: number,
-    slide: number,
-    entranceObstacles: Polygon[],
-    accepts: (candidate: { point: Vec2; along: number }) => boolean = () => true,
-  ): { point: Vec2; along: number } | null {
-    const total = lineLength(geometry);
-    const reach = (p: Vec2): number => {
-      const places = this.entrancesNear(p, entranceObstacles);
-      return places.length === 0 ? Infinity : Math.min(...places.map((e) => dist(e.point, p)));
-    };
-    const offsets = [0];
-    for (let step = slide / 4; step <= slide; step += slide / 4) offsets.push(-step, step);
-    for (const offset of offsets) {
-      const at = along + offset;
-      if (at < 0 || at > total) continue;
-      const p = pointAt(geometry, at);
-      const candidate = { point: p, along: at };
-      if (reach(p) <= STATION.maxPassage && accepts(candidate)) return candidate;
-    }
-    return null;
-  }
-
-  /**
-   * A station is a platform box along its track, entered from the sidewalk:
-   * underground, each entrance gets a shaft down to the platform.
-   */
+  /** Grade station footprint and its sidewalk access points. */
   private makeStation(
     id: string,
     position: Vec2,
     direction: Vec2,
     districtOfNode: (nodeId: string) => number,
     level: number,
-    entranceObstacles: Polygon[] = [],
   ): Station {
-    // an entrance stands on the sidewalk beside the platform, so the walk down is short
     const node = this.nearestNode(position, (candidate) => this.hasGroundConnection(candidate.id));
-    const places = this.entrancesNear(position, level < LEVELS.ground ? entranceObstacles : []);
-    const fallback: EntrancePlace[] = [{ point: position, direction, sidewalk: 0 }];
-    const entrances = places.length > 0 ? places : fallback;
-    const mode = level < LEVELS.ground ? 'subway' : 'train';
-    const platform = platformOf(position, direction, mode);
-    const access = stationAccessOf(entrances, platform, level);
+    const entrances = this.entrancesNear(position);
+    if (entrances.length === 0) throw unsatisfiable('grade station has no reachable sidewalk entrance', { id, position });
     return {
       id,
       position,
       districtId: `d${districtOfNode(node.id)}`,
-      platform,
-      box: boxOf(level, mode),
-      entrances: entrances.map((e) => e.point),
-      shafts: access.shafts,
-      accessPaths: access.accessPaths,
+      platform: platformOf(position, direction, 'train'),
+      box: boxOf(level, 'train'),
+      entrances,
+      shafts: [],
+      accessPaths: [],
       level,
     };
   }
@@ -508,32 +351,23 @@ export class TransitPlanner {
    * sides when both land in the band: a tight bend can push an offset point
    * back into the roadway, so every candidate is verified against its edge.
    */
-  private entrancesNear(position: Vec2, obstacles: Polygon[] = []): EntrancePlace[] {
+  private entrancesNear(position: Vec2): Vec2[] {
     const nearby = [...this.edgeById.values()]
-      .filter((e) => this.sidewalkOf(e.id) > 0)
+      .filter((edge) => edge.level === LEVELS.ground && (edge.sidewalk.left > 0 || edge.sidewalk.right > 0))
       .map((edge) => ({ edge, away: distanceTo(edge.path, position) }))
       .sort((a, b) => a.away - b.away)
       .slice(0, NEAR_EDGES);
     for (const { edge } of nearby) {
-      const sidewalk = this.sidewalkOf(edge.id);
-      const half = carriagewayWidth(edge.class) / 2;
       const arc = distanceAlong(edge.path, position);
-      const places: EntrancePlace[] = [];
-      for (const side of [half + sidewalk / 2, -(half + sidewalk / 2)]) {
-        const p = offsetAt(edge.path, arc, side);
-        const d = distanceTo(edge.path, p);
-        if (d >= half - 0.4 && d <= half + sidewalk + 0.4) {
-          places.push({ point: p, direction: directionAt(edge.path, arc), sidewalk });
-        }
+      const places: Vec2[] = [];
+      for (const side of ['left', 'right'] as const) {
+        const band = sidewalkBand(edge, side, 'walking');
+        if (band.width <= 0) continue;
+        const point = offsetAt(edge.path, arc, (edge.width / 2 + band.offset) * (side === 'left' ? 1 : -1));
+        if (StreetCorridors.band(edge, side, 'walking').some((polygon) =>
+          pointInPolygon(point, polygon) || distanceToOutline(point, polygon) <= 0.001)) places.push(point);
       }
-      const clear = obstacles.length === 0
-        ? places
-        : places.filter((place) => {
-            const width = Math.min(STATION.shaft.maxWidth, Math.max(STATION.shaft.minWidth, place.sidewalk - 0.3));
-            const footprint = rectangle(place.point, place.direction, STATION.shaft.length, width);
-            return !hitsAny(footprint, obstacles);
-          });
-      if (clear.length > 0) return clear;
+      if (places.length > 0) return places;
     }
     return [];
   }
@@ -541,11 +375,6 @@ export class TransitPlanner {
   private hasGroundConnection(nodeId: string): boolean {
     return this.adjacency.has(stateKey(nodeId, LEVELS.ground));
   }
-}
-
-/** Boundary points count as covered: line termini land on the platform end face. */
-function covers(polygon: Polygon, point: Vec2): boolean {
-  return pointInPolygon(point, polygon) || distanceToOutline(point, polygon) <= 1e-6;
 }
 
 /** Stable key for one physical node at one driveable elevation. */
@@ -604,14 +433,3 @@ const FULL_SIZE_EXTENT = 1600;
 
 /** Two regional platforms and their approaches do not fit coherently below this city extent. */
 const MIN_TRAIN_CITY_EXTENT = 700;
-
-function hitsAny(subject: Polygon, obstacles: readonly Polygon[]): boolean {
-  const box = bounds(subject);
-  const nearby = obstacles.filter((polygon) => {
-    const other = bounds(polygon);
-    return other.min[0] < box.max[0] && other.max[0] > box.min[0]
-      && other.min[1] < box.max[1] && other.max[1] > box.min[1];
-  });
-  return nearby.length > 0
-    && intersection([subject], nearby).reduce((sum, polygon) => sum + area(polygon), 0) > 1e-6;
-}
