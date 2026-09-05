@@ -14,7 +14,7 @@ Entry point: [index.ts](index.ts). Data: [schema.ts](schema.ts).
 ## Ownership
 
 - Positive-length flat source intervals at `roadwayTop` own grade construction. Street class never determines elevation. A ramp touching grade at one station creates no flat roadway area.
-- Full and roadway-only plans share source validation and station cuts. Equal sources return byte-identical spans and roadway rows, including separate flat intervals on a mixed-height edge. Zero-width or off-grade spans have no roadway owner.
+- Full and roadway-only plans share source validation and station cuts. Equal sources return byte-identical spans and roadway rows, including separate flat intervals on a mixed-height edge. All spans retain source identity and elevation classification. Zero-width, off-grade or wholly city-clipped spans have no roadway owner row.
 - Grade sidewalks retain their own directed widths. Junction roadway takes precedence over pedestrian reservations. Projections from other elevations cannot replace this ground.
 - Per-source grade and projected entries are masks and may overlap across owners. The root's later shared partition assigns sole final ground ownership.
 - `grade.corridors` preserves each flat span's original inclusive `byEdge` corridor under its station and city cuts, before roadway or pedestrian differences. It includes the carriageway and both complete directed sides. No aggregate union changes these masks; the final partition claims them after roadway and curb ownership.

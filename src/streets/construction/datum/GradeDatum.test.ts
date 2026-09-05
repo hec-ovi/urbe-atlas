@@ -159,12 +159,15 @@ describe('grade-ground datum', () => {
       level: 4, elevationProfile: [{ distance: 0, level: 4 }, { distance: 60, level: 4 }],
     });
     const alley = edge('alley', [[20, 80], [40, 80]], { class: 'alley', width: 0 });
-    const request = input([mixed, elevated, alley]);
+    const outside = edge('outside', [[-30, 10], [-10, 10]]);
+    const request = input([mixed, elevated, alley, outside]);
     const snapshot = JSON.stringify(request);
     const full = GradeDatum.plan(request);
     const lightweight = GradeDatum.roadwayPlan(request);
     expect(lightweight).toEqual({ spans: full.spans, roadway: full.grade.roadway });
     expect(lightweight.roadway.map(owner => owner.spanId)).toEqual(['gs:mixed:0', 'gs:mixed:3']);
+    expect(lightweight.spans.find(span => span.id === 'gs:outside:0'))
+      .toMatchObject({ edgeId: outside.id, elevation: 'at-grade' });
     const polygons = lightweight.roadway.flatMap(owner => owner.polygons);
     expect(contains(polygons, [5, 40])).toBe(true);
     expect(contains(polygons, [50, 80])).toBe(true);
