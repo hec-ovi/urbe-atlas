@@ -5,6 +5,7 @@ import { el } from '../components/dom';
 export interface MapToolbarEvents {
   onFit: () => void;
   onDownload: () => void;
+  onImport?: (file: File) => void;
 }
 
 export class MapToolbar {
@@ -16,9 +17,15 @@ export class MapToolbar {
     this.city = el('span', { class: 'toolbar-city', text: 'No city loaded' });
     this.download = button('Download blueprint', events.onDownload);
     this.download.disabled = true;
+    const input = el('input', { type: 'file', accept: '.json,application/json', 'aria-label': 'Open saved blueprint', hidden: '' });
+    input.addEventListener('change', () => {
+      const file = input.files?.[0];
+      if (file) events.onImport?.(file);
+      input.value = '';
+    });
     this.root = el('div', { class: 'map-toolbar', 'aria-label': 'Map controls' }, [
       el('div', { class: 'toolbar-context' }, [this.city, el('span', { text: 'Drag to pan · Wheel to zoom · Right-click to inspect' })]),
-      el('div', { class: 'toolbar-actions' }, [button('Fit city', events.onFit), this.download]),
+      el('div', { class: 'toolbar-actions' }, [button('Open blueprint', () => input.click()), input, button('Fit city', events.onFit), this.download]),
     ]);
   }
 

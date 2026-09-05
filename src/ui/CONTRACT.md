@@ -7,6 +7,8 @@ Purpose: presents Atlas creation and blueprint inspection in a dark browser work
 `new PreviewApp(fetchManifest?) -> PreviewApp`
 
 - `generate(params)` takes [AtlasParams](../../schema/params.ts) and delegates to the root `generateCity` entry point.
+- `loadBlueprint(value)` accepts saved [CityBlueprint](../../schema/blueprint.ts) data; `loadBlueprintUrl(source)` fetches the same format from this preview origin, without redirects. [Render input checks](components/blueprintInput.ts) require finite coordinate tuples, nonempty geometry, known rendered categories and the nested fields consumed by both views. Additional fields remain unchanged. This is structural inspection, not geometric certification.
+- Startup `?blueprint=/relative/file.json` loads saved data without generation or fallback. Optional `view=3d` selects 3D. The toolbar's Open blueprint accepts a local JSON file through the same load flow.
 - `setMode(mode)` takes `2d | 3d`; `resize()` fits both canvases; `setInteriorParcels(parcelIds)` applies an exact parcel subset.
 - Parameter files are JSON AtlasParams. Unknown top-level fields are dropped, defaults are resolved, and the root runtime validation runs before the form changes.
 - The optional assembled-world [manifest](../../../engine/src/assembly/schema/world-manifest.schema.json) is fetched beside the non-empty `out=` path in the parcel URL template. It must be contract 1.0.0 and match the displayed seed, Atlas version, complete parcel-id set, interior subset, and floor tags.
@@ -44,6 +46,7 @@ The mounted UI exposes this closed failure set:
 
 - Generation: root `E_INVALID_PARAMS`, `E_UNSATISFIABLE`, or `E_INVARIANT`, shown in the notification log. The progress cover always closes and the form unlocks.
 - Parameter file: invalid JSON, non-object input, missing seed, or root parameter validation failure, shown in the notification log. The current form stays unchanged.
+- Saved blueprint: invalid JSON or render-input structure, disallowed URL, fetch failure, or rendering failure appears in the log and unlocks the UI. Structural failures leave the displayed city unchanged.
 - Parcel link: disabled template, invalid URL, missing `out=`, or invalid output path, returned as `ParcelDestination.error` and shown in the inspector.
 - Manifest: missing, failed, malformed, stale, or mismatched input leaves the interior list empty and reports it unavailable. It never widens the filter.
 
@@ -51,7 +54,7 @@ No failure escapes a `PreviewApp` event handler.
 
 ## Invariants
 
-- Presentation only: CityBlueprint generation and validation stay in the root box.
+- Presentation only: generation and geometric certification stay in the root box; saved-file structural checks protect renderer inputs.
 - One valid parameter set produces the same blueprint as the root entry point. Import never changes a valid field before the complete set validates.
 - The form is disabled for the complete generation interval. Progress moves through named stages and notifications preserve file and generation results.
 - 3D geometry is deferred until the 3D view is first selected. Both views apply the same filters and exact interior parcel subset.

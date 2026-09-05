@@ -22,6 +22,7 @@ import { BlueprintOverview } from '../widgets/BlueprintOverview';
 import { InspectorPanel } from '../widgets/InspectorPanel';
 import { MapToolbar } from '../widgets/MapToolbar';
 import { downloadBlueprint } from '../components/blueprintFile';
+import { readBlueprint } from '../components/blueprintInput';
 import { downloadParams, paramsFileName, parseParams } from '../components/paramsFile';
 import { el } from '../components/dom';
 
@@ -101,7 +102,8 @@ export class PreviewApp {
       this.tabs.root,
     );
     this.mapWrap = el('div', { class: 'map-wrap' });
-    this.toolbar = new MapToolbar({ onFit: () => this.fitView(), onDownload: () => this.exportBlueprint() });
+    this.toolbar = new MapToolbar({ onFit: () => this.fitView(), onDownload: () => this.exportBlueprint(),
+      onImport: (file) => void this.loadSaved(async () => JSON.parse(await file.text()), file.name) });
     this.map3d.canvas.hidden = true;
     this.mapWrap.append(this.map.canvas, this.map3d.canvas, this.toolbar.root, this.progress.root, this.notifications.root);
     this.root = el('div', { class: 'preview', 'data-theme': 'dark' });
@@ -121,15 +123,9 @@ export class PreviewApp {
       await nextFrame();
       const started = performance.now();
       const blueprint = generateCity(params);
-      this.blueprint = blueprint;
       this.progress.update('rendering', 'Drawing the blueprint preview');
       await nextFrame();
-      this.map.setBlueprint(blueprint);
-      if (this.mode === '3d') this.map3d.setBlueprint(blueprint);
-      else this.pending3d = blueprint;
-      this.overview.setBlueprint(blueprint);
-      this.toolbar.setBlueprint(blueprint);
-      void this.loadInteriorManifest(blueprint);
+      this.installBlueprint(blueprint);
       this.panel.setStatus(
         `${Math.round(performance.now() - started)} ms, pop ${blueprint.stats.population.toLocaleString()}, ` +
           `${blueprint.parcels.length} parcels, ${blueprint.districts.length} districts`,
@@ -146,6 +142,59 @@ export class PreviewApp {
       this.panel.setBusy(false);
       this.busy = false;
     }
+  }
+
+  /** Inspect a saved object without generating or certifying its geometry. */
+  async loadBlueprint(value: unknown): Promise<void> {
+    await this.loadSaved(async () => value, 'Saved blueprint');
+  }
+
+  /** URL imports are restricted to this preview origin, including redirects. */
+  async loadBlueprintUrl(source: string): Promise<void> {
+    await this.loadSaved(async () => {
+      if (!source.trim()) throw new Error('Blueprint URL is empty');
+      const url = new URL(source, window.location.href);
+      if (url.origin !== window.location.origin || !['http:', 'https:'].includes(url.protocol) || url.username || url.password) {
+        throw new Error('Blueprint URL must use this preview origin');
+      }
+      const response = await fetch(url.href, { mode: 'same-origin', redirect: 'error' });
+      if (!response.ok) throw new Error(`Blueprint request failed (${response.status})`);
+      return response.json();
+    }, 'Saved blueprint');
+  }
+
+  private async loadSaved(source: () => Promise<unknown>, label: string): Promise<void> {
+    if (this.busy) return;
+    this.busy = true;
+    this.panel.setBusy(true);
+    this.progress.show('preparing', `Loading ${label}`);
+    try {
+      await nextFrame();
+      const blueprint = readBlueprint(await source());
+      this.progress.update('rendering', 'Drawing saved geometry');
+      await nextFrame();
+      this.installBlueprint(blueprint);
+      this.panel.setStatus(`${blueprint.parcels.length} saved parcels loaded; no generation run`);
+      this.notifications.info(`${label} loaded. Geometry has not been regenerated or certified.`);
+    } catch (error) {
+      this.notifications.error(`${label}: ${error instanceof Error ? error.message : String(error)}`);
+    } finally {
+      this.progress.hide();
+      this.panel.setBusy(false);
+      this.busy = false;
+    }
+  }
+
+  private installBlueprint(blueprint: CityBlueprint): void {
+    this.map.setBlueprint(blueprint);
+    if (this.mode === '3d') {
+      this.map3d.setBlueprint(blueprint);
+      this.pending3d = null;
+    } else this.pending3d = blueprint;
+    this.blueprint = blueprint;
+    this.overview.setBlueprint(blueprint);
+    this.toolbar.setBlueprint(blueprint);
+    void this.loadInteriorManifest(blueprint);
   }
 
   /** Fits the map to its pane. */
