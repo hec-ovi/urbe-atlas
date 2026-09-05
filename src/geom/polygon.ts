@@ -1,5 +1,6 @@
 import type { Polygon, Vec2 } from '../../schema/blueprint';
 import { closestOnSegment, dist } from './vec';
+export { coversPath, coversSegment } from './SegmentCoverage';
 
 /** Signed area; positive = CCW. */
 export function signedArea(poly: Polygon): number {
