@@ -3,4 +3,5 @@
  */
 import type { Rng } from './core/rng';
 
-export const cityGridAngle = (rng: Rng): number => rng.range(0, Math.PI);
+export const cityGridAngle = (rng: Rng, irregularity: number): number =>
+  irregularity === 0 ? 0 : rng.range(0, Math.PI);

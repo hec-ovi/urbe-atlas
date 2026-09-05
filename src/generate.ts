@@ -73,7 +73,7 @@ export function generateCity(input: AtlasParams): CityBlueprint {
   const plannedHydrology = planHydrology({ seed, size: params.size, boundary, config: params.hydrology });
   const waterSurfaces = plannedHydrology?.bodies.flatMap((body) => body.surfaces) ?? [];
   const planned = DistrictPlanner.plan(Rng.from(seed, 'districts'), boundary, params);
-  const gridAngle = cityGridAngle(Rng.from(seed, 'grid'));
+  const gridAngle = cityGridAngle(Rng.from(seed, 'grid'), params.irregularity);
   const buildingGrid: BuildingGrid = { origin: [0, 0], angle: gridAngle, spacing: INTERIOR.snap };
   const footprintPolicy: FootprintPolicy = { shape: params.footprintShape, grid: buildingGrid };
   const footprintHost = new FootprintHost(footprintPolicy);
