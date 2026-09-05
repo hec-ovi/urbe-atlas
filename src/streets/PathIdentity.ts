@@ -1,7 +1,13 @@
-import type { Polyline } from '../../schema/blueprint';
+import type { Polyline, StreetClass } from '../../schema/blueprint';
 import { GRID_STEP } from '../geom/clip';
 
 type GridPoint = [bigint, bigint];
+
+export const streetFamily = (kind: StreetClass): 'vehicle' | 'highway' | 'alley' =>
+  kind === 'street' || kind === 'road' ? 'vehicle' : kind;
+
+export const physicalStreetKey = (edge: { class: StreetClass; path: Polyline }): string =>
+  `${streetFamily(edge.class)}:${physicalPathKey(edge.path)}`;
 
 /** Whole physical path identity on the published grid, independent of direction and subdivision. */
 export function physicalPathKey(path: Polyline): string {

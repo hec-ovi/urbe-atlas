@@ -10,7 +10,7 @@ import { closestOnSegment, dist } from '../geom/vec';
 import { segmentVisitsGridCell, snapPoint } from '../geom/clip';
 import { length as lineLength } from '../geom/polyline';
 import { cleanCenterline } from './centerline';
-import { physicalPathKey } from './PathIdentity';
+import { resolveGraphPaths } from './GraphResolution';
 import { simplifyJoinedPaths } from './SourceJunctions';
 import type { TracedLine } from './StreamlineTracer';
 import type { StreetDomain } from './domain/StreetDomain';
@@ -29,8 +29,6 @@ export interface BuiltEdge {
   to: string;
   path: Polyline;
 }
-
-const CLASS_RANK: Record<StreetClass, number> = { highway: 0, road: 1, street: 2, alley: 3 };
 
 interface WorkEdge {
   class: StreetClass;
@@ -236,15 +234,8 @@ export class StreetGraphBuilder {
       }
     }
 
-    // --- dedupe identical physical paths, retaining class priority ------
-    workEdges.sort((e1, e2) => CLASS_RANK[e1.class] - CLASS_RANK[e2.class] || lineLength(e1.path) - lineLength(e2.path));
-    const seen = new Set<string>();
-    workEdges = workEdges.filter((e) => {
-      const key = physicalPathKey(e.path);
-      if (seen.has(key)) return false;
-      seen.add(key);
-      return true;
-    });
+    // --- normalize compatible paths at the declared graph resolution -----
+    workEdges = resolveGraphPaths(workEdges, snapRadius);
 
     // --- prune dangling chains iteratively -------------------------------
     let changed = true;
