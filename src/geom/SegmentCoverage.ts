@@ -1,19 +1,9 @@
-import { orientation } from './orientation';
+import { orientation, winding } from './orientation';
 import type { Polygon, Vec2 } from './schema';
 
 const same = (a: Vec2, b: Vec2): boolean => a[0] === b[0] && a[1] === b[1];
 const between = (p: Vec2, a: Vec2, b: Vec2): boolean => p[0] >= Math.min(a[0], b[0]) && p[0] <= Math.max(a[0], b[0])
   && p[1] >= Math.min(a[1], b[1]) && p[1] <= Math.max(a[1], b[1]);
-
-/** A simple ring's lexicographically first corner is convex. */
-function winding(polygon: Polygon): number {
-  let first = 0;
-  for (let i = 1; i < polygon.length; i++) {
-    const p = polygon[i], q = polygon[first];
-    if (p[0] < q[0] || (p[0] === q[0] && p[1] < q[1])) first = i;
-  }
-  return orientation(polygon[(first + polygon.length - 1) % polygon.length], polygon[first], polygon[(first + 1) % polygon.length]);
-}
 
 /** Membership includes the boundary, without constructing a ray intersection. */
 function coversPoint(polygon: Polygon, point: Vec2): boolean {

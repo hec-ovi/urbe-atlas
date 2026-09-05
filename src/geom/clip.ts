@@ -19,6 +19,7 @@ import { normalizePaths } from './SnapRounding';
 import type { GridPath as IntPath } from './schema';
 import { precisionInterior as diagnosticInterior } from './InteriorPrecision';
 import { traversesGridCell } from './GridCellTraversal';
+import { coordinateCover as diagnosticCover } from './CoordinateCover';
 
 const SCALE = 1000; // 1 unit = 1 mm
 export const GRID_STEP = 1 / SCALE;
@@ -39,6 +40,11 @@ export function hasInteriorBeyondPrecision(polygons: Polygon[], boundaryWidth = 
 /** Nonzero-fill diagnostic contours, without snapping their output to the construction grid. */
 export function precisionInterior(polygons: Polygon[], boundaryWidth = GRID_STEP): Polygon[] {
   return diagnosticInterior(polygons, boundaryWidth);
+}
+
+/** Copied coverage masks with bounded coordinate-uncertainty strips and bevels. */
+export function coordinateCover(polygons: readonly Polygon[], grid = GRID_STEP): Polygon[] {
+  return diagnosticCover(polygons, grid);
 }
 
 function toPath(poly: Polygon): IntPath {

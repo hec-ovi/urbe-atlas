@@ -1,4 +1,4 @@
-import type { Vec2 } from './schema';
+import type { Polygon, Vec2 } from './schema';
 
 interface BinaryNumber { significand: bigint; exponent: number }
 
@@ -32,4 +32,14 @@ export function orientation(a: Vec2, b: Vec2, c: Vec2): number {
   const determinant = left - right;
   if (Math.abs(determinant) > 8 * Number.EPSILON * (Math.abs(left) + Math.abs(right))) return Math.sign(determinant);
   return exact(a, b, c);
+}
+
+/** A simple ring's lexicographically first corner is convex. */
+export function winding(polygon: Polygon): number {
+  let first = 0;
+  for (let i = 1; i < polygon.length; i++) {
+    const p = polygon[i], q = polygon[first];
+    if (p[0] < q[0] || (p[0] === q[0] && p[1] < q[1])) first = i;
+  }
+  return orientation(polygon[(first + polygon.length - 1) % polygon.length], polygon[first], polygon[(first + 1) % polygon.length]);
 }
