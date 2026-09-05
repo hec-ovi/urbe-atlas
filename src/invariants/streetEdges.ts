@@ -8,8 +8,10 @@ import { invariantFailure } from '../errors';
 import { length as lineLength } from '../geom/polyline';
 import { dist } from '../geom/vec';
 import { MAX_TURN_DEG, foldAt } from '../streets/centerline';
+import { physicalPathKey } from '../streets/PathIdentity';
 
 export function checkStreetEdges(bp: CityBlueprint): void {
+  const paths = new Map<string, string>();
   for (const e of bp.streets.edges) {
     if (e.from === e.to) {
       throw invariantFailure(`edge ${e.id} leaves and returns to node ${e.from}`);
@@ -29,5 +31,11 @@ export function checkStreetEdges(bp: CityBlueprint): void {
         { point: e.path[fold] },
       );
     }
+    const key = physicalPathKey(e.path);
+    const existing = paths.get(key);
+    if (existing !== undefined) {
+      throw invariantFailure(`edge ${e.id} duplicates the physical path of ${existing}`, { edgeIds: [existing, e.id] });
+    }
+    paths.set(key, e.id);
   }
 }

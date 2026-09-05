@@ -10,6 +10,7 @@ import { dist } from '../geom/vec';
 import { snapPoint } from '../geom/clip';
 import { length as lineLength, simplify } from '../geom/polyline';
 import { cleanCenterline } from './centerline';
+import { physicalPathKey } from './PathIdentity';
 import type { TracedLine } from './StreamlineTracer';
 
 export interface BuiltNode {
@@ -186,14 +187,11 @@ export class StreetGraphBuilder {
       }
     }
 
-    // --- dedupe parallel edges (same endpoints, same rough midpoint) -----
+    // --- dedupe identical physical paths, retaining class priority ------
     workEdges.sort((e1, e2) => CLASS_RANK[e1.class] - CLASS_RANK[e2.class] || lineLength(e1.path) - lineLength(e2.path));
     const seen = new Set<string>();
     workEdges = workEdges.filter((e) => {
-      const lo = Math.min(e.a, e.b);
-      const hi = Math.max(e.a, e.b);
-      const mid = e.path[Math.floor(e.path.length / 2)];
-      const key = `${lo}:${hi}:${Math.round(mid[0] / 20)}:${Math.round(mid[1] / 20)}`;
+      const key = physicalPathKey(e.path);
       if (seen.has(key)) return false;
       seen.add(key);
       return true;
