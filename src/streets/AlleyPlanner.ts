@@ -2,15 +2,15 @@
  * Alleys: narrow pedestrian cuts through long blocks, dense in poor and
  * commercial districts, elsewhere only where a block runs long enough to need
  * a mid-block connector. A cut is a straight chord across the buildable land
- * of one block, overshooting into the streets at both ends so the graph
- * builder nodes it into the network; the overshoot prunes away as a stub.
+ * of one block, joining the real surrounding street centerlines at both ends.
  */
 import type { Polygon, Polyline, Vec2 } from '../../schema/blueprint';
 import type { Rng } from '../core/rng';
-import type { PlannedDistrict } from '../districts/DistrictPlanner';
 import { orientedBoundingBox } from '../geom/obb';
 import { centroid, distanceToOutline, pointInPolygon } from '../geom/polygon';
 import { add, cross, distSq, scale, sub } from '../geom/vec';
+import { StreetAttachments } from './alleys/StreetAttachments';
+import type { AlleyDistrict, AlleyNetwork } from './alleys/schema';
 
 /** Block left on each side of a cut, so both halves still hold parcels. */
 const MIN_HALF = 42;
@@ -23,8 +23,6 @@ const SPACING = { dense: 85, plain: 130 };
 const MAX_CUTS = 3;
 /** Share of eligible blocks that get alleys. */
 const CHANCE = { dense: 0.85, plain: 0.45 };
-/** Overshoot past the curb line, far enough to cross the street centerline. */
-const OVERSHOOT = 14;
 /** Shortest alley worth cutting. */
 const MIN_CHORD = 24;
 /** Clearance from street junctions, so a cut lands mid-block. */
@@ -44,10 +42,12 @@ export class AlleyPlanner {
   static plan(
     blocks: readonly Polygon[],
     junctions: readonly Vec2[],
-    districtOf: (p: Vec2) => PlannedDistrict,
+    districtOf: (p: Vec2) => AlleyDistrict,
     rng: Rng,
+    network: AlleyNetwork,
   ): Polyline[] {
     const out: Polyline[] = [];
+    const attachments = new StreetAttachments(network);
     blocks.forEach((block, blockIndex) => {
       const box = orientedBoundingBox(block);
       const district = districtOf(centroid(block));
@@ -70,7 +70,7 @@ export class AlleyPlanner {
           across[0] * Math.cos(angle) - across[1] * Math.sin(angle),
           across[0] * Math.sin(angle) + across[1] * Math.cos(angle),
         ];
-        const cut = chordThrough(block, origin, dir, junctions);
+        const cut = chordThrough(block, origin, dir, junctions, attachments);
         if (cut) out.push(cut);
       }
     });
@@ -79,15 +79,15 @@ export class AlleyPlanner {
 }
 
 /**
- * The piece of the line through `origin` that crosses `block`, overshooting
- * both ends into the street. Null when the cut would run along a curb, land on
- * a junction, or come out short.
+ * A block-crossing chord joined to the nearest surrounding street on each side.
+ * Null when a candidate lacks a safe pair of terminals or internal clearance.
  */
 function chordThrough(
   block: Polygon,
   origin: Vec2,
   dir: Vec2,
   junctions: readonly Vec2[],
+  attachments: StreetAttachments,
 ): Polyline | null {
   if (!pointInPolygon(origin, block)) return null;
   let back = 0;
@@ -116,5 +116,7 @@ function chordThrough(
   for (let s = back + THROAT; s <= forward - THROAT; s += 3) {
     if (distanceToOutline(add(origin, scale(dir, s)), block) < CURB_CLEARANCE) return null;
   }
-  return [add(ends[0], scale(dir, -OVERSHOOT)), add(ends[1], scale(dir, OVERSHOOT))];
+  const path = attachments.join(origin, dir, back, forward);
+  if (!path || path.some((point) => junctions.some((junction) => distSq(point, junction) < clearance))) return null;
+  return path;
 }
