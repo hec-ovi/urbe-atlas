@@ -7,8 +7,10 @@ Purpose: separates grade construction from projected infrastructure and physical
 Entry point: [index.ts](index.ts). Data: [schema.ts](schema.ts).
 
 - `GradeDatum.plan(input)` takes a city boundary, planar street edges with assigned profiles, early Highway envelopes, roadway top and pedestrian top. It returns source-station spans, true grade roadway/pedestrian reservations, inclusive grade corridors, complete projected reservations, deck solids, land faces and roadway-facing frontage.
+- The full plan accepts curb-only sidewalk sections. Any explicit `sidewalks.*.geometry` record fails before source construction, with its edge, directed side and version in the error details. Corridor format support does not imply full ground-format support.
 - `GradeDatum.roadwayPlan({boundary, edges, roadwayTop})` returns all source spans and only their flat-at-datum roadway owners. It builds no pedestrian corridors, structures, land faces or frontage.
 - `GradeDatum.physicalPlan({boundary, edges, structures})` returns only clipped deck geometry, source height profiles and structure edge identities. It builds no grade masks, land faces or frontage.
+- Roadway-only and physical-only queries accept explicit side geometry; their outputs depend on carriageways and decks, not pedestrian interval heights or roles.
 - `GradeDatum.clearanceFootprints(input)` takes either plan shape, later supports, ground top and caller-supplied clear height. It returns source-owned footprints whose solid geometry intersects that vertical range. Zero clear height queries contact at the ground datum.
 
 ## Ownership
@@ -42,7 +44,7 @@ Entry point: [index.ts](index.ts). Data: [schema.ts](schema.ts).
 ## Errors
 
 - `E_INVALID_PARAMS`: non-finite datum/clearance settings, pedestrian top below roadway top, or negative clearance.
-- `E_INVARIANT`: incomplete profiles, inconsistent structure ownership, invalid source geometry or incoherent grade face/frontage ownership.
+- `E_INVARIANT`: unsupported full-plan side geometry, incomplete profiles, inconsistent structure ownership, invalid source geometry or incoherent grade face/frontage ownership.
 
 ## Dependencies
 

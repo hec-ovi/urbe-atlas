@@ -1,5 +1,5 @@
 import type { Polygon, Vec2 } from '../../../../schema/blueprint';
-import { invalidParams } from '../../../errors';
+import { invalidParams, invariantFailure } from '../../../errors';
 import { bufferLine, difference, intersection, union } from '../../../geom/clip';
 import { StreetCorridors } from '../StreetCorridors';
 import { clearanceFootprints } from './PhysicalClearance';
@@ -13,6 +13,12 @@ export class GradeDatum {
   static plan(input: GradeDatumInput): GradeDatumPlan {
     if (!Number.isFinite(input.pedestrianTop)
       || input.pedestrianTop < input.roadwayTop) throw invalidParams('datum ground levels are invalid');
+    for (const edge of input.edges) for (const side of ['left', 'right'] as const) {
+      const geometry = edge.crossSection?.sidewalks[side].geometry;
+      if (geometry !== undefined) throw invariantFailure('grade datum requires curb-only sidewalk sections', {
+        edgeId: edge.id, side, version: geometry?.version,
+      });
+    }
     const sources = new SourceCuts(input);
     const corridors = new StreetCorridors(input.edges);
     const spans = sources.spans;
