@@ -1,9 +1,11 @@
 import type { PreviewApp } from './views/PreviewApp';
 
-/** An explicit saved source never falls back to generation, even when loading fails. */
+/** Reload the persistent catalog; creation always starts with an explicit request. */
 export async function startPreview(app: PreviewApp, search: string): Promise<void> {
   const query = new URLSearchParams(search);
   if (query.get('view') === '3d') app.setMode('3d');
-  if (query.has('blueprint')) await app.loadBlueprintUrl(query.get('blueprint')!);
-  else await app.generate({ seed: 'urbe' });
+  await Promise.all([
+    app.refreshCities(),
+    query.has('blueprint') ? app.loadBlueprintUrl(query.get('blueprint')!) : Promise.resolve(),
+  ]);
 }

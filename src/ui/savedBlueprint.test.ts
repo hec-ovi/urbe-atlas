@@ -7,8 +7,6 @@ import { MapView } from './views/MapView';
 import { Map3DView } from './views/Map3DView';
 import { startPreview } from './startPreview';
 
-vi.mock('../index', () => ({ generateCity: vi.fn(() => { throw new Error('Generation must not run'); }) }));
-
 const polygon = [[0, 0], [100, 0], [100, 100], [0, 100]];
 function fixture() {
   return {
@@ -81,10 +79,10 @@ it('reports unreadable JSON and URL failures without falling back to generation'
   await user.upload(getByLabelText(app.root, 'Open saved blueprint'), new File(['{'], 'broken.json', { type: 'application/json' }));
   await waitFor(() => expect(getByRole(app.root, 'log').textContent).toContain('broken.json:'));
   const generation = vi.spyOn(app, 'generate');
-  const fetcher = vi.fn(async () => ({ ok: false, status: 404 }));
+  const fetcher = vi.fn(async (_url: string) => ({ ok: false, status: 404, json: async () => ({}) }));
   vi.stubGlobal('fetch', fetcher);
   await startPreview(app, '?blueprint=https://other.example/city.json');
-  expect(fetcher).not.toHaveBeenCalled();
+  expect(fetcher.mock.calls.every(([url]) => url === '/api/cities')).toBe(true);
   expect(getByRole(app.root, 'log').textContent).toContain('must use this preview origin');
   await startPreview(app, '?blueprint=/missing.json');
   expect(getByRole(app.root, 'log').textContent).toContain('404');

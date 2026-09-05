@@ -6,9 +6,11 @@ Purpose: presents Atlas creation and blueprint inspection in a dark browser work
 
 `new PreviewApp(fetchManifest?) -> PreviewApp`
 
-- `generate(params)` takes [AtlasParams](../../schema/params.ts) and delegates to the root `generateCity` entry point.
+- `generate(params)` validates [AtlasParams](../../schema/params.ts), submits raw parameters to the [city catalog](../cities/CONTRACT.md), and waits for its queued or running blueprint job to finish.
+- `refreshCities()` loads all persistent [CityRecord](../cities/schema.ts) entries. Startup refreshes the catalog and resumes status polling. Creating a city requires an explicit Generate city or Retry click.
 - `loadBlueprint(value)` accepts saved [CityBlueprint](../../schema/blueprint.ts) data; `loadBlueprintUrl(source)` fetches the same format from this preview origin, without redirects. [Render input checks](components/blueprintInput.ts) require finite coordinate tuples, nonempty geometry, known rendered categories and the nested fields consumed by both views. Additional fields remain unchanged. This is structural inspection, not geometric certification.
 - Startup `?blueprint=/relative/file.json` loads saved data without generation or fallback. Optional `view=3d` selects 3D. The toolbar's Open blueprint accepts a local JSON file through the same load flow.
+- Local and URL opens inspect data. Save current city explicitly posts the displayed JSON to `/api/cities/import`; generated and reopened catalog entries are already saved.
 - `setMode(mode)` takes `2d | 3d`; `resize()` fits both canvases; `setInteriorParcels(parcelIds)` applies an exact parcel subset.
 - Parameter files are JSON AtlasParams. Unknown top-level fields are dropped, defaults are resolved, and the root runtime validation runs before the form changes.
 - The optional assembled-world [manifest](../../../engine/src/assembly/schema/world-manifest.schema.json) is fetched beside the non-empty `out=` path in the parcel URL template. It must be contract 1.0.0 and match the displayed seed, Atlas version, complete parcel-id set, interior subset, and floor tags.
@@ -16,12 +18,14 @@ Purpose: presents Atlas creation and blueprint inspection in a dark browser work
 
 ## Out and events
 
-- `PreviewApp.root` is the mountable element. `viewMode` reports the active map mode. `generate` resolves after the generated blueprint is rendered or its error is shown.
+- `PreviewApp.root` is the mountable element. `viewMode` reports the active map mode. `generate` resolves after terminal server status and automatic opening, or after reporting failure. A city opened during generation stays displayed; completion then reports that the new city is available in Saved cities.
+- Saved cities remains above both tabs. Each entry shows seed, blueprint status, dimensions, source and creation time. Ready entries open their saved geometry; failed entries show their error and Retry creates a new job from the recorded parameters. Refresh cities reloads the catalog. Pending entries poll server status every 1.5 seconds while mounted.
 - The Creation tab renders city controls, presets, import and export. Building footprint offers Rectangle (default) and Follow parcel. Street profiles and paving layouts round-trip through parameter files. The Visualization tab renders the summary, filters, parcel link, legend, and 2D or 3D map. The `road` class is labeled avenues.
 - The 2D canvas renders blueprint polygons and supports left-drag pan, cursor-anchored wheel zoom and left-click selection.
 - The WebGL2 canvas renders parcel envelopes and floor marks, partitioned ground, crossings, street furniture, highway structures, transit, water surfaces, shoreline bands, and optional diagnostics. Highway deck faces share their mitered cross-sections and omit zero-area triangles at grade ramp tips. Station-access diagnostics remain visible through the structures whose internal route they trace. Drag orbits, wheel zooms, and left-click selects a visible parcel.
 - Downloads return the current parameter set or the current CityBlueprint unchanged as JSON.
 - `ParamsPanel` emits `onGenerate(params)`, `onExport(params)`, and `onImport(file)`.
+- `CityLibrary` emits `onOpen(record)`, `onRetry(params)`, `onStatus(message)`, `onInfo(message)` and `onError(message)`.
 - `LayerToggles` emits `onChange(filters)`; `ViewModeSwitch` emits `onChange(mode)`; `ViewTabs` emits `onChange(tab)`.
 - `MapView` emits `onSelect(hit)` and `onHover(hit | null)`; `Map3DView` emits `onParcelInspect(parcel)`.
 - `MapToolbar` emits `onFit()` and `onDownload()`; `ParcelLink.onChange(listener)` observes template edits.
@@ -34,21 +38,22 @@ Purpose: presents Atlas creation and blueprint inspection in a dark browser work
 - `views/StreetSurfaceRegions`: clips street and road meshes into disjoint regions inside the published roadway partition.
 - `views/filters`: complete `FilterKey` set and deterministic `defaultFilters()` for hydrology, ground, zones, streets, transit, furniture, districts, diagnostics, and `interiorsOnly`.
 - `widgets/ParamsPanel`: validated AtlasParams form. Methods: `read`, `setParams`, `setStatus`, `setBusy`.
+- `widgets/CityLibrary`: catalog controls, status polling, generation completion and explicit persistence. Methods: `refresh`, `generate`, `blueprintFor`, `setBlueprint`, `setBusy`. `components/CityApi` handles same-origin HTTP and record validation.
 - `widgets/ViewTabs` and `widgets/ViewModeSwitch`: creation or visualization pane and flat or 3D map selection.
 - `widgets/LayerToggles`: grouped visibility controls with item and group isolation, global resets, and `setInteriorCount(count)`.
 - `widgets/InspectorPanel`: nonmodal floating selection details, retained until Close, another selection or a new blueprint. `widgets/ParcelLink`: explicit assembled-output template, empty by default.
-- `widgets/ExteriorPreview`: capability-gated Generate exteriors, progress and verified viewer destinations. `setBlueprint` discards prior job availability. HTTP requests and response identity checks remain independent of generation code.
+- `widgets/ExteriorPreview`: capability-gated Generate exteriors above both tabs, inline progress/reason and verified viewer destinations. `setBlueprint` discards prior job availability. HTTP requests and response identity checks remain independent of generation code.
 - `widgets/MapToolbar`: seed and size, fit action, and blueprint download. `widgets/BlueprintOverview` renders totals; `widgets/LegendWidget` renders the full color key.
-- `widgets/Notifications`: dismissible toasts lasting eight seconds, separate from selection details. `widgets/ProgressOverlay`: blocking generation stages (`preparing | generating | rendering | ready | error`).
+- `widgets/Notifications`: dismissible toasts lasting eight seconds, separate from selection details.
 - `components/paramsFile`, `blueprintFile`, `rangeField`, `colors`, and `dom`: validated file exchange, synchronized numeric input, palettes, and element creation.
 
 ## Errors
 
 The mounted UI exposes this closed failure set:
 
-- Generation: root `E_INVALID_PARAMS`, `E_UNSATISFIABLE`, or `E_INVARIANT`, shown in the notification log. The progress cover always closes and the form unlocks.
+- City service: catalog HTTP errors, invalid responses and network failures. Read failures appear inline with Refresh; pending polling retries connection failures. Submission, import and worker failures appear in the notification log. Worker errors include root `E_INVALID_PARAMS`, `E_UNSATISFIABLE`, `E_INVARIANT`, service `E_GENERATION` and `E_INTERRUPTED`. Terminal generation and submission failure re-enable creation.
 - Parameter file: invalid JSON, non-object input, missing seed, or root parameter validation failure, shown in the notification log. The current form stays unchanged.
-- Saved blueprint: invalid JSON or render-input structure, disallowed URL, fetch failure, or rendering failure appears in the log and unlocks the UI. Structural failures leave the displayed city unchanged.
+- Saved blueprint: invalid JSON or render-input structure, disallowed URL, fetch failure, or rendering failure appears in the log. Structural failures leave the displayed city unchanged.
 - Parcel link: disabled template, invalid URL, missing `out=`, or invalid output path, returned as `ParcelDestination.error` and shown in the inspector.
 - Manifest: missing, failed, malformed, stale, or mismatched input leaves the interior list empty and reports it unavailable. It never widens the filter.
 - Exterior service: unavailable capability, failed request/job, invalid response, mismatched identity or incomplete completion leaves building previews disabled and reports the reason. Stale responses cannot affect a different displayed blueprint.
@@ -57,9 +62,10 @@ No failure escapes a `PreviewApp` event handler.
 
 ## Invariants
 
-- Presentation only: generation and geometric certification stay in the root box; saved-file structural checks protect renderer inputs.
+- Presentation only: city generation and serialization run through the city service; the browser imports parameter validation and saved-file render checks.
 - One valid parameter set produces the same blueprint as the root entry point. Import never changes a valid field before the complete set validates.
-- The form is disabled for the complete generation interval. Progress moves through named stages and notifications preserve file and generation results.
+- Only creation submission and Retry are disabled for an active generation. Form editing, map viewing, tabs, local imports, catalog refresh and ready-city opening remain available. Status names describe queued, running, ready or failed blueprint work; generation has no covering overlay.
+- Generation creates only blueprints. Exterior and interior work require their own explicit actions. Generated completion and older load responses cannot replace a more recently requested city.
 - 3D geometry is deferred until the 3D view is first selected. Both views apply the same filters and exact interior parcel subset.
 - Renderers consume published geometry and elevations. Water and shoreline layers stay independent; street and road surfaces stay disjoint and inside roadway ground.
 - A left click selects without navigation. Movement beyond four screen pixels, pointer cancellation or release outside the canvas prevents selection. Right clicks never select or navigate.
@@ -72,6 +78,7 @@ No failure escapes a `PreviewApp` event handler.
 
 ## Depends on
 
-- [Atlas root contract](../../CONTRACT.md): AtlasParams, CityBlueprint, `generateCity`, and AtlasError.
+- [Atlas root contract](../../CONTRACT.md): AtlasParams, runtime parameter validation, CityBlueprint and AtlasError.
+- [City catalog contract](../cities/CONTRACT.md): durable blueprint generation, saved records, status and import routes.
 - [Engine assembly contract](../../../engine/src/assembly/CONTRACT.md): optional world manifest 1.0.0.
 - [Engine server contract](../../../engine/src/server/CONTRACT.md): exterior capability and exact-city jobs.

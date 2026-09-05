@@ -26,6 +26,8 @@ async function mount() {
   Object.defineProperties(app.root.querySelector('.map-wrap'), { clientWidth: { value: 600 }, clientHeight: { value: 600 } });
   await app.loadBlueprint(blueprint);
   app.resize();
+  expect(getByRole(app.root, 'button', { name: 'Generate exteriors' }).closest('.tab-pane')).toBeNull();
+  expect(getByRole(app.root, 'button', { name: 'Creation' }).getAttribute('aria-pressed')).toBe('true');
   await userEvent.pointer({ target: app.root.querySelector('canvas')!, coords: { clientX: 300, clientY: 300 }, keys: '[MouseLeft]' });
   await userEvent.click(getByRole(app.root, 'button', { name: 'Visualization' }));
   return app;

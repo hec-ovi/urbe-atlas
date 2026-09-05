@@ -1,4 +1,4 @@
-/** Preview entry point: mount the app, fit it to the window, build the first city. */
+/** Mount the workspace and restore its server city catalog. */
 import { PreviewApp } from './views/PreviewApp';
 import { startPreview } from './startPreview';
 import './style.css';

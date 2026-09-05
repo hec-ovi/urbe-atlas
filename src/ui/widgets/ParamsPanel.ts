@@ -79,6 +79,7 @@ export class ParamsPanel {
   private readonly districtCaps = new Map<DistrictKind, { enabled: HTMLInputElement; value: HTMLInputElement }>();
   private readonly tierWeights = new Map<WealthTier, RangeField>();
   private readonly features = {} as Record<keyof FeatureToggles, HTMLInputElement>;
+  private busy = false;
 
   constructor(events: ParamsPanelEvents) {
     const validate = () => this.validate();
@@ -278,15 +279,16 @@ export class ParamsPanel {
     this.status.textContent = text;
   }
 
-  /** Locks the form while a city generates. */
+  /** Prevents another submission while the current city generates. */
   setBusy(busy: boolean): void {
-    this.form.disabled = busy;
+    this.busy = busy;
+    this.validate();
   }
 
   private validate(focus = false): boolean {
     const issue = this.firstIssue();
     this.error.textContent = issue?.message ?? '';
-    this.generateButton.disabled = issue !== null;
+    this.generateButton.disabled = this.busy || issue !== null;
     this.root.classList.toggle('has-error', issue !== null);
     if (focus && issue) issue.element.focus();
     return issue === null;

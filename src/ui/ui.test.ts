@@ -4,17 +4,17 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { getByLabelText, getByRole, getByText, waitFor } from '@testing-library/dom';
 import userEvent from '@testing-library/user-event';
 import * as THREE from 'three';
-import { generateCity } from '../src';
-import type { AtlasParams } from '../schema/params';
-import { LegendWidget } from '../src/ui/widgets/LegendWidget';
-import { defaultFilters } from '../src/ui/views/filters';
-import { LayerToggles } from '../src/ui/widgets/LayerToggles';
-import { ParamsPanel } from '../src/ui/widgets/ParamsPanel';
-import { MapView, DEFAULT_LAYERS } from '../src/ui/views/MapView';
-import { PreviewApp, type ManifestFetcher } from '../src/ui/views/PreviewApp';
-import { Map3DView } from '../src/ui/views/Map3DView';
-import { streetSurfaceRegions } from '../src/ui/views/StreetSurfaceRegions';
-import { difference, intersection, offset } from '../src/geom/clip';
+import { generateCity } from '..';
+import type { AtlasParams } from '../../schema/params';
+import { LegendWidget } from './widgets/LegendWidget';
+import { defaultFilters } from './views/filters';
+import { LayerToggles } from './widgets/LayerToggles';
+import { ParamsPanel } from './widgets/ParamsPanel';
+import { MapView, DEFAULT_LAYERS } from './views/MapView';
+import { PreviewApp, type ManifestFetcher } from './views/PreviewApp';
+import { Map3DView } from './views/Map3DView';
+import { streetSurfaceRegions } from './views/StreetSurfaceRegions';
+import { difference, intersection, offset } from '../geom/clip';
 
 /** A city small enough to build inside a test, big enough to have parcels. */
 const SMALL: AtlasParams = { seed: 'preview', size: { width: 600, depth: 600 } };
@@ -96,7 +96,7 @@ describe('LayerToggles', () => {
     document.body.append(toggles.root);
     await userEvent.click(getByRole(toggles.root, 'button', { name: 'Hide all' }));
     expect(Object.values(onChange.mock.lastCall![0]).every((visible) => visible === false)).toBe(true);
-    const transit = getByLabelText(toggles.root, 'Public transit').closest('.layer-group')!;
+    const transit = getByLabelText(toggles.root, 'Public transit').closest<HTMLElement>('.layer-group')!;
     await userEvent.click(getByRole(transit, 'button', { name: 'Only' }));
     const isolated = onChange.mock.lastCall![0];
     expect(isolated['transit.bus']).toBe(true);
@@ -230,14 +230,17 @@ describe('ParamsPanel', () => {
     expect(footprint.value).toBe('rectangle');
   });
 
-  it('shows generation status and locks the form while busy', () => {
+  it('shows generation status and disables only submission while busy', async () => {
     const panel = new ParamsPanel(events());
     document.body.append(panel.root);
     const form = panel.root.querySelector('.params-form') as HTMLFieldSetElement;
+    const submit = getByRole(panel.root, 'button', { name: 'Generate city' }) as HTMLButtonElement;
     panel.setBusy(true);
-    expect(form.disabled).toBe(true);
-    panel.setBusy(false);
     expect(form.disabled).toBe(false);
+    await userEvent.type(getByLabelText(panel.root, 'Seed'), '-next');
+    expect(submit.disabled).toBe(true);
+    panel.setBusy(false);
+    expect(submit.disabled).toBe(false);
     panel.setStatus('E_INVALID_PARAMS: seed missing');
     expect(panel.root.textContent).toContain('E_INVALID_PARAMS');
   });
@@ -319,7 +322,7 @@ describe('PreviewApp', () => {
   it('defers 3D geometry until that view is selected', async () => {
     const built3d = vi.spyOn(Map3DView.prototype, 'setBlueprint');
     const app = mount();
-    await app.generate(SMALL);
+    await app.loadBlueprint(generateCity(SMALL));
     expect(built3d).not.toHaveBeenCalled();
     app.setMode('3d');
     expect(built3d).toHaveBeenCalledTimes(1);
@@ -334,7 +337,7 @@ describe('PreviewApp', () => {
     expect(blueprint.transit.subwayStations.length).toBeGreaterThan(0);
     view.setBlueprint(blueprint);
     const layers = (view as unknown as {
-      layers: Map<string, { getObjectByName(name: string): unknown }>;
+      layers: Map<string, THREE.Group>;
     }).layers;
     expect([...layers.entries()].some(([key, group]) =>
       key.startsWith('zone.') && group.getObjectByName('floor-elevations') !== undefined)).toBe(true);
@@ -453,26 +456,11 @@ describe('PreviewApp', () => {
     expect(visibleFrom(new THREE.Vector3(40, 7.5, -2), new THREE.Vector3(-1, 0, 0))).toBe(true);
   });
 
-  it('blocks the form behind a progress cover while generating', async () => {
+  it('surfaces parameter validation failure before contacting the service', async () => {
     const app = mount();
-    const running = app.generate(SMALL);
-    const overlay = app.root.querySelector('.progress-overlay') as HTMLElement;
-    const form = app.root.querySelector('.params-form') as HTMLFieldSetElement;
-    expect(overlay.hidden).toBe(false);
-    expect(overlay.dataset.stage).toBe('preparing');
-    expect(form.disabled).toBe(true);
-    await running;
-    expect(overlay.hidden).toBe(true);
-    expect(overlay.dataset.stage).toBe('ready');
-    expect(form.disabled).toBe(false);
-    expect(app.root.querySelector('.status')?.textContent).toContain('parcels');
-  });
-
-  it('surfaces a generation failure as a notification', async () => {
-    const app = mount();
-    await app.generate({ seed: 'too-small', size: { width: 100, depth: 100 } });
-    expect(getByRole(app.root, 'log').textContent).toContain('E_UNSATISFIABLE');
-    expect((app.root.querySelector('.progress-overlay') as HTMLElement).hidden).toBe(true);
+    await app.generate({ seed: 'invalid', size: { width: -1, depth: 100 } });
+    expect(getByRole(app.root, 'log').textContent).toContain('E_INVALID_PARAMS');
+    expect(fetch).not.toHaveBeenCalled();
   });
 
   it('imports a parameter file into the form and refuses a broken one', async () => {
@@ -569,7 +557,7 @@ describe('PreviewApp', () => {
     const map3dIds = vi.spyOn(Map3DView.prototype, 'setInteriorParcels');
     const app = mount(fetchManifest);
     await userEvent.type(getByLabelText(app.root, 'URL template'), 'http://localhost:5306/?out=/out/preview');
-    await app.generate(SMALL);
+    await app.loadBlueprint(fixture);
     await waitFor(() => expect(getByText(app.root, '1 building has interiors')).toBeTruthy());
     expect(fetchManifest).toHaveBeenCalledWith('http://localhost:5306/out/preview/manifest.json');
     expect(mapIds).toHaveBeenLastCalledWith([interiorId]);
@@ -583,7 +571,7 @@ describe('PreviewApp', () => {
       ok: true,
       json: async () => ({ contractVersion: '1.0.0', interiors: ['p0'] }),
     }));
-    await app.generate(SMALL);
+    await app.loadBlueprint(generateCity(SMALL));
     await waitFor(() => expect(getByText(app.root, 'Assembled interior list unavailable')).toBeTruthy());
     await userEvent.click(getByLabelText(app.root, 'Only buildings with interiors'));
     expect((getByLabelText(app.root, 'Only buildings with interiors') as HTMLInputElement).checked).toBe(true);
@@ -592,7 +580,7 @@ describe('PreviewApp', () => {
   it('uses the dark workspace and exposes generated geometry diagnostics', async () => {
     const app = mount();
     expect(app.root.dataset.theme).toBe('dark');
-    await app.generate({ seed: 'diagnostics', size: { width: 1000, depth: 1000 } });
+    await app.loadBlueprint(generateCity({ seed: 'diagnostics', size: { width: 1000, depth: 1000 } }));
     await userEvent.click(getByRole(app.root, 'button', { name: 'Visualization' }));
     expect(getByText(app.root, 'Blueprint summary')).toBeTruthy();
     expect(getByText(app.root, /runs · \d+ ramps · \d+ supports/)).toBeTruthy();
@@ -607,7 +595,7 @@ describe('PreviewApp', () => {
     const app = mount();
     const download = getByRole(app.root, 'button', { name: 'Download blueprint' }) as HTMLButtonElement;
     expect(download.disabled).toBe(true);
-    await app.generate(SMALL);
+    await app.loadBlueprint(generateCity(SMALL));
     expect(download.disabled).toBe(false);
     await userEvent.click(download);
     expect(createUrl).toHaveBeenCalledTimes(1);
@@ -621,13 +609,13 @@ describe('PreviewApp', () => {
 
 describe('sidebar tabs and view mode', () => {
   it('opens Visualization in 3D and keeps the flat map selectable', async () => {
-    const { PreviewApp } = await import('../src/ui/views/PreviewApp');
+    const { PreviewApp } = await import('./views/PreviewApp');
     const app = new PreviewApp();
     document.body.append(app.root);
     const creation = getByRole(app.root, 'button', { name: 'Creation' });
     const visualization = getByRole(app.root, 'button', { name: 'Visualization' });
     expect(creation.getAttribute('aria-pressed')).toBe('true');
-    expect(getByLabelText(app.root, 'City in 3D').closest('.tab-pane')?.hidden).toBe(true);
+    expect(getByLabelText(app.root, 'City in 3D').closest<HTMLElement>('.tab-pane')?.hidden).toBe(true);
 
     await userEvent.click(visualization);
     expect(visualization.getAttribute('aria-pressed')).toBe('true');
@@ -635,20 +623,20 @@ describe('sidebar tabs and view mode', () => {
     const threeD = getByLabelText(app.root, 'City in 3D');
     expect(app.viewMode).toBe('3d');
     expect((threeD as HTMLInputElement).checked).toBe(true);
-    expect(app.root.querySelector('.map-view-3d')?.hidden).toBe(false);
+    expect(app.root.querySelector<HTMLElement>('.map-view-3d')?.hidden).toBe(false);
 
     const flat = getByLabelText(app.root, 'Flat map');
     await userEvent.click(flat);
     expect(app.viewMode).toBe('2d');
     expect((flat as HTMLInputElement).checked).toBe(true);
-    expect(app.root.querySelector('.map-view')?.hidden).toBe(false);
+    expect(app.root.querySelector<HTMLElement>('.map-view')?.hidden).toBe(false);
 
     await userEvent.click(creation);
     await userEvent.click(visualization);
     expect(visualization.getAttribute('aria-pressed')).toBe('true');
     expect(app.viewMode).toBe('3d');
     expect((threeD as HTMLInputElement).checked).toBe(true);
-    expect(threeD.closest('.tab-pane')?.hidden).toBe(false);
+    expect(threeD.closest<HTMLElement>('.tab-pane')?.hidden).toBe(false);
     app.root.remove();
   });
 });
