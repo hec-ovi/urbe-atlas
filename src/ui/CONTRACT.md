@@ -14,7 +14,7 @@ Purpose: presents Atlas creation and blueprint inspection in a dark browser work
 ## Out and events
 
 - `PreviewApp.root` is the mountable element. `viewMode` reports the active map mode. `generate` resolves after the generated blueprint is rendered or its error is shown.
-- The Creation tab renders city controls, presets, import and export. Building footprint offers Rectangle (default) and Follow parcel. Street construction profiles round-trip through parameter files. The Visualization tab renders the summary, filters, inspector, parcel link, legend, and 2D or 3D map.
+- The Creation tab renders city controls, presets, import and export. Building footprint offers Rectangle (default) and Follow parcel. Street profiles and paving layouts round-trip through parameter files. The Visualization tab renders the summary, filters, inspector, parcel link, legend, and 2D or 3D map.
 - The 2D canvas renders blueprint polygons and supports left-drag pan, cursor-anchored wheel zoom, hover preview, and right-click selection.
 - The WebGL2 canvas renders parcel envelopes and floor marks, partitioned ground, crossings, street furniture, highway structures, transit, water surfaces, shoreline bands, and optional diagnostics. Highway deck faces share their mitered cross-sections and omit zero-area triangles at grade ramp tips. Station-access diagnostics remain visible through the structures whose internal route they trace. Drag orbits, wheel zooms, and right-click selects a visible parcel.
 - Downloads return the current parameter set or the current CityBlueprint unchanged as JSON.
@@ -59,7 +59,7 @@ No failure escapes a `PreviewApp` event handler.
 - A normal click never pins or navigates. Right-click pins a feature and immediately opens a selected parcel in a new building view. The persistent inspector link remains available, always forces `mode=building` and the selected parcel id, and preserves the configured `out=` value.
 - An optional manifest affects the UI only after exact seed, version, parcel-set, subset, and floor-shape validation.
 - Downloaded blueprints are unchanged. Downloaded parameter files hold the full resolved form state.
-- Presets and Reset select rectangular buildings; omitted footprint shape imports use the root default. Changing form controls preserves imported street construction profiles.
+- Presets and Reset select rectangular buildings; omitted footprint shape imports use the root default. Changing form controls preserves imported street profiles and paving layouts.
 - All controls and panels have square corners.
 
 ## Depends on

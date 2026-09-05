@@ -483,8 +483,20 @@ describe('PreviewApp', () => {
         shoulders: { left: 0.25, right: 0.25 } }],
       sidewalkProfiles: [{ id: 'walk', curb: 0.15, border: 0.25, furnishing: 1, walking: 3, frontage: 0.6 }],
     };
+    const pavingDesign: AtlasParams['pavingDesign'] = {
+      defaultLayoutId: 'grid', districtLayouts: [{ districtId: 'd0', layoutId: 'grid' }],
+      layouts: [{ id: 'grid', familyId: 'finish-a',
+        modules: [{ id: 'slab', pitch: [2, 1], joint: [0.012, 0.012] }],
+        bands: {
+          curb: { moduleId: 'slab', borderWidth: 0.1 },
+          border: { moduleId: 'slab', borderWidth: 0.1 },
+          furnishing: { moduleId: 'slab', borderWidth: 0.1 },
+          walking: { moduleId: 'slab', borderWidth: 0.1 },
+          frontage: { moduleId: 'slab', borderWidth: 0.1 },
+        } }],
+    };
     const params = { seed: 'imported', size: { width: 900, depth: 700 }, features: { alleys: false },
-      footprintShape: 'parcel', streetDesign, unknownSetting: 'discard' };
+      footprintShape: 'parcel', streetDesign, pavingDesign, unknownSetting: 'discard' };
     await userEvent.upload(input, new File([JSON.stringify(params)], 'city.json', { type: 'application/json' }));
     await waitFor(() => {
       expect((getByLabelText(app.root, 'Seed') as HTMLInputElement).value).toBe('imported');
@@ -503,6 +515,7 @@ describe('PreviewApp', () => {
     const saved = JSON.parse(await (createUrl.mock.lastCall![0] as Blob).text());
     expect(saved.footprintShape).toBe('rectangle');
     expect(saved.streetDesign).toEqual(streetDesign);
+    expect(saved.pavingDesign).toEqual(pavingDesign);
     expect(saved).not.toHaveProperty('unknownSetting');
     createUrl.mockRestore();
     revokeUrl.mockRestore();

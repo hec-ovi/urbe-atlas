@@ -75,6 +75,7 @@ export class ParamsPanel {
   private readonly hydrology: HTMLSelectElement;
   private readonly footprintShape: HTMLSelectElement;
   private streetDesign: AtlasParams['streetDesign'];
+  private pavingDesign: AtlasParams['pavingDesign'];
   private readonly districtCaps = new Map<DistrictKind, { enabled: HTMLInputElement; value: HTMLInputElement }>();
   private readonly tierWeights = new Map<WealthTier, RangeField>();
   private readonly features = {} as Record<keyof FeatureToggles, HTMLInputElement>;
@@ -232,6 +233,7 @@ export class ParamsPanel {
       irregularity: this.irregularity.value,
       footprintShape: this.footprintShape.value as FootprintShape,
       ...(this.streetDesign ? { streetDesign: structuredClone(this.streetDesign) } : {}),
+      ...(this.pavingDesign ? { pavingDesign: structuredClone(this.pavingDesign) } : {}),
       districtCount: [this.districtMin.value, this.districtMax.value],
       maxFloors: this.maxFloors.value,
       ...(Object.keys(maxFloorsByDistrict).length > 0 ? { maxFloorsByDistrict } : {}),
@@ -254,6 +256,7 @@ export class ParamsPanel {
     this.irregularity.value = params.irregularity ?? DEFAULT_PARAMS.irregularity!;
     this.footprintShape.value = params.footprintShape ?? DEFAULT_PARAMS.footprintShape!;
     this.streetDesign = structuredClone(params.streetDesign);
+    this.pavingDesign = structuredClone(params.pavingDesign);
     this.districtMin.value = districtCount[0];
     this.districtMax.value = districtCount[1];
     this.maxFloors.value = params.maxFloors ?? DEFAULT_PARAMS.maxFloors!;
