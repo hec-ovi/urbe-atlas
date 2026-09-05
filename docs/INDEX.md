@@ -4,6 +4,8 @@
 
 - src/streets/crossings/intervals: safe full-footprint station ranges and shared source-edge subdivisions. src/streets/crossings/intervals/CONTRACT.md. Depends on geometry, exact source partition and street construction.
 
+- src/streets/crossings: pre-ground source contacts, external fields and proved walking terminals. src/streets/crossings/CONTRACT.md. Depends on Atlas graph, street reservations and geometry; final placement also takes ground, and intervals/ solves full-footprint station ranges.
+
 - src/streets/construction/corridors: exact edge-local roadway, sidewalk and walking query data for consumer conformance. src/streets/construction/corridors/CONTRACT.md. Depends on street construction and geometry; final ground owns rendering and collision.
 
 - src/geom/partition: source-preserving ownership, exact edge construction, tight coordinate diagnostics, protected cells and coverage certificates. src/geom/partition/CONTRACT.md. Depends on Atlas coordinates/errors and the existing Three.js triangulator.
