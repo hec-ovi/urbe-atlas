@@ -142,12 +142,16 @@ describe('ParamsPanel', () => {
     const seed = getByLabelText(panel.root, 'Seed');
     await userEvent.clear(seed);
     await userEvent.type(seed, 'test-9');
+    const footprint = getByRole(panel.root, 'combobox', { name: 'Building footprint' }) as HTMLSelectElement;
+    expect(footprint.value).toBe('rectangle');
+    await userEvent.selectOptions(footprint, 'parcel');
     await userEvent.click(getByLabelText(panel.root, 'Subways'));
     await userEvent.selectOptions(getByLabelText(panel.root, 'Waterfront'), 'lagoon');
     await userEvent.click(getByText(panel.root, 'Generate city'));
     expect(handlers.onGenerate).toHaveBeenCalledTimes(1);
     const params = handlers.onGenerate.mock.calls[0][0];
     expect(params.seed).toBe('test-9');
+    expect(params.footprintShape).toBe('parcel');
     expect(params.size).toEqual({ width: 1000, depth: 1000 });
     expect(params.districtCount).toEqual([1, 3]);
     expect(params.hydrology).toEqual({ type: 'lagoon' });
@@ -212,10 +216,17 @@ describe('ParamsPanel', () => {
     await userEvent.click(getByRole(panel.root, 'button', { name: 'Random seed' }));
     expect(seed.value).toMatch(/^city-/);
     const generatedSeed = seed.value;
+    const footprint = getByRole(panel.root, 'combobox', { name: 'Building footprint' }) as HTMLSelectElement;
+    await userEvent.selectOptions(footprint, 'parcel');
     await userEvent.click(getByRole(panel.root, 'button', { name: 'Compact' }));
     expect(seed.value).toBe(generatedSeed);
     expect((getByLabelText(panel.root, 'Width (m)') as HTMLInputElement).value).toBe('600');
     expect((getByLabelText(panel.root, 'Highways') as HTMLInputElement).checked).toBe(false);
+    expect(footprint.value).toBe('rectangle');
+    await userEvent.selectOptions(footprint, 'parcel');
+    await userEvent.click(getByRole(panel.root, 'button', { name: 'Reset' }));
+    expect(seed.value).toBe('urbe');
+    expect(footprint.value).toBe('rectangle');
   });
 
   it('shows generation status and locks the form while busy', () => {
@@ -466,14 +477,43 @@ describe('PreviewApp', () => {
   it('imports a parameter file into the form and refuses a broken one', async () => {
     const app = mount();
     const input = getByLabelText(app.root, 'Parameter file');
-    const params = { seed: 'imported', size: { width: 900, depth: 700 }, features: { alleys: false } };
+    const streetDesign: AtlasParams['streetDesign'] = {
+      profiles: [{ id: 'wide', classes: ['street', 'road'],
+        lanes: [{ direction: 'forward', width: 4 }, { direction: 'backward', width: 4 }],
+        shoulders: { left: 0.25, right: 0.25 } }],
+      sidewalkProfiles: [{ id: 'walk', curb: 0.15, border: 0.25, furnishing: 1, walking: 3, frontage: 0.6 }],
+    };
+    const params = { seed: 'imported', size: { width: 900, depth: 700 }, features: { alleys: false },
+      footprintShape: 'parcel', streetDesign, unknownSetting: 'discard' };
     await userEvent.upload(input, new File([JSON.stringify(params)], 'city.json', { type: 'application/json' }));
     await waitFor(() => {
       expect((getByLabelText(app.root, 'Seed') as HTMLInputElement).value).toBe('imported');
     });
     expect((getByLabelText(app.root, 'Width (m)') as HTMLInputElement).value).toBe('900');
     expect((getByLabelText(app.root, 'Alleys') as HTMLInputElement).checked).toBe(false);
+    const footprint = getByRole(app.root, 'combobox', { name: 'Building footprint' }) as HTMLSelectElement;
+    expect(footprint.value).toBe('parcel');
     expect(getByRole(app.root, 'log').textContent).toContain('city.json');
+
+    const createUrl = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:atlas-params');
+    const revokeUrl = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => undefined);
+    const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined);
+    await userEvent.selectOptions(footprint, 'rectangle');
+    await userEvent.click(getByRole(app.root, 'button', { name: 'Save parameters' }));
+    const saved = JSON.parse(await (createUrl.mock.lastCall![0] as Blob).text());
+    expect(saved.footprintShape).toBe('rectangle');
+    expect(saved.streetDesign).toEqual(streetDesign);
+    expect(saved).not.toHaveProperty('unknownSetting');
+    createUrl.mockRestore();
+    revokeUrl.mockRestore();
+    click.mockRestore();
+
+    await userEvent.upload(input, new File([JSON.stringify({ seed: 'invalid-shape', footprintShape: 'round' })],
+      'invalid-shape.json', { type: 'application/json' }));
+    await waitFor(() => expect(getByRole(app.root, 'log').textContent)
+      .toContain('invalid-shape.json: footprintShape must be rectangle or parcel'));
+    expect(footprint.value).toBe('rectangle');
+    expect((getByLabelText(app.root, 'Seed') as HTMLInputElement).value).toBe('imported');
 
     await userEvent.upload(input, new File(['not json'], 'broken.json', { type: 'application/json' }));
     await waitFor(() => {
@@ -486,6 +526,12 @@ describe('PreviewApp', () => {
     await waitFor(() => {
       expect(getByRole(app.root, 'log').textContent).toContain('invalid.json: size.width and size.depth must be positive');
     });
+
+    await userEvent.selectOptions(footprint, 'parcel');
+    await userEvent.upload(input, new File([JSON.stringify({ seed: 'default-shape' })],
+      'default-shape.json', { type: 'application/json' }));
+    await waitFor(() => expect((getByLabelText(app.root, 'Seed') as HTMLInputElement).value).toBe('default-shape'));
+    expect(footprint.value).toBe('rectangle');
   });
 
   it('opens the right-clicked building while preserving the selected output', async () => {

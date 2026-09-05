@@ -3,17 +3,19 @@ import type { AtlasParams } from '../../../schema/params';
 import { resolveParams } from '../../params/defaults';
 
 /** Every field a parameter file may carry; anything else is dropped on import. */
-const FIELDS = [
-  'seed',
-  'size',
-  'irregularity',
-  'districtCount',
-  'maxFloors',
-  'maxFloorsByDistrict',
-  'tierWeights',
-  'features',
-  'hydrology',
-] as const;
+const FIELDS: Record<keyof AtlasParams, true> = {
+  seed: true,
+  size: true,
+  irregularity: true,
+  footprintShape: true,
+  streetDesign: true,
+  districtCount: true,
+  maxFloors: true,
+  maxFloorsByDistrict: true,
+  tierWeights: true,
+  features: true,
+  hydrology: true,
+};
 
 /** Reads a parameter file. Throws Error with a readable reason when it is not one. */
 export function parseParams(text: string): AtlasParams {
@@ -31,7 +33,7 @@ export function parseParams(text: string): AtlasParams {
     throw new Error('no seed in the file');
   }
   const params: Record<string, unknown> = {};
-  for (const field of FIELDS) {
+  for (const field of Object.keys(FIELDS)) {
     if (source[field] !== undefined) params[field] = source[field];
   }
   return resolveParams(params as unknown as AtlasParams);

@@ -1,5 +1,5 @@
-/** Complete, validated city creation form for every AtlasParams input. */
-import type { AtlasParams, DistrictKind, FeatureToggles, HydrologyType, WealthTier } from '../../../schema/params';
+/** Validated city controls with complete parameter-file exchange. */
+import type { AtlasParams, DistrictKind, FeatureToggles, FootprintShape, HydrologyType, WealthTier } from '../../../schema/params';
 import { el } from '../components/dom';
 import { RangeField } from '../components/rangeField';
 
@@ -33,6 +33,7 @@ const DEFAULT_PARAMS: AtlasParams = {
   seed: 'urbe',
   size: { width: 1000, depth: 1000 },
   irregularity: 0.35,
+  footprintShape: 'rectangle',
   districtCount: [1, 3],
   maxFloors: 40,
   maxFloorsByDistrict: {},
@@ -72,6 +73,8 @@ export class ParamsPanel {
   private readonly districtMax: RangeField;
   private readonly maxFloors: RangeField;
   private readonly hydrology: HTMLSelectElement;
+  private readonly footprintShape: HTMLSelectElement;
+  private streetDesign: AtlasParams['streetDesign'];
   private readonly districtCaps = new Map<DistrictKind, { enabled: HTMLInputElement; value: HTMLInputElement }>();
   private readonly tierWeights = new Map<WealthTier, RangeField>();
   private readonly features = {} as Record<keyof FeatureToggles, HTMLInputElement>;
@@ -96,6 +99,11 @@ export class ParamsPanel {
       el('option', { value: 'sea-coast', text: 'Sea coast' }),
     ]);
     this.hydrology.addEventListener('change', validate);
+    this.footprintShape = el('select', { id: 'footprint-shape' }, [
+      el('option', { value: 'rectangle', text: 'Rectangle' }),
+      el('option', { value: 'parcel', text: 'Follow parcel' }),
+    ]);
+    this.footprintShape.addEventListener('change', validate);
 
     const featureFields = el('div', { class: 'feature-grid' });
     for (const key of Object.keys(FEATURE_LABELS) as (keyof FeatureToggles)[]) {
@@ -176,6 +184,7 @@ export class ParamsPanel {
         this.width.root,
         this.depth.root,
         this.irregularity.root,
+        el('label', { for: 'footprint-shape' }, [el('span', { text: 'Building footprint' }), this.footprintShape]),
         el('label', { for: 'hydrology' }, [el('span', { text: 'Waterfront' }), this.hydrology]),
       ], true),
       section('Districts', [
@@ -221,6 +230,8 @@ export class ParamsPanel {
       seed: this.seed.value.trim(),
       size: { width: this.width.value, depth: this.depth.value },
       irregularity: this.irregularity.value,
+      footprintShape: this.footprintShape.value as FootprintShape,
+      ...(this.streetDesign ? { streetDesign: structuredClone(this.streetDesign) } : {}),
       districtCount: [this.districtMin.value, this.districtMax.value],
       maxFloors: this.maxFloors.value,
       ...(Object.keys(maxFloorsByDistrict).length > 0 ? { maxFloorsByDistrict } : {}),
@@ -241,6 +252,8 @@ export class ParamsPanel {
     this.width.value = size.width;
     this.depth.value = size.depth;
     this.irregularity.value = params.irregularity ?? DEFAULT_PARAMS.irregularity!;
+    this.footprintShape.value = params.footprintShape ?? DEFAULT_PARAMS.footprintShape!;
+    this.streetDesign = structuredClone(params.streetDesign);
     this.districtMin.value = districtCount[0];
     this.districtMax.value = districtCount[1];
     this.maxFloors.value = params.maxFloors ?? DEFAULT_PARAMS.maxFloors!;
