@@ -10,7 +10,7 @@ Purpose: derives full-band crossing intervals and shared source-edge subdivision
 
 `FootprintRegions.outsideEnclosures(source, masks)` and `.insideEnclosures(source, masks)` take the same inputs and return tight representable coordinate bounds for each exact missing or intersection vertex, [PartitionPointEnclosure](../../../geom/partition/schema.ts). Projection consumes these enclosures without a rational-to-numeric view approximation.
 
-`FootprintRegions.covers(source, allowed)` takes a `Polygon` and readonly `Polygon[]`, [types](schema.ts). It returns whether the complete source fits `coordinateCover(allowed)` at its default precision. Empty allowed land returns false. This exact query retains uncovered ownership through both divisions; no views rebuild geometry or acceptance survives a call.
+`FootprintRegions.covers(source, allowed)` takes a `Polygon` and readonly `Polygon[]`, [types](schema.ts). It returns whether the complete source fits `coordinateCover(allowed)` at its default precision. Empty allowed land returns false. This exact query retains uncovered ownership; no views rebuild geometry or acceptance survives a call.
 
 `new StationFrame(a, b)` in [StationFrame.ts](StationFrame.ts) takes finite `Vec2` endpoints with positive segment length. It exposes metric `length`, unit forward `u`, unit left `v`, canonical `point(station, lateral)` and metric `project(point)`. `edgePoint(station, lateral)` canonicalizes both source endpoints at that lateral offset once, then uses the source partition's authored-1 mm `edgePositionView` for interior fractions. Endpoints retain their cached coordinates. Crossing fields, stripes and landing cuts use this same subdivision.
 
@@ -22,7 +22,7 @@ Purpose: derives full-band crossing intervals and shared source-edge subdivision
 ## Invariants
 
 - The physical source band has canonical 1 mm corners. The diagnostic `numericSweepEnvelope` encloses every derived numeric footprint using source-side coordinate error boxes; its polygon is unsnapped and changes no physical geometry. Allowed land uses `coordinateCover`. Every exact piece outside that cover blocks its full station projection. Excluded masks block their exact intersection with the diagnostic sweep. Forbidden masks separately block the `precisionInterior` of their intersection.
-- Coverage assigns allowed land first, then applies its complete coordinate cover to the retained exact uncovered owner. Numeric views never rebuild that owner.
+- Coverage constructs the default coordinate cover and validates original geometry before proving the retained uncovered owner empty or refining it with cover masks whose exact coordinate bounds overlap the source. Numeric views never rebuild that owner.
 - Obstruction projections use tight rational vertex enclosures and both sweep source-side error boxes. They retain outward fraction bounds, expanded by half the footprint width. Boundary contact is permitted.
 - Scalar arithmetic uses tight directed Float64 bounds. Exact binary-fraction comparisons retain exact operations; monotone inverse bounds include fraction division, half-width addition and source-offset encoding.
 - Coordinate exception: source long-band corners use the 1 mm grid; derived field, stripe and landing points retain their shared-edge interpolation coordinates without another snap. Nominal widths and station distances are unchanged. Only floating-point interpolation representation remains.

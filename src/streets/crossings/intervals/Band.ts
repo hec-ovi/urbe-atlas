@@ -3,10 +3,9 @@ import { numericSweepEnvelope } from '../../../geom/NumericSweep';
 import type { PartitionPointEnclosure } from '../../../geom/partition/schema';
 import { StationFrame } from './StationFrame';
 import { StationProjection } from './StationProjection';
+import { Bounds } from './Bounds';
 import type { Range } from './Directed';
 import type { StationIntervalInput } from './schema';
-
-interface Bounds { minX: number; minZ: number; maxX: number; maxZ: number }
 
 /** Numeric query envelope and fraction bounds share the same source-side error boxes. */
 export class Band {
@@ -28,27 +27,14 @@ export class Band {
     });
     this.polygon = envelope.polygon;
     this.projection = new StationProjection(frame.u, envelope.sides.map(side => [side.from, side.to]));
-    this.bounds = bounds(this.polygon);
+    this.bounds = new Bounds(this.polygon);
   }
 
   candidates(polygons: Polygon[], padding = 0): Polygon[] {
-    return polygons.filter(polygon => {
-      const other = bounds(polygon);
-      return other.minX <= this.bounds.maxX + padding && other.maxX >= this.bounds.minX - padding
-        && other.minZ <= this.bounds.maxZ + padding && other.maxZ >= this.bounds.minZ - padding;
-    });
+    return this.bounds.candidates(polygons, padding);
   }
 
   fractions(polygon: readonly PartitionPointEnclosure[]): Range | null {
     return this.projection.fractions(polygon);
   }
-}
-
-function bounds(polygon: Polygon): Bounds {
-  let minX = Infinity, minZ = Infinity, maxX = -Infinity, maxZ = -Infinity;
-  for (const [x, z] of polygon) {
-    minX = Math.min(minX, x); minZ = Math.min(minZ, z);
-    maxX = Math.max(maxX, x); maxZ = Math.max(maxZ, z);
-  }
-  return { minX, minZ, maxX, maxZ };
 }

@@ -29,7 +29,9 @@ describe('FootprintRegions complete coordinate coverage', () => {
   it('rejects invalid source and allowed geometry with the declared error', () => {
     const invalid: Polygon = [[0, 0], [1, 0], [2, 0]];
     for (const query of [() => FootprintRegions.covers(invalid, [source]),
-      () => FootprintRegions.covers(source, [invalid])]) {
+      () => FootprintRegions.covers(source, [invalid]),
+      () => FootprintRegions.covers(source, [source, invalid.map(([x, y]) => [x + 100, y + 100])]),
+      () => FootprintRegions.covers(source, [source, [[100, 100], [104, 104], [100, 104], [103, 100]]])]) {
       expect(query).toThrowError(expect.objectContaining({ code: 'E_INVARIANT' }));
     }
   });
