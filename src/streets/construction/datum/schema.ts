@@ -2,6 +2,7 @@ import type {
   ElevationPoint, HighwaySupport, Polygon, Polyline, StreetEdge, Vec2,
 } from '../../../../schema/blueprint';
 import type { HighwayEnvelope } from '../highway';
+import type { CorridorBandRole } from '../corridors/schema';
 
 export type DatumStructureEnvelope = HighwayEnvelope;
 
@@ -11,6 +12,8 @@ export interface GradeDatumInput {
   structures: DatumStructureEnvelope[];
   roadwayTop: number;
   pedestrianTop: number;
+  /** Explicit opt-in to source-owned side roles. Omission accepts curb-only sides. */
+  groundFormat?: 'side-bands-v1';
 }
 
 export type DatumPhysicalInput = Pick<GradeDatumInput, 'boundary' | 'edges' | 'structures'>;
@@ -47,6 +50,18 @@ export interface DatumPedestrianOwner extends DatumRoadwayOwner {
   side: 'left' | 'right';
 }
 
+export interface DatumSideBand {
+  edgeId: string;
+  /** All positive source spans, in station order; the complete edge is flat at the datum. */
+  spanIds: string[];
+  side: 'left' | 'right';
+  role: CorridorBandRole;
+  /** Absolute surface top in metres, including the roadway datum. */
+  top: number;
+  /** Complete edge-local query masks, unchanged and contained in the city domain. */
+  masks: Polygon[];
+}
+
 export interface DatumPhysicalOwner {
   kind: 'deck';
   edgeId: string;
@@ -68,11 +83,14 @@ export interface DatumPhysicalPlan {
 export interface GradeDatumPlan {
   boundary: Polygon;
   spans: DatumSpan[];
+  groundFormat?: 'side-bands-v1';
   grade: {
     roadway: DatumRoadwayOwner[];
     pedestrian: DatumPedestrianOwner[];
     /** Inclusive source corridors; final roadway/curb claims take precedence. */
     corridors: DatumRoadwayOwner[];
+    /** Present only for the opted-in format. Explicit sides do not also own pedestrian rows. */
+    sideBands?: DatumSideBand[];
     full: Polygon[];
   };
   projected: {

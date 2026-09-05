@@ -3,5 +3,5 @@ export type {
   GradeDatumInput, GradeDatumPlan, DatumStation, DatumSpan, DatumRoadwayOwner,
   DatumPedestrianOwner, DatumPhysicalOwner, DatumClearanceInput, DatumClearanceRegion,
   DatumPhysicalInput, DatumPhysicalPlan,
-  DatumRoadwayInput, DatumRoadwayPlan,
+  DatumRoadwayInput, DatumRoadwayPlan, DatumSideBand,
 } from './schema';

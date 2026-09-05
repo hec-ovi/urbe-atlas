@@ -7,7 +7,8 @@ Purpose: separates grade construction from projected infrastructure and physical
 Entry point: [index.ts](index.ts). Data: [schema.ts](schema.ts).
 
 - `GradeDatum.plan(input)` takes a city boundary, planar street edges with assigned profiles, early Highway envelopes, roadway top and pedestrian top. It returns source-station spans, true grade roadway/pedestrian reservations, inclusive grade corridors, complete projected reservations, deck solids, land faces and roadway-facing frontage.
-- The full plan accepts curb-only sidewalk sections. Any explicit `sidewalks.*.geometry` record fails before source construction, with its edge, directed side and version in the error details. Corridor format support does not imply full ground-format support.
+- Omitted `groundFormat` accepts curb-only sidewalk sections. Explicit `sidewalks.*.geometry` fails before source construction, with its edge, directed side and version. `groundFormat: 'side-bands-v1'` opts into explicit role output through the same planner and is echoed in the result. Unknown formats fail.
+- The opted-in plan adds `grade.sideBands`: source edge, directed side, interval role, ordered contributing `spanIds`, absolute `top`, and complete query `masks`. Rows follow edge, left/right and normalized interval order, including empty roles. Curb-only sides retain their existing pedestrian rows and caller pedestrian top.
 - `GradeDatum.roadwayPlan({boundary, edges, roadwayTop})` returns all source spans and only their flat-at-datum roadway owners. It builds no pedestrian corridors, structures, land faces or frontage.
 - `GradeDatum.physicalPlan({boundary, edges, structures})` returns only clipped deck geometry, source height profiles and structure edge identities. It builds no grade masks, land faces or frontage.
 - Roadway-only and physical-only queries accept explicit side geometry; their outputs depend on carriageways and decks, not pedestrian interval heights or roles.
@@ -19,10 +20,14 @@ Entry point: [index.ts](index.ts). Data: [schema.ts](schema.ts).
 - Full and roadway-only plans share source validation and station cuts. Equal sources return byte-identical spans and roadway rows, including separate flat intervals on a mixed-height edge. All spans retain source identity and elevation classification. Zero-width, off-grade or wholly city-clipped spans have no roadway owner row.
 - Grade sidewalks retain their own directed widths. Junction roadway takes precedence over pedestrian reservations. Projections from other elevations cannot replace this ground.
 - Per-source grade and projected entries are masks and may overlap across owners. The root's later shared partition assigns sole final ground ownership.
+- Explicit side geometry requires complete positive source-span coverage, all flat at `roadwayTop`. Redundant flat profile knots retain their span IDs in one full role row. Mixed-height, ramp and off-grade explicit sides fail; no role mask is duplicated or station-cut to imply their support.
+- Each explicit side's complete queried envelope must fit the city domain before publication. Exact containment checks the entire polygons, including concave boundary excursions. Failure names the source edge, directed side and offending full mask. Valid role masks are byte-identical to the corridor queries, without clipping, re-importing derived geometry or roadway subtraction. Absolute role tops equal roadway top plus the published interval top.
+- Explicit sides publish only side-band rows, not inclusive pedestrian rows. `grade.full` and `grade.corridors` retain complete reservation land for parcels. They do not classify modern gutter, curb or walking ownership.
+- Side-band masks do not resolve junction returns or conflicts between source heights. They remain overlapping source claims until a consuming ground planner supplies shared junction construction and sole physical owners.
 - `grade.corridors` preserves each flat span's original inclusive `byEdge` corridor under its station and city cuts, before roadway or pedestrian differences. It includes the carriageway and both complete directed sides. No aggregate union changes these masks; the final partition claims them after roadway and curb ownership.
 - All projected source corridors remain available for parcel reservations. Structure projections contain the complete deck width; the root applies its building clearance. Deck solids preserve source top and underside profiles.
 - Station cuts use shared source distances, endpoints and tangents. Interior cuts share one snapped line and add no rounded cap. Original path joins and terminal caps remain bounded by the source corridor.
-- Every spatial output is clipped to the city boundary. Sources and envelope fields are not mutated.
+- Reservation, land and physical-footprint polygons stay inside the city boundary. Complete explicit side claims pass containment unchanged; other polygon outputs use the shared station and city cuts. Source paths, spans and envelope fields retain their authored extent and are not mutated.
 
 ## Land and frontage
 
@@ -43,8 +48,8 @@ Entry point: [index.ts](index.ts). Data: [schema.ts](schema.ts).
 
 ## Errors
 
-- `E_INVALID_PARAMS`: non-finite datum/clearance settings, pedestrian top below roadway top, or negative clearance.
-- `E_INVARIANT`: unsupported full-plan side geometry, incomplete profiles, inconsistent structure ownership, invalid source geometry or incoherent grade face/frontage ownership.
+- `E_INVALID_PARAMS`: unknown ground format, non-finite datum/clearance settings, pedestrian top below roadway top, or negative clearance.
+- `E_INVARIANT`: unsupported full-plan side geometry/elevation, explicit side envelope outside the city, incomplete profiles, inconsistent structure ownership, invalid source geometry or incoherent grade face/frontage ownership.
 
 ## Dependencies
 
@@ -52,4 +57,4 @@ Entry point: [index.ts](index.ts). Data: [schema.ts](schema.ts).
 - [Street construction](../CONTRACT.md): exact corridor reservations.
 - [Highway construction](../highway/CONTRACT.md): early envelopes and late support placement.
 - [Geometry](../../../geom/CONTRACT.md): Boolean operations, shared precision and complete segment coverage.
-- [Source partition](../../../geom/partition/CONTRACT.md): nonpublishing exact metadata overlap queries.
+- [Source partition](../../../geom/partition/CONTRACT.md): nonpublishing exact containment and metadata overlap queries.
