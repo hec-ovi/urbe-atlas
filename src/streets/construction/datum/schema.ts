@@ -14,6 +14,7 @@ export interface GradeDatumInput {
 }
 
 export type DatumPhysicalInput = Pick<GradeDatumInput, 'boundary' | 'edges' | 'structures'>;
+export type DatumRoadwayInput = Pick<GradeDatumInput, 'boundary' | 'roadwayTop'> & { edges: readonly StreetEdge[] };
 
 export interface DatumStation {
   distance: number;
@@ -35,6 +36,11 @@ export interface DatumSpan {
 export interface DatumRoadwayOwner {
   spanId: string;
   polygons: Polygon[];
+}
+
+export interface DatumRoadwayPlan {
+  spans: DatumSpan[];
+  roadway: DatumRoadwayOwner[];
 }
 
 export interface DatumPedestrianOwner extends DatumRoadwayOwner {

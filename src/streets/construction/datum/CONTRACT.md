@@ -7,12 +7,14 @@ Purpose: separates grade construction from projected infrastructure and physical
 Entry point: [index.ts](index.ts). Data: [schema.ts](schema.ts).
 
 - `GradeDatum.plan(input)` takes a city boundary, planar street edges with assigned profiles, early Highway envelopes, roadway top and pedestrian top. It returns source-station spans, true grade roadway/pedestrian reservations, inclusive grade corridors, complete projected reservations, deck solids, land faces and roadway-facing frontage.
+- `GradeDatum.roadwayPlan({boundary, edges, roadwayTop})` returns all source spans and only their flat-at-datum roadway owners. It builds no pedestrian corridors, structures, land faces or frontage.
 - `GradeDatum.physicalPlan({boundary, edges, structures})` returns only clipped deck geometry, source height profiles and structure edge identities. It builds no grade masks, land faces or frontage.
 - `GradeDatum.clearanceFootprints(input)` takes either plan shape, later supports, ground top and caller-supplied clear height. It returns source-owned footprints whose solid geometry intersects that vertical range. Zero clear height queries contact at the ground datum.
 
 ## Ownership
 
 - Positive-length flat source intervals at `roadwayTop` own grade construction. Street class never determines elevation. A ramp touching grade at one station creates no flat roadway area.
+- Full and roadway-only plans share source validation and station cuts. Equal sources return byte-identical spans and roadway rows, including separate flat intervals on a mixed-height edge. Zero-width or off-grade spans have no roadway owner.
 - Grade sidewalks retain their own directed widths. Junction roadway takes precedence over pedestrian reservations. Projections from other elevations cannot replace this ground.
 - Per-source grade and projected entries are masks and may overlap across owners. The root's later shared partition assigns sole final ground ownership.
 - `grade.corridors` preserves each flat span's original inclusive `byEdge` corridor under its station and city cuts, before roadway or pedestrian differences. It includes the carriageway and both complete directed sides. No aggregate union changes these masks; the final partition claims them after roadway and curb ownership.

@@ -1,53 +1,40 @@
 import type { Polygon, Vec2 } from '../../../../schema/blueprint';
-import { invalidParams, invariantFailure } from '../../../errors';
+import { invalidParams } from '../../../errors';
 import { bufferLine, difference, intersection, union } from '../../../geom/clip';
 import { StreetCorridors } from '../StreetCorridors';
 import { clearanceFootprints } from './PhysicalClearance';
 import { roadFrontage } from './Frontage';
 import { landFaces } from './LandFaces';
-import { PathStations } from './PathStations';
-import { StationCells } from './StationCells';
-import { physicalPlan, validateBoundary } from './PhysicalOwners';
-import type { DatumClearanceInput, DatumClearanceRegion, DatumPhysicalInput, DatumPhysicalPlan, GradeDatumInput, GradeDatumPlan } from './schema';
+import { SourceCuts } from './SourceCuts';
+import { physicalPlan } from './PhysicalOwners';
+import type { DatumClearanceInput, DatumClearanceRegion, DatumPhysicalInput, DatumPhysicalPlan, DatumRoadwayInput, DatumRoadwayPlan, GradeDatumInput, GradeDatumPlan } from './schema';
 
 export class GradeDatum {
   static plan(input: GradeDatumInput): GradeDatumPlan {
-    if (!Number.isFinite(input.roadwayTop) || !Number.isFinite(input.pedestrianTop)
+    if (!Number.isFinite(input.pedestrianTop)
       || input.pedestrianTop < input.roadwayTop) throw invalidParams('datum ground levels are invalid');
-    validateBoundary(input.boundary);
-    const sources = new Map<string, PathStations>();
-    for (const edge of input.edges) {
-      if (sources.has(edge.id)) throw invariantFailure(`datum repeats edge ${edge.id}`);
-      if (![edge.width, edge.sidewalk.left, edge.sidewalk.right].every(value => Number.isFinite(value) && value >= 0)
-        || edge.width + edge.sidewalk.left + edge.sidewalk.right <= 0) {
-        throw invariantFailure(`datum edge ${edge.id} has invalid corridor widths`);
-      }
-      sources.set(edge.id, new PathStations(edge.path, edge.elevationProfile, edge.id));
-    }
+    const sources = new SourceCuts(input);
     const corridors = new StreetCorridors(input.edges);
-    const spans = [...sources.values()].flatMap(source => source.spans(input.roadwayTop));
+    const spans = sources.spans;
     const clipped = (polygons: Polygon[]): Polygon[] => intersection(polygons, [input.boundary]);
-    const grade: GradeDatumPlan['grade'] = { roadway: [], pedestrian: [], corridors: [], full: [] };
+    const grade: GradeDatumPlan['grade'] = {
+      roadway: sources.roadway(edge => corridors.roadway.get(edge.id) ?? []), pedestrian: [], corridors: [], full: [],
+    };
     const transitions: { spanId: string; line: [Vec2, Vec2] }[] = [];
-    for (const edge of input.edges) {
-      const source = sources.get(edge.id)!;
-      const radius = edge.width / 2 + Math.max(edge.sidewalk.left, edge.sidewalk.right);
-      const cells = new StationCells(source, radius);
-      const roadway = corridors.roadway.get(edge.id) ?? [];
+    for (const row of sources.rows) {
+      const { edge, cells } = row;
       const inclusive = corridors.byEdge.get(edge.id) ?? [];
       const sidewalks = {
         left: StreetCorridors.sidewalk(edge, 'left'), right: StreetCorridors.sidewalk(edge, 'right'),
       };
-      for (const span of spans.filter(candidate => candidate.edgeId === edge.id && candidate.elevation === 'at-grade')) {
+      for (const span of row.spans.filter(candidate => candidate.elevation === 'at-grade')) {
         for (const station of [span.start, span.end]) {
-          if (spans.some(other => other.edgeId === edge.id && other.elevation === 'off-grade'
+          if (row.spans.some(other => other.elevation === 'off-grade'
             && (other.start.distance === station.distance || other.end.distance === station.distance))) {
             transitions.push({ spanId: span.id, line: cells.cutLine(station) });
           }
         }
-        const slice = (polygons: Polygon[]): Polygon[] => clipped(cells.slice(polygons, span.start.distance, span.end.distance));
-        const polygons = slice(roadway);
-        if (polygons.length) grade.roadway.push({ spanId: span.id, polygons });
+        const slice = (polygons: Polygon[]): Polygon[] => sources.slice(row, polygons, span);
         const complete = slice(inclusive);
         if (complete.length) grade.corridors.push({ spanId: span.id, polygons: complete });
         for (const side of ['left', 'right'] as const) {
@@ -80,4 +67,9 @@ export class GradeDatum {
   }
 
   static physicalPlan(input: DatumPhysicalInput): DatumPhysicalPlan { return physicalPlan(input); }
+
+  static roadwayPlan(input: DatumRoadwayInput): DatumRoadwayPlan {
+    const sources = new SourceCuts(input);
+    return { spans: sources.spans, roadway: sources.roadway(edge => StreetCorridors.roadwayFor(edge)) };
+  }
 }

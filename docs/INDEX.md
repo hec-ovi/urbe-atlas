@@ -6,7 +6,7 @@
 
 - src/geom/partition/published: independent saved-ground coverage and shared numeric incidence. src/geom/partition/published/CONTRACT.md. Depends on the exact partition kernel and Atlas coordinates/errors.
 
-- src/streets/construction/datum: profile-based grade ownership, inclusive source corridors, land faces and physical-only clearance queries. src/streets/construction/datum/CONTRACT.md. Depends on street corridors, Highway envelopes, geometry and exact source-partition queries.
+- src/streets/construction/datum: profile-based grade ownership, inclusive source corridors, land faces and roadway-only/physical-clearance queries. src/streets/construction/datum/CONTRACT.md. Depends on street corridors, Highway envelopes, geometry and exact source-partition queries.
 
 - src/streets/alleys: block cuts with real surrounding-street terminals inside the reserved domain. src/streets/alleys/CONTRACT.md. Depends on street domain, Atlas graph paths and geometry.
 

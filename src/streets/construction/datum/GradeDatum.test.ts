@@ -148,9 +148,40 @@ describe('grade-ground datum', () => {
     expect(contains(roadway(plan), [886.731, 355.7676])).toBe(false);
   });
 
+  it('queries the same grade roadway spans for mixed profiles without a full land plan', () => {
+    const mixed = edge('mixed', [[-10, 40], [50, 40], [50, 100]], {
+      level: 4, sidewalk: { left: 3, right: 8.5 }, elevationProfile: [
+        { distance: 0, level: 0 }, { distance: 20, level: 0 }, { distance: 40, level: 4 },
+        { distance: 80, level: 0 }, { distance: 120, level: 0 },
+      ],
+    });
+    const elevated = edge('raised', [[20, 10], [80, 10]], {
+      level: 4, elevationProfile: [{ distance: 0, level: 4 }, { distance: 60, level: 4 }],
+    });
+    const alley = edge('alley', [[20, 80], [40, 80]], { class: 'alley', width: 0 });
+    const request = input([mixed, elevated, alley]);
+    const snapshot = JSON.stringify(request);
+    const full = GradeDatum.plan(request);
+    const lightweight = GradeDatum.roadwayPlan(request);
+    expect(lightweight).toEqual({ spans: full.spans, roadway: full.grade.roadway });
+    expect(lightweight.roadway.map(owner => owner.spanId)).toEqual(['gs:mixed:0', 'gs:mixed:3']);
+    const polygons = lightweight.roadway.flatMap(owner => owner.polygons);
+    expect(contains(polygons, [5, 40])).toBe(true);
+    expect(contains(polygons, [50, 80])).toBe(true);
+    expect(contains(polygons, [40, 40])).toBe(false);
+    expect(contains(polygons, [-5, 40])).toBe(false);
+    expect(contains(polygons, [50, 103])).toBe(false);
+    expect(JSON.stringify(request)).toBe(snapshot);
+  });
+
   it('rejects invalid datums, incomplete source profiles and invalid clearance', () => {
     expect(() => GradeDatum.plan({ ...input([]), roadwayTop: NaN }))
       .toThrow(expect.objectContaining({ code: 'E_INVALID_PARAMS' }));
+    expect(() => GradeDatum.roadwayPlan({ ...input([]), roadwayTop: NaN }))
+      .toThrow(expect.objectContaining({ code: 'E_INVALID_PARAMS' }));
+    const repeated = edge('duplicate', [[10, 10], [20, 10]]);
+    expect(() => GradeDatum.roadwayPlan(input([repeated, repeated])))
+      .toThrow(expect.objectContaining({ code: 'E_INVARIANT' }));
     expect(() => GradeDatum.plan(input([edge('e0', [[10, 10], [20, 10]], { elevationProfile: [] })])))
       .toThrow(expect.objectContaining({ code: 'E_INVARIANT' }));
     expect(() => GradeDatum.physicalPlan({ boundary: rectangle(0, 0, 100, 100), edges: [], structures: [{
