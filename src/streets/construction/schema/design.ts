@@ -25,6 +25,16 @@ export interface SidewalkBands {
 
 export interface SidewalkProfile extends SidewalkBands {
   id: string;
+  /** Omission retains the saved curb-only profile interpretation. */
+  edge?: SidewalkEdgeGeometry;
+}
+
+export interface SidewalkEdgeGeometry {
+  curbRise: number;
+  gutter: {
+    width: number;
+    lip: { width: number; height: number; side: 'road' };
+  };
 }
 
 export interface StreetDesign {

@@ -1,5 +1,5 @@
 import type { Polyline, StreetEdge } from '../../../../schema/blueprint';
-import type { LaneDesign, SidewalkBands } from './design';
+import type { LaneDesign, SidewalkBands, SidewalkEdgeGeometry } from './design';
 import type { StreetPlanningReservations } from '../corridors/schema';
 
 export interface StreetCrossSection {
@@ -8,9 +8,30 @@ export interface StreetCrossSection {
   lanes: (LaneDesign & { offset: number })[];
   shoulders: { left: number; right: number };
   sidewalks: {
-    left: { profileId: string; bands: SidewalkBands };
-    right: { profileId: string; bands: SidewalkBands };
+    left: SidewalkSectionRecord;
+    right: SidewalkSectionRecord;
   };
+}
+
+export interface SidewalkSectionRecord {
+  profileId: string;
+  bands: SidewalkBands;
+  /** Explicit edge construction; offsets are outward from the carriageway edge. */
+  geometry?: SidewalkGeometry;
+}
+
+export interface SidewalkGeometry {
+  version: '1.0.0';
+  edge: SidewalkEdgeGeometry;
+  pavedWidth: number;
+  totalWidth: number;
+  intervals: {
+    role: keyof SidewalkBands | 'gutter' | 'gutter-lip';
+    start: number;
+    end: number;
+    /** Surface top relative to the source roadway top, in metres. */
+    top: number;
+  }[];
 }
 
 export interface StreetRun {

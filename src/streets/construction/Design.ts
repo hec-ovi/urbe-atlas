@@ -1,13 +1,14 @@
-import type { LaneDesign, RoadProfile, SidewalkBands, SidewalkProfile, StreetDesign } from './schema/design';
+import type { LaneDesign, RoadProfile, SidewalkBands, SidewalkProfile, StreetDesign, SidewalkEdgeGeometry } from './schema/design';
 import { invalidParams } from '../../errors';
 import { CURB_WIDTH } from '../widths';
+import { resolveSidewalkGeometry } from './SidewalkGeometry';
 
 const lanes = (count: number): LaneDesign[] => Array.from({ length: count }, (_, index) => ({
   direction: index < count / 2 ? 'backward' : 'forward', width: 3.5,
 }));
 
-export function sidewalkTotal(bands: SidewalkBands): number {
-  return bands.curb + bands.border + bands.furnishing + bands.walking + bands.frontage;
+export function sidewalkTotal(bands: SidewalkBands & { edge?: SidewalkEdgeGeometry }): number {
+  return resolveSidewalkGeometry(bands, bands.edge).totalWidth;
 }
 
 export function roadwayTotal(profile: RoadProfile): number {
@@ -55,11 +56,21 @@ export function resolveStreetDesign(input?: StreetDesign): StreetDesign {
     const field = `sidewalkProfiles[${index}]`;
     if (!record(profile)) fail(`${field} must be an object`);
     claimId(profile.id, sidewalkIds, field);
-    if (profile.curb !== CURB_WIDTH) fail(`${field}.curb must equal ${CURB_WIDTH} metres`);
+    if (profile.edge === undefined) {
+      if (profile.curb !== CURB_WIDTH) fail(`${field}.curb must equal ${CURB_WIDTH} metres without explicit edge geometry`);
+    } else {
+      const edge = profile.edge;
+      if (!positive(profile.curb) || !record(edge) || !positive(edge.curbRise)
+        || !record(edge.gutter) || !positive(edge.gutter.width) || !record(edge.gutter.lip)
+        || !positive(edge.gutter.lip.width) || edge.gutter.lip.width >= edge.gutter.width
+        || !positive(edge.gutter.lip.height) || edge.gutter.lip.height > edge.curbRise
+        || edge.gutter.lip.side !== 'road') fail(`${field}.edge requires positive curb and gutter dimensions, a road-facing lip narrower than the gutter and no taller than the curb rise`);
+    }
     for (const key of ['border', 'furnishing', 'frontage'] as const) {
       if (!nonnegative(profile[key])) fail(`${field}.${key} must be nonnegative metres`);
     }
     if (!positive(profile.walking)) fail(`${field}.walking must be positive metres`);
+    if (!positive(sidewalkTotal(profile as SidewalkProfile))) fail(`${field} total width must be finite positive metres`);
   }
   const assignedDistricts = new Set<string>();
   if (value.sidewalkAssignments !== undefined) {
@@ -81,7 +92,9 @@ export function resolveStreetDesign(input?: StreetDesign): StreetDesign {
     profiles: value.profiles.map((profile: RoadProfile) => ({
       id: profile.id, classes: [...profile.classes], lanes: profile.lanes.map((lane) => ({ ...lane })), shoulders: { ...profile.shoulders },
     })).sort((a: RoadProfile, b: RoadProfile) => roadwayTotal(a) - roadwayTotal(b) || a.id.localeCompare(b.id)),
-    sidewalkProfiles: value.sidewalkProfiles.map((profile: SidewalkProfile) => ({ ...profile }))
+    sidewalkProfiles: value.sidewalkProfiles.map((profile: SidewalkProfile) => ({ ...profile,
+      ...(profile.edge === undefined ? {} : { edge: resolveSidewalkGeometry(profile, profile.edge).edge }),
+    }))
       .sort((a: SidewalkProfile, b: SidewalkProfile) => sidewalkTotal(a) - sidewalkTotal(b) || a.id.localeCompare(b.id)),
     ...(value.sidewalkAssignments === undefined ? {} : { sidewalkAssignments: value.sidewalkAssignments.map((assignment) => ({ ...assignment })) }),
     crossings: { pedestrianClearance: crossings.pedestrianClearance },

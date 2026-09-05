@@ -3,6 +3,7 @@ import type { LaneDesign } from './schema/design';
 import { invariantFailure } from '../../errors';
 import { length as pathLength } from '../../geom/polyline';
 import { sidewalkTotal } from './Design';
+import { resolveSidewalkGeometry } from './SidewalkGeometry';
 
 /** Published construction dimensions agree with their movement compatibility fields. */
 export function validateStreetSections(city: { streets: { construction?: StreetConstruction; edges: SectionedStreetEdge[] } }): void {
@@ -48,7 +49,18 @@ export function validateStreetSections(city: { streets: { construction?: StreetC
       runLanes = directed;
       if (!equal(at, -edge.width / 2 + section.shoulders.right)) fail(`edge ${edge.id} has inconsistent carriageway width`);
       for (const side of ['left', 'right'] as const) {
-        if (!equal(sidewalkTotal(section.sidewalks[side].bands), edge.sidewalk[side])) fail(`edge ${edge.id} has inconsistent ${side} sidewalk width`);
+        const sidewalk = section.sidewalks[side];
+        if (sidewalk.geometry) {
+          const expected = resolveSidewalkGeometry(sidewalk.bands, sidewalk.geometry.edge);
+          if (sidewalk.geometry.version !== '1.0.0' || !equal(expected.pavedWidth, sidewalk.geometry.pavedWidth)
+            || !equal(expected.totalWidth, sidewalk.geometry.totalWidth)
+            || expected.intervals.length !== sidewalk.geometry.intervals.length
+            || expected.intervals.some((part, index) => {
+              const actual = sidewalk.geometry!.intervals[index];
+              return part.role !== actual.role || !equal(part.start, actual.start) || !equal(part.end, actual.end) || !equal(part.top, actual.top);
+            })) fail(`edge ${edge.id} has inconsistent ${side} construction intervals`);
+        }
+        if (!equal(sidewalk.geometry?.totalWidth ?? sidewalkTotal(sidewalk.bands), edge.sidewalk[side])) fail(`edge ${edge.id} has inconsistent ${side} sidewalk width`);
       }
     }
     if (!equal(distance, run.length) || !equal(pathLength(run.path), run.length)) fail(`run ${run.id} has inconsistent total length`);

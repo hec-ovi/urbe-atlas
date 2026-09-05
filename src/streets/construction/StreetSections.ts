@@ -2,12 +2,13 @@ import type { Vec2 } from '../../../schema/blueprint';
 import type { DistrictKind } from '../../../schema/params';
 import type { BuiltEdge, BuiltNode } from '../Graph';
 import type { RoadProfile, SidewalkBands, SidewalkProfile, StreetDesign } from './schema/design';
-import type { SectionedStreetEdge, StreetCrossSection, StreetRun } from './schema/sections';
+import type { SectionedStreetEdge, StreetCrossSection, StreetRun, SidewalkSectionRecord } from './schema/sections';
 import { roadwayTotal, sidewalkTotal } from './Design';
 import { geometryOrder, ThroughRuns } from './ThroughRuns';
 import { length as pathLength, offsetAt } from '../../geom/polyline';
 import { alleySideWidth, HIGHWAY_WIDTH } from '../widths';
 import { LEVELS } from '../../levels';
+import { resolveSidewalkGeometry } from './SidewalkGeometry';
 
 export class StreetSections {
   static plan(
@@ -40,7 +41,7 @@ export class StreetSections {
         if (edge.class === 'highway') continue;
         const width = profile ? roadwayTotal(profile) : 0;
         const middle = pathLength(edge.path) / 2;
-        const side = (sign: 1 | -1): { profileId: string; bands: SidewalkBands } => {
+        const side = (sign: 1 | -1): SidewalkSectionRecord => {
           const kind = districtAt(offsetAt(edge.path, middle, sign * (width / 2 + 1)));
           if (edge.class === 'alley') {
             return { profileId: edge.class, bands: {
@@ -55,7 +56,9 @@ export class StreetSections {
           const chosen = assigned === undefined
             ? design.sidewalkProfiles[Math.min(target, design.sidewalkProfiles.length - 1)]
             : design.sidewalkProfiles.find((profile) => profile.id === assigned)!;
-          return { profileId: chosen.id, bands: bandsOnly(chosen) };
+          return { profileId: chosen.id, bands: bandsOnly(chosen),
+            ...(chosen.edge === undefined ? {} : { geometry: resolveSidewalkGeometry(chosen, chosen.edge) }),
+          };
         };
         const shoulders = profile
           ? member.forward ? { ...profile.shoulders } : { left: profile.shoulders.right, right: profile.shoulders.left }
@@ -85,7 +88,10 @@ export class StreetSections {
         + crossSection.shoulders.left + crossSection.shoulders.right;
       return {
         ...edge, width, crossSection,
-        sidewalk: { left: sidewalkTotal(crossSection.sidewalks.left.bands), right: sidewalkTotal(crossSection.sidewalks.right.bands) },
+        sidewalk: {
+          left: crossSection.sidewalks.left.geometry?.totalWidth ?? sidewalkTotal(crossSection.sidewalks.left.bands),
+          right: crossSection.sidewalks.right.geometry?.totalWidth ?? sidewalkTotal(crossSection.sidewalks.right.bands),
+        },
         districtIds: [], level: LEVELS.ground, elevationProfile: [],
       };
     }) };

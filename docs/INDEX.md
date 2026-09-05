@@ -26,7 +26,7 @@
 - src/ui: city creation, saved 2D/3D inspection, floating selection and verified exterior generation. src/ui/CONTRACT.md. Depends on the root contract, Engine exterior server and optional assembly manifest contracts.
 - src/zoning: district population forecasts, use eligibility and complete rectangular or lot-following footprints on the published building grid. src/zoning/CONTRACT.md. Depends on Atlas geometry and mirrored Interior core feasibility; Buildability consumes its hosting policy.
 - src/transit: bus service and early rail plans with full sidewalk-connected subway bays. src/transit/CONTRACT.md. Depends on street construction and zoning capacity; reservations/ owns entrance land geometry.
-- src/streets/construction: continuous road profiles and per-side pedestrian reservations before parcels. src/streets/construction/CONTRACT.md. Depends on the Atlas graph, geometry and district contracts.
+- src/streets/construction: road profiles and normalized per-side curb, gutter and paved dimensions before parcels. src/streets/construction/CONTRACT.md. Depends on the Atlas graph, geometry and district contracts; corridor format support governs production reservations.
 
 ## Measurements
 
