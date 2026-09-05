@@ -1,23 +1,23 @@
 import { AtlasError, invariantFailure } from '../../errors';
 import { compare, onSegment, PointPool, ringSign, type Point } from './Exact';
 import { chain, nodeSegments, segmentPairs } from './Segments';
-import type { Polygon, SharedPartition } from './schema';
+import type { PartitionVerificationInput, Polygon, SharedPartition } from './schema';
 
 function require(condition: unknown, message: string, details?: Record<string, unknown>): asserts condition {
   if (!condition) throw invariantFailure(`partition certificate ${message}`, details);
 }
 
 /** Verifies the emitted faces and their source chains without a coordinate snap. */
-export function verifyPartition(input: { source: Polygon; partition: SharedPartition }): void {
-  try { verify(input.source, input.partition); }
+export function verifyPartition(input: PartitionVerificationInput): void {
+  try { verify(input.source, input.partition, input.coordinateScale); }
   catch (error) {
     if (error instanceof AtlasError) throw error;
     throw invariantFailure('partition certificate is malformed');
   }
 }
 
-function verify(sourcePolygon: Polygon, partition: SharedPartition): void {
-  const pool = new PointPool(), proof = partition.certificate;
+function verify(sourcePolygon: Polygon, partition: SharedPartition, coordinateScale?: 1000): void {
+  const pool = new PointPool(coordinateScale), proof = partition.certificate;
   require(proof.exactVertices.length === partition.vertices.length, 'vertex counts disagree');
   const points = proof.exactVertices.map(vertex => pool.restore(vertex));
   require(new Set(points.map(point => point.key)).size === points.length, 'duplicates a shared exact vertex');

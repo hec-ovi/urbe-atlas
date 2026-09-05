@@ -5,7 +5,7 @@ import { PointPool, type Point, type Region, type Ring } from './Exact';
 import { connected, simple } from './Regions';
 import { readRing } from './RingInput';
 import { chain, nodeSegments, segments } from './Segments';
-import type { Division, PartitionComponent, Polygon, SharedPartition } from './schema';
+import type { Division, PartitionComponent, PartitionInput, Polygon, SharedPartition } from './schema';
 
 interface Owner {
   id: string;
@@ -18,14 +18,15 @@ interface Owner {
 
 /** Exact boundaries stay inside this instance until its final shared publication. */
 export class SourcePartition {
-  static create(input: { id: string; source: Polygon }): SourcePartition { return new SourcePartition(input); }
+  static create(input: PartitionInput): SourcePartition { return new SourcePartition(input); }
 
-  private readonly pool = new PointPool();
+  private readonly pool: PointPool;
   private readonly source: Ring;
   private readonly owners = new Map<string, Owner>();
   private readonly rootId: string;
 
-  private constructor(input: { id: string; source: Polygon }) {
+  private constructor(input: PartitionInput) {
+    this.pool = new PointPool(input.coordinateScale);
     this.source = readRing(input.source, this.pool);
     this.rootId = input.id;
     this.add(input.id, () => [this.source]);

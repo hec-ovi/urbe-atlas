@@ -1,5 +1,7 @@
 import type { Polygon, Vec2 } from '../../../schema/blueprint';
 
+export interface PartitionInput { id: string; source: Polygon; coordinateScale?: 1000 }
+export interface PartitionVerificationInput { source: Polygon; partition: SharedPartition; coordinateScale?: 1000 }
 export interface PartitionClaim { id: string; masks: Polygon[] }
 export interface Division { claims: PartitionClaim[]; remainderId: string }
 export interface PartitionPiece { ownerId: string; vertices: number[]; fixed: boolean }

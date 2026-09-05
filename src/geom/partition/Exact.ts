@@ -28,6 +28,10 @@ function binary(value: number): [bigint, bigint] {
 export class PointPool {
   private readonly points = new Map<string, Point>();
 
+  constructor(private readonly coordinateScale?: 1000) {
+    if (coordinateScale !== undefined && coordinateScale !== 1000) throw invariantFailure('partition coordinate scale must be 1000');
+  }
+
   make(x: bigint, y: bigint, w: bigint, original?: Vec2): Point {
     if (!w) throw invariantFailure('partition intersection is not finite');
     if (w < 0n) { x = -x; y = -y; w = -w; }
@@ -44,6 +48,14 @@ export class PointPool {
   }
 
   input(value: Vec2): Point {
+    const scale = this.coordinateScale;
+    if (scale !== undefined) {
+      const scaled = value.map(coordinate => Math.round(coordinate * scale));
+      if (scaled.some((coordinate, index) => !Number.isSafeInteger(coordinate) || coordinate / scale !== value[index])) {
+        throw invariantFailure('partition declared lattice input is off-grid');
+      }
+      return this.make(BigInt(scaled[0]), BigInt(scaled[1]), BigInt(scale), value);
+    }
     const [x, xd] = binary(value[0]), [y, yd] = binary(value[1]);
     const w = xd > yd ? xd : yd;
     return this.make(x * (w / xd), y * (w / yd), w, value);

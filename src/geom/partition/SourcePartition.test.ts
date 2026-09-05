@@ -7,6 +7,25 @@ const rectangle = (x0: number, y0: number, x1: number, y1: number): Polygon => [
 const polygons = (partition: SharedPartition) => partition.pieces.map(piece => piece.vertices.map(index => partition.vertices[index]));
 
 describe('source-preserving partition contract', () => {
+  it('uses declared millimeter algebra without mixing derived coordinates into authored inputs', () => {
+    const source: Polygon = [[190.72, 433.846], [190.788, 433.93], [191, 433]], midpoint: [number, number] = [190.754, 433.888];
+    const plan = SourcePartition.create({ id: 'source', source, coordinateScale: 1000 });
+    plan.divide('source', { claims: [{ id: 'claimed', masks: [[source[0], midpoint, source[2]]] }], remainderId: 'remainder' });
+    const partition = plan.finish();
+    verifyPartition({ source, partition, coordinateScale: 1000 });
+    expect(partition.pieces.map(piece => piece.vertices.length)).toEqual([3, 3]);
+    expect(new Set(partition.vertices.map(point => point.join(',')))).toEqual(new Set([...source, midpoint].map(point => point.join(','))));
+    expect(() => verifyPartition({ source, partition })).toThrowError(expect.objectContaining({ code: 'E_INVARIANT' }));
+    const offGrid = rectangle(0, 0, 1.0001, 1);
+    expect(() => SourcePartition.create({ id: 'invalid', source: offGrid, coordinateScale: 1000 }))
+      .toThrowError(expect.objectContaining({ code: 'E_INVARIANT' }));
+    const strict = SourcePartition.create({ id: 'source', source: rectangle(0, 0, 2, 2), coordinateScale: 1000 });
+    expect(() => strict.divide('source', { claims: [{ id: 'invalid', masks: [offGrid] }], remainderId: 'rest' }))
+      .toThrowError(expect.objectContaining({ code: 'E_INVARIANT' }));
+    const derived = SourcePartition.create({ id: 'derived', source: offGrid });
+    verifyPartition({ source: offGrid, partition: derived.finish() });
+  });
+
   it('preserves an oblique source through the public split that loses its snapped remainder', () => {
     const source: Polygon = [[98.81, 236.753], [99.39, 236.305], [99.394, 236.303]];
     const mask: Polygon = [[96.29524550470775, 225.730243166496], [103.32603035407236, 238.41164941351548],
