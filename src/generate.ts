@@ -496,7 +496,10 @@ export function generateCity(input: AtlasParams): CityBlueprint {
     },
     districts,
     streets: { nodes: streetNodes, edges: streetEdges, crossings, signals, planting, highwayStructures: structures,
-      construction: { version: '1.0.0', runs: streetPlan.runs } },
+      construction: {
+        version: '1.0.0', runs: streetPlan.runs,
+        planningReservations: StreetCorridors.reservations(streetEdges),
+      } },
     blocks,
     parcels,
     transit,
