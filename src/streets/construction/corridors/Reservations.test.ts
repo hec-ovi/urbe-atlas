@@ -12,6 +12,9 @@ describe('serialized street planning reservations', () => {
   it('preserves exact asymmetric bent queries and isolates generated output from inputs and later calls', () => {
     const original = structuredClone(input);
     const result = StreetCorridors.reservations(input.edges);
+    for (const [index, edge] of input.edges.entries()) {
+      expect(StreetCorridors.roadwayFor(edge)).toEqual(result.edges[index].roadway);
+    }
     expect(JSON.stringify(result)).toBe(expected);
     expect(result.model).toBe(StreetCorridors.model);
     expect(Object.isFrozen(result.model)).toBe(true);
@@ -31,6 +34,9 @@ describe('serialized street planning reservations', () => {
     const highway: SectionedStreetEdge = { ...legacy, id: 'highway', class: 'highway', width: 24, sidewalk: { left: 0, right: 0 } };
     const edges = [legacy, alley, highway];
     const result = StreetCorridors.reservations(edges);
+    for (const [index, edge] of edges.entries()) {
+      expect(StreetCorridors.roadwayFor(edge)).toEqual(result.edges[index].roadway);
+    }
     expect(result.edges.map((edge) => edge.edgeId)).toEqual(edges.map((edge) => edge.id));
     for (const side of ['left', 'right'] as const) expect(result.edges[0].sides[side].walking).toEqual(result.edges[0].sides[side].sidewalk);
     expect(result.edges[1].roadway).toEqual([]);

@@ -7,6 +7,7 @@ Purpose: assigns continuous street cross sections and reserves each side's space
 - `resolveStreetDesign(input)`: optional numeric profile settings, [schema/design.ts](schema/design.ts).
 - `StreetSections.plan(edges, nodes, design, districtAt)`: planar graph edges and nodes from the Atlas root contract, resolved profiles and a point-to-district-kind query.
 - `StreetCorridors(edges)`: published street edges, including their cross sections.
+- `StreetCorridors.roadwayFor(edge)` returns only that edge's canonical roadway polygons, byte-identical to its constructor map and reservation export. It computes no pedestrian bands; zero carriageway width returns `[]`.
 - `StreetCorridors.sidewalk(edge, side)` and `.band(edge, side, role)`: a directed side and one band name from [schema/design.ts](schema/design.ts).
 - `StreetCorridors.reservations(edges)` exports exact edge-local roadway, sidewalk and walking query polygons with their source model, [corridors/CONTRACT.md](corridors/CONTRACT.md). Final ground remains the junction ownership authority.
 - `validateStreetSections({streets})`: published edge and construction records from [schema/sections.ts](schema/sections.ts); throws on inconsistent run ownership or dimensions.

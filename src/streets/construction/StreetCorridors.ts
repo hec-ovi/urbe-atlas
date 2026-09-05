@@ -20,6 +20,9 @@ export class StreetCorridors {
   readonly full: Polygon[];
   readonly index: PolygonIndex;
 
+  /** Roadway-only authority for datum queries that need no pedestrian ownership. */
+  static roadwayFor(edge: StreetEdge): Polygon[] { return roadwayOf(edge); }
+
   constructor(edges: readonly StreetEdge[]) {
     this.roadway = new Map(edges.filter((edge) => edge.width > 0).map((edge) => [edge.id, roadwayOf(edge)]));
     this.byEdge = new Map(edges.map((edge) => [edge.id, edge.class === 'highway'
