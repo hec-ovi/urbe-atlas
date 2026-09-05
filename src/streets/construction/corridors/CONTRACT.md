@@ -28,6 +28,8 @@ Consumers use the serialized query polygons for exact edge-local conformance and
 
 The export preserves every existing query polygon and input edge order. Identical inputs produce byte-identical JSON. Inputs are not changed. Returned polygon arrays are owned by the caller; shared model settings are deeply frozen. No additional errors are introduced; the geometry contract's `E_INVARIANT` applies.
 
+The constructor, reservation export, sidewalk and band queries reject explicit `sidewalks.*.geometry` with `E_INVARIANT`. Their accepted format is the curb-only section. `roadwayFor` accepts either format because carriageway ownership does not depend on side dimensions. Explicit-side support requires publishing gutter/lip, curb, paved and walking reservations from normalized intervals before accepting that format.
+
 ## Conformance
 
 - [Asymmetric bent input](fixtures/asymmetric-bend.input.json).

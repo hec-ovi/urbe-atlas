@@ -6,6 +6,7 @@ import type { SidewalkBands } from './schema/design';
 import type { StreetSide } from './SidewalkSection';
 import { CORRIDOR_SWEEP_MODEL } from './corridors/Model';
 import type { StreetPlanningReservations } from './corridors/schema';
+import { invariantFailure } from '../../errors';
 
 const BAND_ORDER = CORRIDOR_SWEEP_MODEL.bandOrder;
 /** All parallel sweeps share angular stations, independent of their width. */
@@ -24,6 +25,7 @@ export class StreetCorridors {
   static roadwayFor(edge: StreetEdge): Polygon[] { return roadwayOf(edge); }
 
   constructor(edges: readonly StreetEdge[]) {
+    edges.forEach(requireSupportedSides);
     this.roadway = new Map(edges.filter((edge) => edge.width > 0).map((edge) => [edge.id, roadwayOf(edge)]));
     this.byEdge = new Map(edges.map((edge) => [edge.id, edge.class === 'highway'
       ? this.roadway.get(edge.id)!
@@ -36,6 +38,7 @@ export class StreetCorridors {
 
   /** Exact edge-local planning data; final ground retains junction ownership. */
   static reservations(edges: readonly SectionedStreetEdge[]): StreetPlanningReservations {
+    edges.forEach(requireSupportedSides);
     return {
       version: '1.0.0', model: this.model,
       edges: edges.map((edge) => ({
@@ -50,11 +53,13 @@ export class StreetCorridors {
 
   /** The complete published sidewalk on one directed side, before junction ownership. */
   static sidewalk(edge: StreetEdge, side: StreetSide): Polygon[] {
+    requireSupportedSides(edge);
     return sweptBand(edge, side, 0, edge.sidewalk[side]);
   }
 
   /** One functional strip, preserving the same bent boundary as the full corridor. */
   static band(edge: SectionedStreetEdge, side: StreetSide, role: keyof SidewalkBands): Polygon[] {
+    requireSupportedSides(edge);
     const bands = edge.crossSection?.sidewalks[side].bands;
     if (!bands) return role === 'walking' ? this.sidewalk(edge, side) : [];
     let start = 0;
@@ -63,6 +68,12 @@ export class StreetCorridors {
       start += bands[name];
     }
     return [];
+  }
+}
+
+function requireSupportedSides(edge: SectionedStreetEdge): void {
+  if (edge.crossSection?.sidewalks.left.geometry || edge.crossSection?.sidewalks.right.geometry) {
+    throw invariantFailure(`edge ${edge.id}: explicit sidewalk geometry requires corridor migration`);
   }
 }
 
