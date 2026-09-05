@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { SourcePartition } from './SourcePartition';
 import { verifyPartition } from './verifyPartition';
+import { verifyPublishedCover } from './published/verifyPublishedCover';
 import type { Polygon, SharedPartition } from './schema';
 
 const rectangle = (x0: number, y0: number, x1: number, y1: number): Polygon => [[x0, y0], [x1, y0], [x1, y1], [x0, y1]];
@@ -128,6 +129,24 @@ describe('source-preserving partition contract', () => {
     const partition = plan.finish();
     verifyPartition({ source, partition });
     expect(partition.certificate.pieceChains.every(ring => ring.every(edge => edge.length === 2))).toBe(true);
+  });
+
+  it('decomposes same-owner seams without crossing a published semantic boundary junction', () => {
+    const source = rectangle(400, 580, 600, 720), plan = SourcePartition.create({ id: 'source', source, coordinateScale: 1000 });
+    plan.divide('source', { claims: [{ id: 'sidewalk', masks: [
+      [[451.208, 703.258], [447.043, 646.611], [443.843, 603.096]],
+      [[507.966, 604.899], [504.776, 695.53], [533.36, 693.449], [533.36, 699.814], [502.044, 702.093], [505.753, 596.689]],
+      [[566.261, 697.419], [533.36, 699.814], [533.36, 693.449], [558.862, 648.021], [555.552, 601.456]],
+      [[502.622, 605.287], [444.164, 609.514], [517.801, 595.666]],
+      [[450.778, 699.463], [501.19, 695.792], [501.362, 695.781]],
+      [[507.502, 604.933], [502.622, 605.286], [502.291, 605.308]],
+      [[502.039, 702.247], [499.532, 702.429], [505.759, 596.537]],
+      [[562.035, 600.988], [507.502, 604.933], [506.84, 604.97]],
+    ] }, { id: 'block', masks: [[[558.477, 642.608], [506.508, 646.302], [555.552, 601.456]]] }], remainderId: 'fringe' });
+    const boundary = plan.loops('sidewalk'), partition = plan.finish();
+    verifyPartition({ source, partition, coordinateScale: 1000 });
+    verifyPublishedCover({ boundary: source, exclusions: [], pieces: polygons(partition).map((polygon, index) => ({ id: String(index), polygon })) });
+    expect(plan.loops('sidewalk')).toEqual(boundary);
   });
 
   it('rejects missing faces, moved emitted vertices and corrupted source chains', () => {

@@ -26,7 +26,7 @@ export function simple(region: Region, pool: PointPool): Region {
   const result: Region = [];
   for (const component of connected(region, pool)) {
     if (component.length === 1) { result.push(component[0]); continue; }
-    result.push(...coalesce(triangulate(component, pool), pool));
+    result.push(...coalesce(triangulate(component, pool), pool, component));
   }
   simpleCache.set(region, result);
   return result;

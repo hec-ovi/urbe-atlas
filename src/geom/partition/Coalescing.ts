@@ -1,9 +1,10 @@
 import { invariantFailure } from '../../errors';
 import { compare, type Point, type PointPool, type Region, type Ring } from './Exact';
 import { chain, nodeSegments, segments } from './Segments';
+import { numericRing } from './NumericRing';
 
 interface Edge { a: Point; b: Point }
-interface Group { id: number; parent: Group; edges: Map<string, Edge> }
+interface Group { id: number; parent: Group; edges: Map<string, Edge>; numeric: boolean }
 const key = (a: Point, b: Point) => compare(a, b) < 0 ? `${a.key}|${b.key}` : `${b.key}|${a.key}`;
 
 function root(group: Group): Group {
@@ -28,8 +29,8 @@ function loop(edges: Map<string, Edge>): Ring | undefined {
 }
 
 /** Adjacent faces merge only when their exact union has one simple boundary. */
-export function coalesce(triangles: Region, pool: PointPool): Region {
-  const allEdges = segments(triangles);
+export function coalesce(triangles: Region, pool: PointPool, boundary: Region): Region {
+  const allEdges = segments([...triangles, ...boundary]);
   nodeSegments(allEdges, pool);
   const incidence = new Map<string, Group[]>(), groups: Group[] = [];
   let cursor = 0;
@@ -45,9 +46,11 @@ export function coalesce(triangles: Region, pool: PointPool): Region {
         adjacent.push(group);
       }
     }
+    group.numeric = numericRing(loop(group.edges)!);
   }
   let candidates = [...incidence.values()].filter(adjacent => adjacent.length === 2);
   while (candidates.length) {
+    candidates.sort((a, b) => Number(root(a[0]).numeric && root(a[1]).numeric) - Number(root(b[0]).numeric && root(b[1]).numeric));
     const pending: Group[][] = [];
     let changed = false;
     for (const pair of candidates) {
@@ -63,8 +66,11 @@ export function coalesce(triangles: Region, pool: PointPool): Region {
           joined.delete(edgeKey);
         }
       }
-      if (!loop(joined)) { pending.push(pair); continue; }
-      a.edges = joined; b.parent = a; b.edges = new Map(); changed = true;
+      const ring = loop(joined);
+      if (!ring) { pending.push(pair); continue; }
+      const numeric = a.numeric && b.numeric || numericRing(ring);
+      if (!numeric) { pending.push(pair); continue; }
+      a.edges = joined; a.numeric = numeric; b.parent = a; b.edges = new Map(); changed = true;
     }
     if (!changed) break;
     candidates = pending;
