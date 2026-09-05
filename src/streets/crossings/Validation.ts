@@ -5,11 +5,11 @@ import { approachGeometry } from './ApproachGeometry';
 import { CROSSING_DIMENSIONS, CrossingFrame, FootprintIndex } from './Footprints';
 import { ContactDomains } from './ContactDomains';
 import { Traffic } from './Traffic';
-import type { CrossingInput, CrossingValidationPlan, JunctionApproach } from './schema';
+import type { CrossingInput, CrossingValidationPlan, JunctionApproach, SourceContactPlan } from './schema';
 
-export function validateCrossingPlan(input: CrossingInput, plan: CrossingValidationPlan): void {
+export function validateCrossingPlan(input: CrossingInput, plan: CrossingValidationPlan,
+  contacts: SourceContactPlan = ContactDomains.plan(input)): void {
   const fail = (message: string, details?: Record<string, unknown>): never => { throw invariantFailure(`crossing construction ${message}`, details); };
-  const contacts = ContactDomains.plan(input);
   const groups = new Map(contacts.domains.flatMap(domain => domain.groups.map(group => [group.id, group] as const)));
   const edges = new Map(input.edges.map((e) => [e.id, e]));
   const reservations = new Map(input.reservations.edges.map((e) => [e.edgeId, e]));
@@ -70,7 +70,9 @@ export function validateCrossingPlan(input: CrossingInput, plan: CrossingValidat
       const otherRoads = new FootprintIndex([...traffic].filter(([id]) => id !== edge!.id).flatMap(([, polygons]) => polygons));
       if (otherRoads.overlapsArea(approach.field)) fail('field enters intersecting traffic', { key, field: approach.field });
       for (const polygon of [approach.field, approach.landings.left, approach.landings.right, approach.walkingLandings.left, approach.walkingLandings.right]) {
-        if (obstacles.intersects(polygon) || otherRoads.intersects(polygon)) fail('approach enters intersecting traffic or physical structure', { key, polygon });
+        if (obstacles.intersects(polygon) || (polygon !== approach.field && otherRoads.intersects(polygon))) {
+          fail('approach enters intersecting traffic or physical structure', { key, polygon });
+        }
       }
       fields.push(approach);
     }

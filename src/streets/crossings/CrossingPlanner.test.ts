@@ -319,4 +319,19 @@ describe('CrossingPlanner public construction', () => {
     expect(() => CrossingPlanner.validate({ ...input, ground: [] }, JSON.parse(JSON.stringify(plan))))
       .toThrowError(expect.objectContaining({ code: 'E_INVARIANT' }));
   });
+
+  it('keeps physical field obstacles independent of foreign-traffic exclusion', () => {
+    const input = sharpJunction();
+    const saved = CrossingPlanner.plan(input);
+    const obstacle = structuredClone(saved.junctions[0].approaches[0].field);
+    input.obstacles = [obstacle];
+    expect(() => CrossingPlanner.validate(input, JSON.parse(JSON.stringify(saved))))
+      .toThrowError(expect.objectContaining({ code: 'E_INVARIANT' }));
+    const plan = CrossingPlanner.plan(input);
+    expect(plan).not.toEqual(saved);
+    for (const junction of plan.junctions) for (const approach of junction.approaches) {
+      expect(hasInteriorBeyondPrecision(FootprintRegions.inside(approach.field, [obstacle]))).toBe(false);
+    }
+    expect(() => CrossingPlanner.validate(input, JSON.parse(JSON.stringify(plan)))).not.toThrow();
+  });
 });

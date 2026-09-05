@@ -68,7 +68,7 @@ export class Approaches {
         const ownedField = new FootprintIndex([field]);
         if (!candidate.segment.markings.every((polygon) => ownedField.covers(polygon))) return false;
         return [field, landings.left, landings.right, walkingLandings.left, walkingLandings.right, ...candidate.segment.markings]
-          .every((polygon) => !this.obstacles.intersects(polygon) && !otherRoads.intersects(polygon));
+          .every((polygon) => !this.obstacles.intersects(polygon) && (polygon === field || !otherRoads.intersects(polygon)));
       };
       for (const interval of intervals) {
         if (!first) {

@@ -14,6 +14,8 @@ These are topological contact groups, not spatial return envelopes or crossing-f
 
 `CrossingPlanner.validate(input, plan)` accepts `CrossingValidationPlan`, including root-compatible crossing records, and checks the persisted plan and required junction references against those same public inputs.
 
+One planning call reuses its resolved source contacts during internal output validation. Public saved-plan validation resolves contacts afresh; no acceptance or input state persists across calls. Exact field exclusion proves foreign-traffic clearance for that field; its physical-obstacle check remains separate.
+
 Optional `gradeRoadway` supplies the complete datum-clipped grade traffic, one polygon list for every positive-width source edge with a flat grade span. An empty list records a completely clipped source; omission is invalid. It is required when a mixed-height edge has a positive-length flat grade span. Omission uses exact planning roadways only for fully grade edges; unsupported mixed-grade input fails. Callers own these complete source masks, including edges without pedestrian sidewalks.
 
 `CrossingPlanner.construction(edge, {distance})` takes the published source `StreetEdge` and one approach's directed centre distance. It returns [CrossingConstruction](schema.ts): exact field, connector and terminal edge masks. Each support endpoint is authored on the 1 mm grid; consumers pass `encoding: 'authored-1mm'`. The complete 3 m field must lie on one source segment. No other approach fields are required.
@@ -52,4 +54,4 @@ The ordered crossing traversal is `[segment.from, segment.roadway.from, segment.
 - [Street construction](../construction/CONTRACT.md): directed walking bands and exact reservations.
 - [Geometry](../../geom/CONTRACT.md): fixed-point regions and boundary precision.
 - [Source partition](../../geom/partition/CONTRACT.md): exact edge construction and its numeric views.
-- [Station intervals](intervals/CONTRACT.md): complete translated-footprint placement.
+- [Station intervals](intervals/CONTRACT.md): complete translated-footprint placement and coordinate-cover checks.

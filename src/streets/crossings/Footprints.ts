@@ -1,5 +1,5 @@
 import type { Polygon, Vec2 } from '../../../schema/blueprint';
-import { coordinateCover, GRID_STEP, hasInteriorBeyondPrecision } from '../../geom/clip';
+import { GRID_STEP, hasInteriorBeyondPrecision } from '../../geom/clip';
 import { edgeMaskView, edgePositionView } from '../../geom/partition/EdgeMasks';
 import type { PartitionEdgeMask, PartitionEdgePosition } from '../../geom/partition/schema';
 import { FootprintRegions } from './intervals/FootprintRegions';
@@ -51,7 +51,6 @@ export class CrossingFrame {
 
 export class FootprintIndex {
   private readonly entries: { polygon: Polygon; bounds: Bounds }[];
-  private readonly coversBySource = new Map<Polygon, { polygon: Polygon; bounds: Bounds }[]>();
   constructor(polygons: readonly Polygon[]) {
     this.entries = polygons.map((polygon) => ({ polygon, bounds: bounds(polygon) }));
   }
@@ -61,16 +60,7 @@ export class FootprintIndex {
     return this.entries.filter((entry) => overlaps(neighborhood, entry.bounds)).map((entry) => entry.polygon);
   }
   covers(polygon: Polygon): boolean {
-    const target = bounds(polygon);
-    const masks = this.near(polygon).flatMap(source => {
-      let cover = this.coversBySource.get(source);
-      if (!cover) {
-        cover = coordinateCover([source]).map(polygon => ({ polygon, bounds: bounds(polygon) }));
-        this.coversBySource.set(source, cover);
-      }
-      return cover.filter(entry => overlaps(target, entry.bounds)).map(entry => entry.polygon);
-    });
-    return FootprintRegions.outside(polygon, masks).length === 0;
+    return FootprintRegions.covers(polygon, this.near(polygon));
   }
   intersects(polygon: Polygon): boolean {
     return hasInteriorBeyondPrecision(FootprintRegions.inside(polygon, this.near(polygon)));

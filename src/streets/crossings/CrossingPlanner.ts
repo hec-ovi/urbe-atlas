@@ -66,7 +66,7 @@ export class CrossingPlanner {
       crossings.push(...[...byNode.values()].sort((a, b) => a.nodeId.localeCompare(b.nodeId)));
     }
     const result = { crossings, junctions };
-    validateCrossingPlan(input, result);
+    validateCrossingPlan(input, result, contacts);
     return result;
   }
 

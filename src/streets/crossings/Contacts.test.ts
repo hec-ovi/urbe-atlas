@@ -148,3 +148,12 @@ it('requires complete grade-traffic inputs for mixed source profiles', () => {
   input.gradeRoadway = input.gradeRoadway.filter(source => source.edgeId !== 'north');
   expect(() => CrossingPlanner.contacts(input)).toThrowError(expect.objectContaining({ code: 'E_INVALID_PARAMS' }));
 });
+
+it('checks current source connections when validating a saved plan', () => {
+  const input = withGround(tee());
+  const plan = CrossingPlanner.plan(input);
+  const node = input.nodes.find(node => node.id === 'middle')!;
+  node.connections = node.edgeIds.map(edgeId => ({ level: 0, edgeIds: [edgeId] }));
+  expect(() => CrossingPlanner.validate(input, JSON.parse(JSON.stringify(plan))))
+    .toThrowError(expect.objectContaining({ code: 'E_INVARIANT' }));
+});
