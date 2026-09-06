@@ -6,6 +6,15 @@ import { FootprintRegions } from './FootprintRegions';
 const source: Polygon = [[0, 0], [10, 0], [10, 4], [0, 4]];
 
 describe('FootprintRegions complete coordinate coverage', () => {
+  it('distinguishes exact overlap from an intrusion beyond boundary precision', () => {
+    const boundary = new FootprintRegions([[[0, 3.9995], [10, 3.9995], [10, 5], [0, 5]]]);
+    expect(boundary.overlapsArea(source)).toBe(true);
+    expect(boundary.intersects(source)).toBe(false);
+    const interior = new FootprintRegions([[[0, 3], [10, 3], [10, 5], [0, 5]]]);
+    expect(interior.intersects(source)).toBe(true);
+    expect(interior.overlapsArea([[20, 0], [30, 0], [30, 4], [20, 4]])).toBe(false);
+  });
+
   it('reuses an immutable field while every query owns its results', () => {
     const masks: Polygon[] = [[[0, 0.0006], [10, 0.0006], [10, 4], [0, 4]]];
     const field = new FootprintRegions(masks);

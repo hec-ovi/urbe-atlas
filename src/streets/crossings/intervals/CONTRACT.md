@@ -14,6 +14,8 @@ Purpose: derives full-band crossing intervals and shared source-edge subdivision
 
 `new FootprintRegions(masks)` snapshots and validates a readonly `Polygon[]`. Its `covers(source)`, `inside(source)`, `outside(source)` and enclosure methods perform those same queries against the snapshot. `missing(source)` returns coordinate-cover omissions as exact vertex enclosures. The instance retains prepared masks and lazily prepared coordinate-cover masks; each query owns its partition and results. Changing caller inputs or returned results cannot change the field. `empty` reports an empty mask list.
 
+`intersects(source)` detects intersection beyond the geometry contract's default boundary precision. `overlapsArea(source)` detects every positive-area intersection. Both query the same prepared masks and complete source.
+
 `new StationFrame(a, b)` in [StationFrame.ts](StationFrame.ts) takes finite `Vec2` endpoints with positive segment length. It exposes metric `length`, unit forward `u`, unit left `v`, canonical `point(station, lateral)` and metric `project(point)`. `edgePoint(station, lateral)` canonicalizes both source endpoints at that lateral offset once, then uses the source partition's authored-1 mm `edgePositionView` for interior fractions. Endpoints retain their cached coordinates. Crossing fields, stripes and landing cuts use this same subdivision.
 
 - `a`, `b` define a directed straight segment. `width` is the footprint length along that segment; `lateral: [min, max]` measures offsets along its left normal. Dimensions are metres.

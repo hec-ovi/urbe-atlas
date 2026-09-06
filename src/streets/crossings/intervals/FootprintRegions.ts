@@ -1,5 +1,5 @@
 import type { Polygon } from '../../../../schema/blueprint';
-import { coordinateCover } from '../../../geom/clip';
+import { coordinateCover, hasInteriorBeyondPrecision } from '../../../geom/clip';
 import { prepareMasks } from '../../../geom/partition/PreparedMasks';
 import { SourcePartition } from '../../../geom/partition/SourcePartition';
 import type { PartitionPointEnclosure, PreparedPartitionMasks } from '../../../geom/partition/schema';
@@ -19,6 +19,8 @@ export class FootprintRegions {
   }
 
   covers(source: Polygon): boolean { return this.missing(source).length === 0; }
+  intersects(source: Polygon): boolean { return hasInteriorBeyondPrecision(this.inside(source)); }
+  overlapsArea(source: Polygon): boolean { return this.inside(source).length > 0; }
 
   missing(source: Polygon): PartitionPointEnclosure[][] {
     return CoordinateCoverage.missing(source, this.masks, () =>
