@@ -4,9 +4,14 @@ import { bufferLine, difference, intersection, offset } from '../geom/clip';
 import { PolygonIndex } from '../geom/PolygonIndex';
 import { CURB_WIDTH } from '../streets/widths';
 import { StreetCorridors } from '../streets/construction/StreetCorridors';
+import { checkModules } from './modules';
 
 /** Network ownership is independent of which graph faces can host a block. */
 export function checkGroundNetwork(bp: CityBlueprint): void {
+  if (bp.streets.construction?.modules) {
+    checkModules(bp);
+    return;
+  }
   const water = bp.hydrology?.bodies.flatMap((body) => body.surfaces) ?? [];
   const roadwayPolygons = bp.volumetric.ground.filter((ground) => ground.surface === 'roadway').map((ground) => ground.polygon);
   const roadway = new PolygonIndex(roadwayPolygons);

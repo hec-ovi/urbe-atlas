@@ -20,15 +20,15 @@ Generator flags: `--size N`, `--irregularity X`, `--max-floors N`, `--no-highway
 
 ## In
 
-`generateCity(params)` in TypeScript, or the CLI above. Params are a seed, city size, boundary irregularity, district count range, floor caps global and per district kind, wealth tier weights, feature toggles for highways, trains, subways, alleys, air and underground tunnels, and optional `hydrology: { type: "lagoon" | "river" | "sea-coast" }`.
+`generateCity(params)` in TypeScript, or the CLI above. Params are a seed, city size, district count range, floor caps global and per district kind, wealth tier weights, feature toggles for highways, trains, subways, alleys, air and underground tunnels, and optional `hydrology: { type: "lagoon" | "river" | "sea-coast" }`.
 
 ## Out
 
 One JSON blueprint (`schema/blueprint.ts`):
 
 - **districts** with kind (downtown, commercial, residential, industrial, mixed), wealth tier and floor cap, each a rectangle on the one city grid, clipped to the city outline
-- **streets** as a planar graph: street, road and highway classes with carriageway and sidewalk widths, exact distance-to-height profiles for driveable ramps, level-separated turn groups at overpasses, grid-aligned interior centerlines, boundary-following and radial curves where the parameters select them, pedestrian crossings at intersections, traffic signals with their mast arms, street furniture (trees, light poles, bins) in the kerb-side strip, deterministic highway decks, ramps and support columns kept clear of pedestrian paving, plus pedestrian-only alleys (no carriageway, 3 to 5 m of sidewalk) cut through long blocks in poor and commercial districts
-- **blocks** with continuous sidewalk rings, a 0.15 m curb strip of their own between roadway and sidewalk, and rounded curb corners at intersections, and **parcels** typed residential through coffee shop, tiered poor to high rich, each with a lot, a footprint that hosts the core rectangle its type needs, derived from interior's core feasibility (12.14 x 13.74 m for elevator types such as offices and hotels, 11.14 x 9.74 m for the rest), a street access point and a 3D envelope whose floors stay within what that core allows
+- **streets** as a planar graph: street, road and highway classes with carriageway and sidewalk widths, exact distance-to-height profiles for driveable ramps, level-separated turn groups at overpasses, straight row and column centerlines, pedestrian crossings at intersections, traffic signals with their mast arms, street furniture (trees, light poles, bins) in the kerb-side strip, deterministic highway decks, ramps and support columns kept clear of pedestrian paving
+- **blocks** with continuous sidewalk rings, a 0.2 m curb, 0.3 m gutter and modeled 1 m panels, and rounded curb corners at intersections, and **parcels** typed residential through coffee shop, tiered poor to high rich, each with a lot, a footprint that hosts the core rectangle its type needs, derived from interior's core feasibility (12.14 x 13.74 m for elevator types such as offices and hotels, 11.14 x 9.74 m for the rest), a street access point and a 3D envelope whose floors stay within what that core allows
 - **transit**: bus stops and routes over street edges, forward-only train and subway paths with their corridor widths, and stations with their platform box and street-level entrances. Each underground entrance publishes its shaft plus a continuous 3D route through switchback stairs and a level passage to a platform handoff. At-grade track and platforms reserve their right-of-way before parcels are cut. Train platforms stay outside highway decks; subway entrances choose sidewalk space clear of buildings.
 - **hydrology**, when requested: exact water-surface polygons, shoreline paths and construction bands, water material keys, and typed bridge or tunnel contacts where a street or railway crosses the water. Land, buildings and station entrances stay outside the reserved water.
 - **volumetric**: one prism per parcel plus ground cover polygons, for map rendering; the preview traces floor elevations on each prism without generating hidden caps between floors
@@ -36,11 +36,13 @@ One JSON blueprint (`schema/blueprint.ts`):
 
 The generator enforces its own coherence before it returns: connected street graph, street edges that never fold back over their own sidewalk band, bus routes that stay inside level-compatible junction groups, every parcel reachable from a sidewalk of its access edge, continuous sidewalks linked by crossings, connected rail networks, parcels that never overlap, footprints that host their type's core rectangle behind the shell wall, ground cover that fills the city without overlaps, and water plans that keep buildings and untyped infrastructure contacts out of water. `CONTRACT.md` lists every invariant and the closed error set.
 
-Three samples are committed and tested to regenerate byte-identical: `samples/city-urbe.json` (full size), `samples/city-urbe-small.json` (an 800 m village) and `samples/city-urbe-tiny.json` (a 400 m hamlet with highways, trains and subways off).
+Saved examples live in `samples/`; each records its blueprint version.
 
 ## How it works
 
-Streets grow as streamlines through a composite tensor field (grid, radial and boundary basis fields). The field contains no noise rotation: interior centerlines stay on the city axes, while `irregularity` controls the computed boundary bend and enables a radial downtown from 0.4. Every gridded district and every district cut uses the same axes. Blocks are the faces of the resulting planar graph, parcels come from recursive oriented-box subdivision, and zoning applies researched urban ratios: hospitals, police and commerce per population, floor bands per type and tier. Sources and numbers live in `docs/RESEARCH.md`.
+Rows and columns determine street intersections directly. Road widths and whole panel counts determine block dimensions. The generator places shared panel, curb, gutter, corner, parking and guardrail modules, then subdivides the rectangular building land and validates the result. The preview renders repeated modules with instanced geometry. Current cities use an orthogonal grid; diagonal and alley cuts are not produced.
+
+[The box map](docs/INDEX.md) lists the contracts. [Generation measurements](docs/PERFORMANCE.md) record complete-city CPU time, memory and the test conditions.
 
 ## In the urbe family
 

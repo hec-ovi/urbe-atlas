@@ -1,5 +1,7 @@
 # Changelog
 
+0.18 blueprint: orthogonal streets use whole-panel block dimensions, shared physical sidewalk modules, 20 cm curbs, 30 cm gutters, guardrails and sparse parking bays. The preview instances module geometry.
+
 Unreleased: city creation uses templates, fresh entry seeds and URL-based saved-city inspection. Server stage progress appears in a blocking dialog with confirmed worker cancellation. Exact geometry queries use indexed winding and prepared masks.
 
 0.4.0: blueprint 0.17.0 publishes continuous 7, 14 and 21 m street profiles, exact lanes and independent pedestrian bands reserved before parcels. Grade rail and complete outboard subway entrance bays reserve land from the zoning forecast; water contacts include actual asymmetric corridors. Shared grid-cell normalization preserves simple ground rings. The preview exposes rectangular footprint selection.

@@ -226,6 +226,10 @@ export class Invariants {
     // per-block: valid rings, and lots + open areas within the interior area
     for (const b of bp.blocks) {
       if (!isSimpleRing(b.boundary)) throw invariantFailure(`block ${b.id} boundary is not a simple ring`);
+      const regions = b.boundaryRegions ?? [b.boundary];
+      if (!regions.length || regions.some(polygon => !isSimpleRing(polygon))) {
+        throw invariantFailure(`block ${b.id} has invalid land regions`);
+      }
       for (const poly of b.sidewalk) {
         if (!isSimpleRing(poly)) throw invariantFailure(`block ${b.id} has a sidewalk polygon that is not a simple ring`, { polygon: poly });
       }
@@ -237,7 +241,7 @@ export class Invariants {
         }
       }
       const paved = [...b.sidewalk, ...b.curb].reduce((s, poly) => s + area(poly), 0);
-      const interior = area(b.boundary) - paved;
+      const interior = regions.reduce((sum, polygon) => sum + area(polygon), 0) - paved;
       const parts = bp.parcels.filter((p) => p.blockId === b.id).reduce((s, p) => s + area(p.lot), 0)
         + b.openAreas.reduce((s, poly) => s + area(poly), 0);
       if (parts > interior * 1.05 + 30) {

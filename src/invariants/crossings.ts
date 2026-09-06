@@ -5,11 +5,28 @@ import { area, isSimpleRing } from '../geom/polygon';
 import { add, dot, normalize, perp, scale, sub } from '../geom/vec';
 import { CROSSING } from '../streets/Crossings';
 import { GRID_STEP } from '../geom/clip';
+import { CityCrossings } from '../CityCrossings';
+import { GradeDatum } from '../streets/construction/datum';
 
 /** Allows accumulated 1 mm fixed-point rounding across all four polygon corners. */
 const POSITION_EPS = 0.005;
 
 export function checkCrossings(bp: CityBlueprint): void {
+  const construction = bp.streets.construction;
+  if (construction?.modules) {
+    if (!construction.junctions) throw invariantFailure('module streets require crossing junction records');
+    const clearHeight = bp.meta.params.streetDesign?.crossings?.pedestrianClearance;
+    if (clearHeight === undefined) throw invariantFailure('crossing construction requires its pedestrian clearance setting');
+    const plan = GradeDatum.physicalPlan({ boundary: bp.meta.boundary, edges: bp.streets.edges, structures: bp.streets.highwayStructures });
+    const obstacles = GradeDatum.clearanceFootprints({
+      plan, groundTop: 0.2, clearHeight,
+      supports: bp.streets.highwayStructures.flatMap(structure => structure.supports
+        .map(support => ({ structureEdgeIds: structure.edgeIds, support }))),
+    }).flatMap(owner => owner.polygons);
+    CityCrossings.validate({ nodes: bp.streets.nodes, edges: bp.streets.edges, ground: bp.volumetric.ground, obstacles },
+      { crossings: bp.streets.crossings, junctions: construction.junctions });
+    return;
+  }
   const nodes = new Map(bp.streets.nodes.map((node) => [node.id, node]));
   const edges = new Map(bp.streets.edges.map((edge) => [edge.id, edge]));
   for (const crossing of bp.streets.crossings) {

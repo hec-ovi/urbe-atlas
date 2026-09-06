@@ -12,6 +12,7 @@ import type { AtlasParams, DistrictKind, WealthTier } from './params';
 import type { HydrologyPlan } from '../src/hydro/types';
 import type { StreetConstruction, StreetCrossSection } from '../src/streets/construction/schema/sections';
 import type { EntranceBay } from '../src/transit/reservations/schema';
+import type { GroundConstruction } from '../src/streets/construction/paving/schema';
 
 export type Vec2 = [x: number, z: number];
 export type Vec3 = [x: number, y: number, z: number];
@@ -57,7 +58,7 @@ export interface BlueprintMeta {
   version: string;
   seed: string;
   /** Params after defaults were applied: the exact input that reproduces this blueprint. */
-  params: Omit<Required<AtlasParams>, 'hydrology'> & Pick<AtlasParams, 'hydrology'>;
+  params: Omit<Required<AtlasParams>, 'hydrology' | 'pavingDesign'> & Pick<AtlasParams, 'hydrology' | 'pavingDesign'>;
   /** Axis-aligned bounds of all geometry. */
   bounds: { min: Vec2; max: Vec2 };
   units: 'meters';
@@ -149,6 +150,8 @@ export interface HighwaySupport {
  * approach keeps to (right-hand traffic) and the mast reaches over the lanes.
  */
 export interface TrafficSignal {
+  /** Physical contact domain whose external approach this head controls. */
+  junctionId?: string;
   /** The junction it controls. */
   nodeId: string;
   /** The approach arm it stops. */
@@ -210,6 +213,8 @@ export interface StreetEdge {
 
 export interface Crossing {
   nodeId: string;
+  /** Shared physical contact domain; original incident-node ownership is retained. */
+  junctionId?: string;
   /** Each segment spans the roadway from one sidewalk to another. */
   segments: CrossingSegment[];
 }
@@ -217,10 +222,11 @@ export interface Crossing {
 export interface CrossingSegment {
   /** Street arm crossed by this segment. */
   edgeId: string;
-  /** Pedestrian centerline from one sidewalk walking band to the other. */
+  /** Endpoints on the two sidewalk walking bands. */
   from: Vec2;
   to: Vec2;
-  /** Exact marking span, independent of unequal sidewalk walking-band offsets. */
+  /** Exact marking anchors. Traversal follows [from, roadway.from, roadway.to, to],
+   * retaining connector seams; omission uses the legacy endpoint segment. */
   roadway?: { from: Vec2; to: Vec2 };
   /** Clear crossing width along the street direction. */
   width: number;
@@ -232,9 +238,11 @@ export interface CrossingSegment {
 export interface Block {
   id: string;
   districtId: string;
-  /** Curb line: the face minus the roadway, with rounded corners at intersections. */
+  /** Enclosing outline for compatibility; boundaryRegions owns the land. */
   boundary: Polygon;
-  /** Curb strip: the outer 0.15 m of the block, between roadway and sidewalk, absent along an alley. */
+  /** Exact block land, with holes represented by disjoint simple pieces. */
+  boundaryRegions?: Polygon[];
+  /** Curb strips with dimensions published by the street construction. */
   curb: Polygon[];
   /** Sidewalk strip polygons between the curb and the buildable interior. */
   sidewalk: Polygon[];
@@ -380,7 +388,11 @@ export interface BuildingVolume {
 }
 
 export interface GroundSurface {
-  surface: 'roadway' | 'curb' | 'sidewalk' | 'block' | 'open';
+  /** Physical geometry comes from this block or frontage owner's street module placements. */
+  moduleBlockId?: string;
+  /** Fitted cell spans or an explicit residual role; polygon remains the sole geometry owner. */
+  construction?: GroundConstruction;
+  surface: 'roadway' | 'curb' | 'gutter' | 'sidewalk' | 'block' | 'open';
   polygon: Polygon;
   /** Bottom and walkable top of this construction region, meters on +Y. */
   bottom: number;

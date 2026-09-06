@@ -5,7 +5,6 @@ import type {
   BusStop,
   CityBlueprint,
   District,
-  GroundSurface,
   Parcel,
   Polygon,
   StreetEdge,
@@ -17,22 +16,15 @@ import { Rng } from './core/rng';
 import { resolveParams } from './params/defaults';
 import { CityConstructionSupport } from './CityConstructionSupport';
 import { unsatisfiable } from './errors';
-import { CityBoundary } from './boundary/CityBoundary';
+import { CityLayout } from './CityLayout';
+import { CityGround } from './CityGround';
 import { DistrictPlanner } from './districts/DistrictPlanner';
 import { DistrictShapes } from './districts/DistrictShapes';
-import { StreetGrowth } from './streets/StreetGrowth';
-import { StreetDomain } from './streets/domain/StreetDomain';
-import { AlleyPlanner } from './streets/AlleyPlanner';
-import { StreetGraphBuilder } from './streets/Graph';
-import { applyHighwayElevationProfiles, ensureUsableHighway, HIGHWAY_DECK, highwayStructures } from './streets/Highways';
+import { applyHighwayElevationProfiles, HIGHWAY_DECK, highwayEnvelopes, supportHighwayEnvelopes } from './streets/Highways';
 import { streetNodesWithConnections } from './streets/Connections';
-import { FaceExtractor } from './streets/Faces';
-import type { Face } from './streets/Faces';
-import { Crossings } from './streets/Crossings';
+import { CityCrossings } from './CityCrossings';
 import { Signals } from './streets/Signals';
 import { Obstacles, Planting } from './streets/Planting';
-import { BlockBuilder } from './blocks/BlockBuilder';
-import { StreetSections } from './streets/construction/StreetSections';
 import { StreetCorridors } from './streets/construction/StreetCorridors';
 import { Buildability } from './blocks/Buildability';
 import { FootprintHost } from './zoning/FootprintHost';
@@ -47,13 +39,11 @@ import { bufferLine, difference, intersection, offset, snapPoint, union } from '
 import { area, bounds, centroid, distanceToOutline, pointInPolygon } from './geom/polygon';
 import { length as lineLength, pointAt } from './geom/polyline';
 import { closestOnSegment, dist } from './geom/vec';
-import { cityGridAngle } from './grid';
 import { RAIL, STATION } from './transit/stations';
-import { GROUND_LEVELS, type GroundSurfaceKind } from './streets/surfaces';
-import { GroundRoadway } from './streets/GroundRoadway';
+import { GradeDatum } from './streets/construction/datum';
 import { planHydrology, withHydrologyStructures } from './hydro/Hydrology';
 
-export const BLUEPRINT_VERSION = '0.17.0';
+export const BLUEPRINT_VERSION = '0.18.0';
 export const HYDROLOGY_BLUEPRINT_VERSION = BLUEPRINT_VERSION;
 
 const SUBDIVISION: Record<DistrictKind, SubdivisionConfig> = {
@@ -73,23 +63,17 @@ export function generateCity(input: AtlasParams, onProgress?: ProgressObserver):
 
   progress(1, 'Planning city');
   // --- boundary, districts, streets -------------------------------------
-  const boundary = CityBoundary.generate(Rng.from(seed, 'boundary'), params.size, params.irregularity);
+  const boundary: Polygon = [[0, 0], [params.size.width, 0], [params.size.width, params.size.depth], [0, params.size.depth]];
   const plannedHydrology = planHydrology({ seed, size: params.size, boundary, config: params.hydrology });
   const waterSurfaces = plannedHydrology?.bodies.flatMap((body) => body.surfaces) ?? [];
   const planned = DistrictPlanner.plan(Rng.from(seed, 'districts'), boundary, params);
-  const gridAngle = cityGridAngle(Rng.from(seed, 'grid'), params.irregularity);
+  const gridAngle = 0;
   const buildingGrid: BuildingGrid = { origin: [0, 0], angle: gridAngle, spacing: INTERIOR.snap };
   const footprintPolicy: FootprintPolicy = { shape: params.footprintShape, grid: buildingGrid };
   const footprintHost = new FootprintHost(footprintPolicy);
-  const streetDomain = StreetDomain.reserve({
-    boundary, design: params.streetDesign, highways: params.features.highways, alleys: params.features.alleys,
-  });
-  const field = StreetGrowth.buildField(boundary, params, planned, gridAngle);
-  let lines = StreetGrowth.grow(field, streetDomain, Rng.from(seed, 'streets'), params, planned);
-
   const cityCenter = centroid(boundary);
   const extent = Math.max(params.size.width, params.size.depth) * 3;
-  const cells = DistrictShapes.cells(planned, boundary, extent, gridAngle, params.irregularity, Rng.from(seed, 'district-shapes'));
+  const cells = DistrictShapes.cells(planned, boundary, extent, gridAngle, 0, Rng.from(seed, 'district-shapes'));
   const districtOfPoint = (p: Vec2): number => {
     for (let i = 0; i < cells.length; i++) if (pointInPolygon(p, cells[i])) return i;
     let best = 0;
@@ -104,62 +88,14 @@ export function generateCity(input: AtlasParams, onProgress?: ProgressObserver):
     return best;
   };
 
-  progress(2, 'Building street network');
-  // --- street graph, then the alleys cut into its long blocks ------------
-  // An alley crosses the buildable land of a block, so the graph is built
-  // twice: once to read those blocks, once with the alleys inside it, which
-  // makes them nodes and edges of the same planar network.
-  const buildGraph = (traced: typeof lines): ReturnType<typeof StreetGraphBuilder.build> =>
-    StreetGraphBuilder.build(traced, {
-      simplifyTolerance: 1.5, snapRadius: params.irregularity === 0 ? 0 : 10, domain: streetDomain,
-    });
-  const facesOf = (edges: ReturnType<typeof buildGraph>['edges']): Face[] =>
-    FaceExtractor.faces(edges, 400, area(boundary) / 2);
-  const sectionsOf = (graph: ReturnType<typeof buildGraph>): ReturnType<typeof StreetSections.plan> =>
-    StreetSections.plan(graph.edges, graph.nodes, params.streetDesign, (point) => planned[districtOfPoint(point)].kind);
-
-  let graph = buildGraph(lines);
-  if (graph.edges.length < 8) throw unsatisfiable('street network too small; enlarge size', { edges: graph.edges.length });
-  let faces = facesOf(graph.edges);
-  // Two faces sharing ground means the tracer left a crossing the graph could not resolve;
-  // the streets are grown again from the next seed in line, a few times, then the city refuses.
-  for (let attempt = 1; !facesPlanar(faces) && attempt <= PLANAR_ATTEMPTS; attempt++) {
-    lines = StreetGrowth.grow(field, streetDomain, Rng.from(seed, `streets:${attempt}`), params, planned);
-    graph = buildGraph(lines);
-    faces = graph.edges.length < 8 ? [] : facesOf(graph.edges);
-  }
-  if (graph.edges.length < 8 || !facesPlanar(faces)) {
-    throw unsatisfiable('street network never planar for this seed and size; change either', { edges: graph.edges.length });
-  }
-  if (params.features.alleys) {
-    const land = BlockBuilder.pieces(faces, new StreetCorridors(sectionsOf(graph).edges).roadway);
-    const alleys = AlleyPlanner.plan(
-      land.map((piece) => piece.polygon),
-      graph.nodes.map((n) => n.position),
-      (p) => planned[districtOfPoint(p)],
-      Rng.from(seed, 'alleys'),
-      { edges: graph.edges, domain: streetDomain },
-    );
-    if (alleys.length > 0) {
-      const withAlleys = StreetGraphBuilder.extend(graph,
-        alleys.map((path) => ({ path, class: 'alley' as const })), { domain: streetDomain });
-      const alleyFaces = facesOf(withAlleys.edges);
-      // an alley that leaves two faces sharing ground is not worth the block it cuts
-      if (facesPlanar(alleyFaces)) {
-        graph = withAlleys;
-        faces = alleyFaces;
-      }
-    }
-  }
-
-  // Keep a complete, supportable through route. A tracer fragment becomes a
-  // road; when none survives, a city-edge route through the planar graph is
-  // promoted before widths, blocks and parcels are derived.
-  if (params.features.highways) ensureUsableHighway(graph.edges, graph.nodes, boundary);
-
+  progress(2, 'Placing street modules');
+  const layout = CityLayout.plan(params, point => {
+    const index = districtOfPoint(point);
+    return { id: `d${index}`, kind: planned[index].kind };
+  }, waterSurfaces);
+  const graph = { nodes: layout.nodes, edges: layout.edges };
+  const streetPlan = { edges: layout.edges, runs: layout.runs };
   progress(3, 'Constructing street surfaces');
-  // --- street edges with widths and districts ---------------------------
-  const streetPlan = sectionsOf(graph);
   const edgeDistrict = new Map<string, number>();
   const streetEdges: StreetEdge[] = streetPlan.edges.map((e) => {
     const mid = pointAt(e.path, lineLength(e.path) / 2);
@@ -174,16 +110,13 @@ export function generateCity(input: AtlasParams, onProgress?: ProgressObserver):
     };
   });
   applyHighwayElevationProfiles(streetEdges);
+  const envelopes = highwayEnvelopes(streetEdges);
   const streetEdgeById = new Map(streetEdges.map((e) => [e.id, e]));
   // Curved joins can extend the deck into a face beyond its centerline
   // offset, so construction clearance is reserved from the exact buffered
   // run. A wider exclusion keeps an entire train platform away from a deck,
   // regardless of the platform's eventual orientation.
-  const highwayNoBuild = union(
-    streetEdges
-      .filter((edge) => edge.class === 'highway')
-      .flatMap((edge) => bufferLine(edge.path, edge.width + HIGHWAY_DECK.buildingClearance * 2)),
-  );
+  const highwayNoBuild = envelopes.flatMap(envelope => bufferLine(envelope.path, envelope.width + HIGHWAY_DECK.buildingClearance * 2));
   const trainStationExclusion = union([
     ...streetEdges
       .filter((edge) => edge.class === 'highway')
@@ -214,28 +147,7 @@ export function generateCity(input: AtlasParams, onProgress?: ProgressObserver):
     : undefined;
 
   progress(4, 'Building blocks');
-  // --- blocks -----------------------------------------------------------
-  // An alley has no carriageway to carve out: the sidewalk rings of the two
-  // blocks it separates meet at its centerline and are the whole alley, so
-  // those blocks keep their rings narrow enough to stay within ALLEY_WIDTH.
-  const alleyEdgeIds = new Set(streetEdges.filter((e) => e.class === 'alley').map((e) => e.id));
-  const alleyPaths = new Map<string, Vec2[]>();
-  for (const e of graph.edges) {
-    if (alleyEdgeIds.has(e.id)) {
-      alleyPaths.set(e.id, e.path);
-    }
-  }
-  const corridors = new StreetCorridors(streetEdges);
-  const roadwayBuffers = corridors.roadway;
-  const alleyPaving = corridors.pedestrian;
-  const builtBlocks = BlockBuilder.build(
-    faces,
-    roadwayBuffers,
-    alleyPaths,
-    alleyPaving,
-    corridors.full,
-    Rng.from(seed, 'curbs'),
-  );
+  const builtBlocks = layout.builtBlocks;
 
   progress(5, 'Placing buildings');
   // --- parcels ----------------------------------------------------------
@@ -247,7 +159,14 @@ export function generateCity(input: AtlasParams, onProgress?: ProgressObserver):
   }
   const rawLots: RawLot[] = [];
   const blockOpenAreas: Polygon[][] = builtBlocks.map(() => []);
-  const blockDistrict: number[] = builtBlocks.map((b) => districtOfPoint(centroid(b.boundary)));
+  const blockDistrict: number[] = builtBlocks.map(block => {
+    const total = block.boundaryRegions.reduce((sum, polygon) => sum + area(polygon), 0);
+    const center = block.boundaryRegions.reduce<Vec2>((sum, polygon) => {
+      const point = centroid(polygon), weight = area(polygon) / total;
+      return [sum[0] + point[0] * weight, sum[1] + point[1] * weight];
+    }, [0, 0]);
+    return districtOfPoint(center);
+  });
   const sidewalkedEdges: string[][] = builtBlocks.map((b) =>
     b.edgeIds.filter((id) => {
       const e = streetEdgeById.get(id);
@@ -272,7 +191,7 @@ export function generateCity(input: AtlasParams, onProgress?: ProgressObserver):
     districts: planned,
     districtOfNode: (nodeId) => districtOfPoint(nodeById.get(nodeId)!.position),
     cityCenter, boundary, populationEstimate: capacity.populationEstimate,
-    entranceObstacles: [...waterSurfaces, ...existingInfrastructure, ...alleyPaving],
+    entranceObstacles: [...waterSurfaces, ...existingInfrastructure],
     stationExclusion: waterSurfaces,
     rng: transitRng,
   }) : undefined;
@@ -378,6 +297,7 @@ export function generateCity(input: AtlasParams, onProgress?: ProgressObserver):
     id: `b${i}`,
     districtId: `d${blockDistrict[i]}`,
     boundary: b.boundary,
+    boundaryRegions: b.boundaryRegions,
     curb: b.curb,
     sidewalk: b.sidewalk,
     parcelIds: parcels.filter((p) => p.blockId === `b${i}`).map((p) => p.id),
@@ -412,12 +332,27 @@ export function generateCity(input: AtlasParams, onProgress?: ProgressObserver):
 
   progress(7, 'Constructing ground');
   // --- crossings, ground, volumetric -------------------------------------
-  progress(8, 'Proving pedestrian crossings');
-  const crossings = Crossings.build(graph.nodes, streetEdges);
   const streetNodes = streetNodesWithConnections(graph.nodes, streetEdges);
-  const signals = Signals.build(streetNodes, streetEdges);
+  const subwayShafts = transit.subwayStations.flatMap((station) => station.shafts.map((shaft) => shaft.footprint));
 
-  // street furniture keeps clear of everything a person already uses on the sidewalk
+  const ground = CityGround.build({ boundary, water: waterSurfaces, roadway: layout.roadway,
+    blockBounds: layout.blocks.map(block => block.outer), modules: layout.cover,
+    lots: parcels.map(parcel => parcel.lot), open: blockOpenAreas.flat(), stationBays: subwayBayPaving });
+  const pedestrianPaving = ground.filter((region) => region.surface === 'curb' || region.surface === 'sidewalk').map((region) => region.polygon);
+  const structures = supportHighwayEnvelopes(envelopes, [...trainNoBuild, ...subwayShafts, ...pedestrianPaving]);
+  const planningReservations = StreetCorridors.reservations(streetEdges);
+  const crossingObstacles = GradeDatum.clearanceFootprints({
+    plan: GradeDatum.physicalPlan({ boundary, edges: streetEdges, structures }),
+    supports: structures.flatMap((structure) => structure.supports.map((support) => ({ structureEdgeIds: structure.edgeIds, support }))),
+    groundTop: 0.2,
+    clearHeight: params.streetDesign.crossings!.pedestrianClearance,
+  }).flatMap((owner) => owner.polygons);
+  progress(8, 'Proving pedestrian crossings');
+  const crossingPlan = CityCrossings.plan({ nodes: streetNodes, edges: streetEdges, ground, obstacles: crossingObstacles });
+  const crossings = crossingPlan.crossings;
+  const signals = Signals.build(streetNodes, streetEdges, crossingPlan.junctions);
+
+  // Street furniture keeps clear of the complete crossing landings and existing accesses.
   const obstacles = new Obstacles();
   obstacles.add(crossings.flatMap((c) => c.segments.flatMap((s) => [s.from, s.to])));
   obstacles.add(signals.map((s) => s.position));
@@ -430,31 +365,6 @@ export function generateCity(input: AtlasParams, onProgress?: ProgressObserver):
     obstacles,
     Rng.from(seed, 'planting'),
   ).filter((item) => !waterSurfaces.some((surface) => pointInPolygon(item.position, surface)));
-  const subwayShafts = transit.subwayStations.flatMap((station) => station.shafts.map((shaft) => shaft.footprint));
-
-  // Ground ownership follows the full network, including unbounded and small faces.
-  const ground: GroundSurface[] = [];
-  const addGround = (surface: GroundSurfaceKind, polygon: Polygon, reserved: Polygon[] = subwayBayPaving): void => {
-    const levels = GROUND_LEVELS[surface];
-    const pieces = difference([polygon], [...waterSurfaces, ...reserved]);
-    for (const piece of pieces) ground.push({ surface, polygon: piece, bottom: levels.bottom, top: levels.top });
-  };
-  for (const poly of GroundRoadway.build(boundary, [...roadwayBuffers.values()].flat(), faces, builtBlocks)) {
-    addGround('roadway', poly);
-  }
-  for (const b of builtBlocks) for (const poly of b.curb) addGround('curb', poly);
-  for (const b of builtBlocks) for (const poly of b.sidewalk) addGround('sidewalk', poly);
-  for (const p of parcels) addGround('block', p.lot);
-  for (const open of blockOpenAreas) for (const poly of open) addGround('open', poly);
-  for (const poly of difference(intersection(corridors.full, [boundary]), ground.map((region) => region.polygon))) {
-    addGround('sidewalk', poly);
-  }
-  for (const poly of subwayBayPaving) addGround('sidewalk', poly, []);
-  // the fringe is whatever the placed cover leaves of the boundary, so the partition is exact by construction
-  const fringe = difference([boundary], ground.map((g) => g.polygon));
-  for (const poly of fringe) addGround('open', poly);
-  const pedestrianPaving = ground.filter((region) => region.surface === 'curb' || region.surface === 'sidewalk').map((region) => region.polygon);
-  const structures = highwayStructures(streetEdges, [...trainNoBuild, ...subwayShafts, ...pedestrianPaving]);
 
   const heightRng = Rng.from(seed, 'volumetric');
   const volumetric = {
@@ -469,13 +379,14 @@ export function generateCity(input: AtlasParams, onProgress?: ProgressObserver):
     ground,
   };
 
-  const hydrology = withHydrologyStructures(plannedHydrology, [
+  const corridors = plannedHydrology ? new StreetCorridors(streetEdges) : undefined;
+  const hydrology = plannedHydrology && withHydrologyStructures(plannedHydrology, [
     ...streetEdges.map((edge) => ({
       network: 'street' as const,
       refId: edge.id,
       path: edge.path,
       width: edge.width + edge.sidewalk.left + edge.sidewalk.right,
-      corridor: corridors.byEdge.get(edge.id),
+      corridor: corridors!.byEdge.get(edge.id),
       level: edge.level,
     })).filter((edge) => edge.width > 0),
     ...transit.trainLines.map((line) => ({ network: 'train' as const, refId: line.id, path: line.path, width: line.width, level: line.level })),
@@ -513,8 +424,9 @@ export function generateCity(input: AtlasParams, onProgress?: ProgressObserver):
     districts,
     streets: { nodes: streetNodes, edges: streetEdges, crossings, signals, planting, highwayStructures: structures,
       construction: {
-        version: '1.0.0', runs: streetPlan.runs,
-        planningReservations: StreetCorridors.reservations(streetEdges),
+        version: '1.0.0', runs: streetPlan.runs, modules: layout.modules,
+        planningReservations,
+        junctions: crossingPlan.junctions,
       } },
     blocks,
     parcels,
@@ -534,7 +446,7 @@ export function generateCity(input: AtlasParams, onProgress?: ProgressObserver):
 
   progress(10, 'Validating city');
   Invariants.check(blueprint);
-  progress(11, 'Fitting paving');
+  progress(11, 'Preparing shared street geometry');
   progress(12, 'Serializing blueprint');
   return blueprint;
 }
@@ -585,24 +497,3 @@ function pruneWaterStops(transit: CityBlueprint['transit'], water: Polygon[]): v
     .filter((route) => route.stopIds.length >= 2);
   pruneUnusedStops(transit.busStops, transit.busRoutes.flatMap((route) => route.stopIds));
 }
-
-/** How many fresh street seeds a city tries before refusing a non-planar network. */
-const PLANAR_ATTEMPTS = 3;
-
-/** Whether no two faces share ground beyond a sliver. */
-function facesPlanar(faces: Face[]): boolean {
-  const boxes = faces.map((f) => bounds(f.polygon));
-  for (let i = 0; i < faces.length; i++) {
-    for (let j = i + 1; j < faces.length; j++) {
-      const a = boxes[i]!;
-      const b = boxes[j]!;
-      if (a.max[0] <= b.min[0] || b.max[0] <= a.min[0] || a.max[1] <= b.min[1] || b.max[1] <= a.min[1]) continue;
-      const shared = intersection([faces[i]!.polygon], [faces[j]!.polygon]).reduce((sum, p) => sum + area(p), 0);
-      if (shared > PLANAR_SLIVER) return false;
-    }
-  }
-  return true;
-}
-
-/** Square meters two faces may share through clipping noise. */
-const PLANAR_SLIVER = 0.5;

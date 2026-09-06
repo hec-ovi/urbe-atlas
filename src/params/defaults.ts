@@ -4,6 +4,8 @@ import { validateHydrologyParams } from '../hydro/Hydrology';
 import type { HydrologyParams } from '../hydro/types';
 import type { StreetDesign } from '../streets/construction/schema/design';
 import { resolveStreetDesign } from '../streets/construction/Design';
+import { PavingPlanner } from '../streets/construction/paving/PavingPlanner';
+import type { PavingDesign } from '../streets/construction/paving/schema';
 
 export interface ResolvedParams {
   seed: string | number;
@@ -11,6 +13,7 @@ export interface ResolvedParams {
   irregularity: number;
   footprintShape: FootprintShape;
   streetDesign: StreetDesign;
+  pavingDesign?: PavingDesign;
   districtCount: [number, number];
   maxFloors: number;
   maxFloorsByDistrict: Partial<Record<DistrictKind, number>>;
@@ -56,7 +59,7 @@ export function resolveParams(input: AtlasParams): ResolvedParams {
     throw invalidParams('size.width and size.depth must be positive meters', { field: 'size' });
   }
 
-  const irregularity = input.irregularity ?? 0.35;
+  const irregularity = input.irregularity ?? 0;
   if (!(irregularity >= 0 && irregularity <= 1)) {
     throw invalidParams('irregularity must be in [0, 1]', { field: 'irregularity' });
   }
@@ -66,6 +69,7 @@ export function resolveParams(input: AtlasParams): ResolvedParams {
     throw invalidParams('footprintShape must be rectangle or parcel', { field: 'footprintShape' });
   }
   const streetDesign = resolveStreetDesign(input.streetDesign);
+  const pavingDesign = input.pavingDesign === undefined ? undefined : PavingPlanner.validateDesign(input.pavingDesign);
 
   if (input.districtCount !== undefined && !Array.isArray(input.districtCount)) {
     throw invalidParams('districtCount must be [min, max]', { field: 'districtCount' });
@@ -148,6 +152,7 @@ export function resolveParams(input: AtlasParams): ResolvedParams {
     irregularity,
     footprintShape,
     streetDesign,
+    ...(pavingDesign ? { pavingDesign } : {}),
     districtCount: [dMin, dMax],
     maxFloors,
     maxFloorsByDistrict,

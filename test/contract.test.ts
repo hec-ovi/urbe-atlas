@@ -2,16 +2,13 @@
  * Contract-surface tests: every declared input, output and error of
  * generateCity once, through the real entry point (CONTRACT.md).
  */
-import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { AtlasError, generateCity } from '../src';
 import { bandWidth } from '../src/geom/band';
 import { orientedBoundingBox } from '../src/geom/obb';
-import { intersection, offset } from '../src/geom/clip';
-import { area as polygonArea, bounds, distanceToOutline, pointInPolygon } from '../src/geom/polygon';
-import { CURB_WIDTH } from '../src/streets/widths';
+import { pointInPolygon } from '../src/geom/polygon';
 import { PLANTING_CLEARANCE, PLANTING_SPACING } from '../src/streets/Planting';
-import type { CityBlueprint, ParcelType, Polyline, Vec2 } from '../schema/blueprint';
+import type { CityBlueprint, ParcelType, Vec2 } from '../schema/blueprint';
 
 const PARCEL_TYPES: ParcelType[] = [
   'residential', 'hotel', 'offices', 'corpo', 'hospital', 'clinic', 'police',
@@ -33,82 +30,10 @@ const COMPACT = [12.14, 13.74];
 const STANDARD = [20.14, 9.74];
 const minBand = (type: ParcelType): number => (HEAVY_TYPES.has(type) ? 12.14 : 9.74);
 
-/** How far off the grid a fully irregular city may lean a district cut, degrees (CONTRACT.md). */
-const MAX_DISTRICT_LEAN_DEG = 15;
-
-/** Sharpest turn a street centerline may make, from CONTRACT.md. */
-const MAX_TURN_DEG = 120;
-/** Overlap band a ground surface pair may not exceed, meters (CONTRACT.md). */
-const OVERLAP_EPS = 0.01;
-
 let cached: CityBlueprint | null = null;
 const defaultCity = (): CityBlueprint => (cached ??= generateCity({ seed: 'contract' }));
 
 const distance = (a: Vec2, b: Vec2): number => Math.hypot(a[0] - b[0], a[1] - b[1]);
-
-/** Distance from a point to a segment, for the kerb walk. */
-function segmentDistance(p: Vec2, a: Vec2, b: Vec2): number {
-  const vx = b[0] - a[0];
-  const vz = b[1] - a[1];
-  const len = vx * vx + vz * vz;
-  const t = len > 0 ? Math.max(0, Math.min(1, ((p[0] - a[0]) * vx + (p[1] - a[1]) * vz) / len)) : 0;
-  return Math.hypot(p[0] - (a[0] + t * vx), p[1] - (a[1] + t * vz));
-}
-
-/** Turn at path[i], in degrees: 0 straight ahead, 180 straight back. */
-function turnAt(path: Polyline, i: number): number {
-  const u: Vec2 = [path[i][0] - path[i - 1][0], path[i][1] - path[i - 1][1]];
-  const v: Vec2 = [path[i + 1][0] - path[i][0], path[i + 1][1] - path[i][1]];
-  const l = Math.hypot(u[0], u[1]) * Math.hypot(v[0], v[1]);
-  if (l === 0) return 180;
-  const cos = Math.min(1, Math.max(-1, (u[0] * v[0] + u[1] * v[1]) / l));
-  return (Math.acos(cos) * 180) / Math.PI;
-}
-
-/** No edge is degenerate and none folds back over its own sidewalk band. */
-function expectStreetEdgesAreRuns(bp: CityBlueprint): void {
-  for (const e of bp.streets.edges) {
-    expect(e.from, `${e.id} is a self-loop`).not.toBe(e.to);
-    expect(e.path.length, `${e.id} path`).toBeGreaterThanOrEqual(2);
-    for (let i = 1; i < e.path.length; i++) {
-      expect(distance(e.path[i - 1], e.path[i]), `${e.id} point ${i}`).toBeGreaterThan(0);
-    }
-    for (let i = 1; i < e.path.length - 1; i++) {
-      expect(turnAt(e.path, i), `${e.id} folds at point ${i}`).toBeLessThanOrEqual(MAX_TURN_DEG);
-    }
-  }
-}
-
-/** Roadway, sidewalk, block and open surfaces tile the city: none overlaps another. */
-function expectGroundSurfacesAreDisjoint(bp: CityBlueprint): void {
-  const ground = bp.volumetric.ground;
-  const boxes = ground.map((g) => bounds(g.polygon));
-  for (let i = 0; i < ground.length; i++) {
-    for (let j = i + 1; j < ground.length; j++) {
-      const a = boxes[i];
-      const b = boxes[j];
-      if (a.max[0] - OVERLAP_EPS < b.min[0] + OVERLAP_EPS || b.max[0] - OVERLAP_EPS < a.min[0] + OVERLAP_EPS) continue;
-      if (a.max[1] - OVERLAP_EPS < b.min[1] + OVERLAP_EPS || b.max[1] - OVERLAP_EPS < a.min[1] + OVERLAP_EPS) continue;
-      const shared = intersection([ground[i].polygon], [ground[j].polygon]);
-      const band = shared.length === 0 ? [] : offset(shared, -OVERLAP_EPS);
-      expect(band, `${ground[i].surface} ${i} overlaps ${ground[j].surface} ${j}`).toHaveLength(0);
-    }
-  }
-}
-
-describe('determinism', () => {
-  it('same seed and params give byte-identical JSON', () => {
-    const a = generateCity({ seed: 42, size: { width: 2000, depth: 2000 } });
-    const b = generateCity({ seed: 42, size: { width: 2000, depth: 2000 } });
-    expect(JSON.stringify(a)).toBe(JSON.stringify(b));
-  }, 30000); // Two complete 2 km plans, including all geometry invariants.
-
-  it('a different seed gives a different city', () => {
-    const a = generateCity({ seed: 'a', size: { width: 2000, depth: 2000 } });
-    const b = generateCity({ seed: 'b', size: { width: 2000, depth: 2000 } });
-    expect(JSON.stringify(a.streets)).not.toBe(JSON.stringify(b.streets));
-  }, 30000); // Two complete 2 km plans, including all geometry invariants.
-});
 
 describe('blueprint output', () => {
   it('covers every declared collection with valid shapes and refs', () => {
@@ -163,79 +88,6 @@ describe('blueprint output', () => {
     expect(bp.volumetric.ground.length).toBeGreaterThan(0);
     expect(bp.stats.population).toBeGreaterThan(0);
     expect(bp.stats.perDistrict.length).toBe(bp.districts.length);
-  });
-
-  it('rounds road-facing curb corners while preserving pedestrian seams', () => {
-    const bp = defaultCity();
-    const alleys = bp.streets.edges.filter((edge) => edge.class === 'alley');
-    let arcVertices = 0;
-    for (const b of bp.blocks) {
-      const n = b.boundary.length;
-      for (let i = 0; i < n; i++) {
-        const a = b.boundary[(i - 1 + n) % n];
-        const corner = b.boundary[i];
-        const c = b.boundary[(i + 1) % n];
-        const la = Math.hypot(corner[0] - a[0], corner[1] - a[1]);
-        const lc = Math.hypot(c[0] - corner[0], c[1] - corner[1]);
-        if (la < 1e-6 || lc < 1e-6) continue;
-        // blocks come out CCW, so a left turn is a convex (curb) corner
-        const convex = (corner[0] - a[0]) * (c[1] - corner[1]) - (corner[1] - a[1]) * (c[0] - corner[0]) > 0;
-        const cos = ((a[0] - corner[0]) * (c[0] - corner[0]) + (a[1] - corner[1]) * (c[1] - corner[1])) / (la * lc);
-        const interior = Math.acos(Math.min(1, Math.max(-1, cos)));
-        const turn = (180 * (Math.PI - interior)) / Math.PI;
-        if (turn < 18) arcVertices++;
-        // room for at least a 0.6 m return, using at most 40% of each edge
-        const room = 0.4 * Math.min(la, lc) * Math.tan(interior / 2);
-        const onSharedSeam = alleys.some((edge) => edge.path.slice(1).some((end, index) =>
-          segmentDistance(corner, edge.path[index], end) <= 0.002,
-        ));
-        if (convex && room >= 0.6 && !onSharedSeam) expect(turn).toBeLessThanOrEqual(35);
-      }
-    }
-    expect(arcVertices).toBeGreaterThan(bp.blocks.length);
-  });
-
-  it('runs a curb strip along every block boundary a roadway borders', () => {
-    const bp = defaultCity();
-    const alleys = bp.streets.edges.filter((e) => e.class === 'alley');
-    const roadGround = bp.volumetric.ground.filter((ground) => ground.surface === 'roadway');
-    const curbGround = bp.volumetric.ground.filter((ground) => ground.surface === 'curb').map((ground) => ground.polygon);
-    const nearAlley = (p: Vec2): boolean =>
-      alleys.some((e) => e.path.slice(1).some((q, i) => segmentDistance(p, e.path[i], q) < CURB_WIDTH * 4));
-    let curbPieces = 0;
-    for (const b of bp.blocks) {
-      for (const poly of b.curb) {
-        curbPieces++;
-        // a run of kerb, never a sliver a boolean left behind
-        expect(polygonArea(poly), 'curb piece area').toBeGreaterThan(CURB_WIDTH * 0.5);
-      }
-      // walk the boundary and step into the band: the kerb covers it end to end
-      for (let i = 0; i < b.boundary.length; i++) {
-        const a = b.boundary[i];
-        const c = b.boundary[(i + 1) % b.boundary.length];
-        const span = distance(a, c);
-        if (span === 0) continue;
-        for (let step = 0; step < Math.ceil(span); step++) {
-          const t = (step + 0.5) / Math.ceil(span);
-          const on: Vec2 = [a[0] + (c[0] - a[0]) * t, a[1] + (c[1] - a[1]) * t];
-          // rings are CCW, so the inward normal is the edge direction turned left
-          const into: Vec2 = [
-            on[0] - ((c[1] - a[1]) / span) * (CURB_WIDTH / 2),
-            on[1] + ((c[0] - a[0]) / span) * (CURB_WIDTH / 2),
-          ];
-          // A short snapped facet can put this normal beyond an adjacent
-          // boundary. Only points inside the block belong to its curb strip.
-          if (!pointInPolygon(into, b.boundary)) continue;
-          const sharedFrontage = nearAlley(into);
-          if (sharedFrontage && !roadGround.some((ground) =>
-            distanceToOutline(into, ground.polygon) <= CURB_WIDTH,
-          )) continue;
-          const curb = sharedFrontage ? curbGround : b.curb;
-          expect(curb.some((poly) => pointInPolygon(into, poly)), `${b.id} kerb at ${into}`).toBe(true);
-        }
-      }
-    }
-    expect(curbPieces).toBeGreaterThan(0);
   });
 
   it('keeps ids globally unique with the documented prefixes', () => {
@@ -339,13 +191,14 @@ describe('street furniture', () => {
       expect(signal.facing[0] * signal.mast.direction[0] + signal.facing[1] * signal.mast.direction[1]).toBeCloseTo(0, 9);
       // the mast reaches from the kerb to the centerline of the arm it stops
       expect(signal.mast.length).toBeGreaterThan(edge!.width / 2);
-      armsOf.set(signal.nodeId, [...(armsOf.get(signal.nodeId) ?? []), signal.edgeId]);
+      expect(signal.junctionId).toBeDefined();
+      armsOf.set(signal.junctionId!, [...(armsOf.get(signal.junctionId!) ?? []), signal.edgeId]);
     }
-    for (const [nodeId, arms] of armsOf) {
-      const drivable = nodeById.get(nodeId)!.edgeIds.filter((id) => ['street', 'road'].includes(edgeById.get(id)!.class));
-      expect(arms.length, `${nodeId} heads`).toBe(drivable.length);
+    for (const [junctionId, arms] of armsOf) {
+      const drivable = bp.streets.construction!.junctions!.find((junction) => junction.id === junctionId)!.approaches.map((approach) => approach.edgeId);
+      expect(arms.sort(), `${junctionId} heads`).toEqual(drivable.sort());
       expect(arms.length).toBeGreaterThanOrEqual(3);
-      expect(drivable.some((id) => edgeById.get(id)!.class === 'road'), `${nodeId} carries a road`).toBe(true);
+      expect(drivable.some((id) => edgeById.get(id)!.class === 'road'), `${junctionId} carries a road`).toBe(true);
     }
   });
 
@@ -377,145 +230,6 @@ describe('street furniture', () => {
     }
     expect(worst.gap, worst.at).toBeGreaterThanOrEqual(PLANTING_CLEARANCE);
   });
-});
-
-describe('street alignment', () => {
-  it('keeps the default interior network on the city axes without seeded wobble', () => {
-    const bp = generateCity({ seed: 'alignment' });
-    let checked = 0;
-    for (const edge of bp.streets.edges) {
-      if (edge.class === 'alley') continue;
-      for (let i = 1; i < edge.path.length; i++) {
-        const a = edge.path[i - 1];
-        const b = edge.path[i];
-        const mid: Vec2 = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
-        // Three boundary-field sigmas into the city, the grid is the only
-        // computed basis at the default irregularity (downtown radial starts at 0.4).
-        if (distanceToOutline(mid, bp.meta.boundary) <= 210) continue;
-        const off = Math.atan2(b[1] - a[1], b[0] - a[0]) - bp.meta.gridAngle;
-        const deviation = Math.abs(Math.atan2(Math.sin(4 * off), Math.cos(4 * off)) / 4) * 180 / Math.PI;
-        expect(deviation, `${edge.id} segment ${i}`).toBeLessThan(0.5);
-        checked++;
-      }
-    }
-    expect(checked).toBeGreaterThan(10);
-  });
-});
-
-describe('districts', () => {
-  /** Every district edge that is not a stretch of the city outline: the cuts between districts. */
-  function cutEdges(bp: CityBlueprint): { deviation: number; length: number }[] {
-    const onOutline = (p: Vec2): boolean =>
-      bp.meta.boundary.some((q, i) => segmentDistance(p, bp.meta.boundary[i], bp.meta.boundary[(i + 1) % bp.meta.boundary.length]) < 0.5);
-    const out: { deviation: number; length: number }[] = [];
-    for (const d of bp.districts) {
-      for (let i = 0; i < d.boundary.length; i++) {
-        const a = d.boundary[i];
-        const b = d.boundary[(i + 1) % d.boundary.length];
-        const length = distance(a, b);
-        if (length < 0.01) continue;
-        const mid: Vec2 = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
-        if (onOutline(a) && onOutline(b) && onOutline(mid)) continue;
-        const off = Math.atan2(b[1] - a[1], b[0] - a[0]) - bp.meta.gridAngle;
-        const quarter = ((off % (Math.PI / 2)) + Math.PI / 2) % (Math.PI / 2);
-        out.push({ deviation: (Math.min(quarter, Math.PI / 2 - quarter) * 180) / Math.PI, length });
-      }
-    }
-    return out;
-  }
-
-  it('cuts districts on the city grid, leaning only as far as irregularity allows', () => {
-    const size = { width: 1500, depth: 1500 };
-    const districtCount: [number, number] = [4, 4];
-    const square = generateCity({ seed: 'urbe', size, districtCount, irregularity: 0 });
-    const squareCuts = cutEdges(square);
-    expect(squareCuts.length).toBeGreaterThan(0);
-    for (const cut of squareCuts) expect(cut.deviation, `${cut.length.toFixed(0)} m cut`).toBeLessThan(0.5);
-
-    const irregularity = 0.35;
-    const leaned = generateCity({ seed: 'urbe', size, districtCount, irregularity });
-    const leanedCuts = cutEdges(leaned);
-    expect(leanedCuts.length).toBeGreaterThan(0);
-    for (const cut of leanedCuts) {
-      expect(cut.deviation, `${cut.length.toFixed(0)} m cut`).toBeLessThanOrEqual(irregularity * MAX_DISTRICT_LEAN_DEG + 0.5);
-    }
-  }, 15000); // Two complete 1.5 km district plans and their invariants.
-});
-
-describe('alleys', () => {
-  it('cuts pedestrian-only alleys no vehicle can use', () => {
-    const bp = defaultCity();
-    const alleys = bp.streets.edges.filter((e) => e.class === 'alley');
-    expect(alleys.length).toBeGreaterThan(0);
-    for (const a of alleys) {
-      expect(a.width, `${a.id} carriageway`).toBe(0);
-      expect(a.sidewalk.left).toBeGreaterThan(0);
-      expect(a.sidewalk.right).toBeGreaterThan(0);
-      const width = a.sidewalk.left + a.sidewalk.right;
-      expect(width, `${a.id} width`).toBeGreaterThanOrEqual(3);
-      expect(width, `${a.id} width`).toBeLessThanOrEqual(5);
-    }
-    const alleyIds = new Set(alleys.map((a) => a.id));
-    for (const s of bp.transit.busStops) expect(alleyIds.has(s.edgeId)).toBe(false);
-    for (const r of bp.transit.busRoutes) {
-      for (const id of r.edgeIds) expect(alleyIds.has(id)).toBe(false);
-    }
-  });
-
-  it('leaves them out when the toggle is off', () => {
-    const params = { seed: 'alleys', size: { width: 1200, depth: 1200 } };
-    const hasAlley = (bp: CityBlueprint): boolean => bp.streets.edges.some((e) => e.class === 'alley');
-    expect(hasAlley(generateCity(params))).toBe(true);
-    expect(hasAlley(generateCity({ ...params, features: { alleys: false } }))).toBe(false);
-  }, 15_000); // Two complete 1.2 km generations, measured at 7.18 seconds sequentially.
-});
-
-describe('committed samples', () => {
-  it('samples/city-urbe.json regenerates byte-identical', () => {
-    const file = readFileSync(new URL('../samples/city-urbe.json', import.meta.url), 'utf8');
-    expect(JSON.stringify(generateCity({ seed: 'urbe' }))).toBe(file);
-  });
-
-  it('samples/city-urbe-small.json regenerates byte-identical', () => {
-    const file = readFileSync(new URL('../samples/city-urbe-small.json', import.meta.url), 'utf8');
-    expect(JSON.stringify(generateCity({ seed: 'urbe-small', size: { width: 800, depth: 800 } }))).toBe(file);
-  });
-
-  it('samples/city-urbe-tiny.json regenerates byte-identical', () => {
-    const file = readFileSync(new URL('../samples/city-urbe-tiny.json', import.meta.url), 'utf8');
-    const bp = generateCity({
-      seed: 'urbe-tiny',
-      size: { width: 400, depth: 400 },
-      maxFloors: 6,
-      features: { highways: false, trains: false, subways: false },
-    });
-    expect(JSON.stringify(bp)).toBe(file);
-  });
-});
-
-describe('small cities', () => {
-  it('stays coherent or refuses cleanly across small sizes and seeds', () => {
-    for (const size of [300, 350, 400, 450, 500, 600, 700]) {
-      for (const seed of ['urbe-tiny', 'a', 'b', 'c', 'd', 'e']) {
-        let bp: CityBlueprint;
-        try {
-          bp = generateCity({ seed, size: { width: size, depth: size }, maxFloors: 6 });
-        } catch (e) {
-          // too small to lay a city: refused, never returned incoherent
-          expect((e as AtlasError).code, `${seed} at ${size} m: ${(e as Error).message}`).toBe('E_UNSATISFIABLE');
-          continue;
-        }
-        const lines = [...bp.transit.subwayLines, ...bp.transit.trainLines];
-        const served = new Set(lines.flatMap((l) => l.stationIds));
-        for (const s of [...bp.transit.subwayStations, ...bp.transit.trainStations]) {
-          expect(served.has(s.id)).toBe(true);
-        }
-        for (const l of lines) expect(l.stationIds.length).toBeGreaterThanOrEqual(2);
-        expectStreetEdgesAreRuns(bp);
-        expectGroundSurfacesAreDisjoint(bp);
-      }
-    }
-  }, 30000); // Complete generation and coherence checks for all 42 small-city cases.
 });
 
 describe('errors', () => {

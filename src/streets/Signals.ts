@@ -9,32 +9,29 @@
  */
 import type { StreetEdge, StreetNode, TrafficSignal, Vec2 } from '../../schema/blueprint';
 import { length as lineLength, directionAt, distanceTo, pointAt } from '../geom/polyline';
-import { approachSetback } from './Crossings';
 import { sidewalkBand } from './construction/SidewalkSection';
+import type { CrossingJunction } from './crossings/schema';
 
-/**
- * Arms that meet at grade with a carriageway to stop. A highway is a deck
- * passing overhead and an alley carries no vehicle, so neither makes a
- * junction of traffic and neither takes a head.
- */
-const SIGNALLED = new Set(['street', 'road']);
 /** A junction is signalled only when one of its arms is at least this heavy. */
 const TRIGGERS = new Set(['road']);
 /** How far a pole may read off its own band, meters: the 1 mm grid and a bend. */
 const BAND_SLACK = 0.5;
 
 export class Signals {
-  static build(nodes: readonly StreetNode[], edges: readonly StreetEdge[]): TrafficSignal[] {
+  static build(nodes: readonly StreetNode[], edges: readonly StreetEdge[], junctions: readonly CrossingJunction[]): TrafficSignal[] {
     const edgeById = new Map(edges.map((e) => [e.id, e]));
+    const nodeById = new Map(nodes.map((n) => [n.id, n]));
     const out: TrafficSignal[] = [];
-    for (const node of nodes) {
-      const arms = node.edgeIds
-        .map((id) => edgeById.get(id))
-        .filter((e): e is StreetEdge => e !== undefined && SIGNALLED.has(e.class));
+    for (const junction of junctions) {
+      const arms = junction.approaches.map((approach) => edgeById.get(approach.edgeId)!);
       if (arms.length < 3 || !arms.some((e) => TRIGGERS.has(e.class))) continue;
-      // a junction is signalled whole or not at all: one head on every arm
-      const width = Math.max(...arms.map((edge) => edge.width));
-      const heads = arms.map((edge) => headOn(node, edge, width));
+      const heads = junction.approaches.map((approach) => {
+        const node = nodeById.get(approach.nodeId)!;
+        const edge = edgeById.get(approach.edgeId)!;
+        const station = edge.from === node.id ? approach.station[1] : approach.station[0];
+        const head = headOn(node, edge, station);
+        return head && { ...head, junctionId: junction.id };
+      });
       if (heads.some((h) => h === null)) continue;
       out.push(...(heads as TrafficSignal[]));
     }
@@ -42,11 +39,9 @@ export class Signals {
   }
 }
 
-function headOn(node: StreetNode, edge: StreetEdge, junctionWidth: number): TrafficSignal | null {
+function headOn(node: StreetNode, edge: StreetEdge, arc: number): TrafficSignal | null {
   const armLength = lineLength(edge.path);
-  const back = approachSetback(junctionWidth, armLength);
   const atStart = edge.from === node.id;
-  const arc = atStart ? back : armLength - back;
   if (arc <= 0 || arc >= armLength) return null;
 
   const along = directionAt(edge.path, arc);
