@@ -21,7 +21,7 @@
           "modules": [
             {"id": "slab", "pitch": [1, 1], "joint": [0.012, 0.012]},
             {"id": "double-slab", "pitch": [2, 2], "joint": [0.012, 0.012], "baseCells": [2, 2]},
-            {"id": "curb", "pitch": [2, 0.2], "joint": [0.012, 0]},
+            {"id": "curb", "pitch": [1, 0.2], "joint": [0.012, 0]},
             {"id": "border", "pitch": [1, 1], "joint": [0.012, 0]}
           ],
           "bands": {

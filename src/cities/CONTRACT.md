@@ -38,7 +38,7 @@ HTTP failures return [CityErrorResponse](schema.ts): `E_BAD_REQUEST` (400, malfo
 - Only blueprint generation runs. Exterior and interior stages require separate explicit requests to their owners.
 - The catalog contains submitted and imported cities; it cannot recover unsaved browser memory.
 - Delete is terminal: a removed city cannot be opened, and its blueprint file is gone.
-- Form documents are static copies of [forms/creation.json](forms/creation.json) and [forms/visualization.json](forms/visualization.json). Identical requests return identical JSON. Creation offers templates, city controls and Generate; new browser sessions supply a fresh seed. Street dimensions come from the module catalog. Gutters and guardrails have independent visualization filters.
+- Form documents are static copies of [forms/creation.json](forms/creation.json) and [forms/visualization.json](forms/visualization.json). Identical requests return identical JSON. Creation offers templates, city controls and Generate; new browser sessions supply a fresh seed. Paving defaults share 1 m longitudinal stations; city generation selects their finish family, and street dimensions come from the module catalog. Gutters and guardrails have independent visualization filters.
 
 ## Depends on
 
