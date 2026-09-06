@@ -44,6 +44,11 @@ export function insetBody(polygon: Polygon): Polygon {
   return polygon.reduce((body, a, index) => halfPlane(body, a, polygon[(index + 1) % polygon.length], DIMENSIONS.joint / 2), polygon);
 }
 
+/** Opens the two station joints of a band without shifting its shared side faces. */
+export function jointedBand(polygon: Polygon): Polygon {
+  return halfPlane(halfPlane(polygon, polygon[0], polygon[1], DIMENSIONS.joint / 2), polygon[2], polygon[3], DIMENSIONS.joint / 2);
+}
+
 /** Shared corner angles include grid intersections and limit curved facets to 0.5 m. */
 export const CORNER_ANGLES = Array.from({ length: 13 }, (_, i) => Math.PI + i * Math.PI / 24);
 

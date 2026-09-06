@@ -1,7 +1,7 @@
 import type { Polygon, Vec2 } from '../../../../schema/blueprint';
 
 export type SidewalkWidth = 2 | 4 | 6;
-export type ModuleRole = 'panel' | 'joint' | 'curb' | 'gutter' | 'gutter-lip' | 'guardrail' | 'roadway';
+export type ModuleRole = 'panel' | 'joint' | 'curb' | 'gutter' | 'gutter-lip' | 'guardrail' | 'roadway' | 'marking';
 export type QuarterTurn = 0 | 1 | 2 | 3;
 
 /** Local XZ polygon and absolute Y levels, in metres. UVs use local metre coordinates. */
@@ -32,6 +32,18 @@ export interface ModuleConstruction {
   version: '1.0.0';
   definitions: ModuleDefinition[];
   placements: ModulePlacement[];
+  parking?: ModuleParking[];
+}
+
+export interface ModuleParking {
+  blockId: string;
+  side: QuarterTurn;
+  start: number;
+  end: number;
+  slotCount: number;
+  slotLength: 4;
+  width: 2;
+  slots: Polygon[];
 }
 
 export interface BlockModuleInput {
@@ -48,6 +60,8 @@ export interface BlockModuleInput {
   guardrails?: boolean;
   /** Distance intervals along each side's counterclockwise straight run. */
   reserved?: [Vec2[], Vec2[], Vec2[], Vec2[]];
+  /** Whole 4 m slots, with a 2 m transition at each end; wide sidewalks only. */
+  parking?: { side: QuarterTurn; start: number; slots: 1 | 2 | 3 }[];
 }
 
 export interface ModuleBlock {

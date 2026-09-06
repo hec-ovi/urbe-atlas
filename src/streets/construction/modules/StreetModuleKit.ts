@@ -1,13 +1,15 @@
 import { invalidParams } from '../../../errors';
 import { corner } from './Corner';
 import { rectangle, transform } from './Geometry';
-import type { BlockModuleInput, ModuleBlock, ModuleConstruction, ModuleDefinition, ModulePlacement, QuarterTurn } from './schema';
+import type { BlockModuleInput, ModuleBlock, ModuleConstruction, ModuleDefinition, ModuleParking, ModulePlacement, QuarterTurn } from './schema';
 import { guardrail, straight } from './Straight';
+import { parking } from './Parking';
 
 export class StreetModuleKit {
   private readonly definitions = new Map<string, ModuleDefinition>();
   private readonly placements: ModulePlacement[] = [];
   private readonly blockIds = new Set<string>();
+  private readonly parking: ModuleParking[] = [];
 
   block(input: BlockModuleInput): ModuleBlock {
     this.validate(input);
@@ -31,11 +33,26 @@ export class StreetModuleKit {
       const preceding = input.sidewalks[(side + 3) % 4];
       const straightId = `straight:${sidewalk}:${input.centerDouble ? 'middle' : 'unit'}`;
       const cornerId = `corner:${preceding}:${sidewalk}`;
-      use(this.definitions.get(straightId) ?? straight(sidewalk, input.centerDouble ?? false), origin, turn, length / 2);
+      const bays = (input.parking ?? []).filter(bay => bay.side === side).sort((a, b) => a.start - b.start);
+      const straightDefinition = this.definitions.get(straightId) ?? straight(sidewalk, input.centerDouble ?? false);
+      let station = 0;
+      for (const bay of bays) {
+        use(straightDefinition, transform([station, 0], origin, turn), turn, (bay.start - station) / 2);
+        const id = `parking:${sidewalk}:${bay.slots}:${input.centerDouble ? 'middle' : 'unit'}`;
+        use(this.definitions.get(id) ?? parking(sidewalk, bay.slots, input.centerDouble ?? false), transform([bay.start, 0], origin, turn), turn);
+        station = bay.start + 4 + bay.slots * 4;
+        this.parking.push({ blockId: input.id, side: turn, start: bay.start, end: station,
+          slotCount: bay.slots, slotLength: 4, width: 2,
+          slots: Array.from({ length: bay.slots }, (_, slot) => rectangle(bay.start + 2 + slot * 4, -0.5, 4, 2)
+            .map(p => transform(p, origin, turn))),
+        });
+      }
+      use(straightDefinition, transform([station, 0], origin, turn), turn, (length - station) / 2);
       use(this.definitions.get(cornerId) ?? corner(preceding, sidewalk), cornerOrigin, turn);
       if (input.guardrails) {
         for (let station = 6; station + 2 <= length - 6; station += 8) {
           if (input.reserved?.[side].some(([a, b]) => a < station + 2 && b > station)) continue;
+          if (bays.some(bay => bay.start < station + 2 && bay.start + 4 + bay.slots * 4 > station)) continue;
           use(this.definitions.get('guardrail:2') ?? guardrail(), transform([station, 0], origin, turn), turn);
         }
       }
@@ -51,7 +68,9 @@ export class StreetModuleKit {
   }
 
   construction(): ModuleConstruction {
-    return structuredClone({ version: '1.0.0', definitions: [...this.definitions.values()], placements: this.placements });
+    return structuredClone({ version: '1.0.0', definitions: [...this.definitions.values()], placements: this.placements,
+      ...(this.parking.length ? { parking: this.parking } : {}),
+    });
   }
 
   private validate(input: BlockModuleInput): void {
@@ -68,5 +87,18 @@ export class StreetModuleKit {
     if (input.reserved !== undefined && (!Array.isArray(input.reserved) || input.reserved.length !== 4
       || input.reserved.some(side => !Array.isArray(side) || side.some(span => !Array.isArray(span)
         || span.length !== 2 || !span.every(Number.isFinite) || span[0] < 0 || span[1] <= span[0])))) fail();
+    if (input.parking !== undefined) {
+      if (!Array.isArray(input.parking)) fail();
+      for (const bay of input.parking) {
+        if (!bay || ![0, 1, 2, 3].includes(bay.side) || ![1, 2, 3].includes(bay.slots)
+          || !Number.isSafeInteger(bay.start) || bay.start < 6 || bay.start % 2 !== 0 || input.sidewalks[bay.side] < 4) fail();
+        const side = bay.side;
+        const length = input.panels[side % 2] - input.sidewalks[(side + 1) % 4] - input.sidewalks[(side + 3) % 4];
+        const end = bay.start + 4 + bay.slots * 4;
+        if (end > length - 6 || input.reserved?.[side].some(([a, b]) => a < end && b > bay.start)
+          || input.parking.some(other => other !== bay && other.side === side && other.start < end
+            && other.start + 4 + other.slots * 4 > bay.start)) fail();
+      }
+    }
   }
 }

@@ -113,4 +113,32 @@ describe('StreetModuleKit public construction', () => {
     expect(() => kit.block({ ...input, reserved: [[[8, 6] as Vec2], [], [], []] })).toThrow(/finite coordinates/);
     expect(kit.construction()).toEqual({ version: '1.0.0', definitions: [], placements: [] });
   });
+
+  it('cuts parking from wide sidewalks with whole slots, shared returns and a continuous walking strip', () => {
+    const kit = new StreetModuleKit();
+    const block = kit.block({ ...input, panels: [80, 64], parking: [
+      { side: 1, start: 8, slots: 2 }, { side: 2, start: 16, slots: 3 },
+    ] });
+    const construction = kit.construction();
+    expect(baseArea(construction)).toBeCloseTo(signedArea(block.outer) - signedArea(block.interior), 8);
+    expect(construction.parking?.map(bay => [bay.side, bay.start, bay.end, bay.slotCount])).toEqual([[1, 8, 20, 2], [2, 16, 32, 3]]);
+    for (const bay of construction.parking!) {
+      expect(bay.slots).toHaveLength(bay.slotCount);
+      expect(bay.slots.map(signedArea)).toEqual(Array(bay.slotCount).fill(8));
+    }
+    for (const definition of construction.definitions.filter(definition => definition.id.startsWith('parking:'))) {
+      const length = Math.max(...definition.parts.flatMap(part => part.polygon.map(p => p[0])));
+      for (const part of definition.parts) {
+        expect(signedArea(part.polygon), `${definition.id}/${part.role}`).toBeGreaterThan(0);
+        const bounds = box(part.polygon);
+        if (part.role === 'panel' && bounds.min[0] >= 2 && bounds.max[0] <= length - 2) {
+          expect(bounds.min[1]).toBeGreaterThanOrEqual(2);
+        }
+      }
+    }
+    expect(() => new StreetModuleKit().block({ ...input, parking: [{ side: 0, start: 6, slots: 1 }] })).toThrow();
+    expect(() => new StreetModuleKit().block({ ...input, panels: [80, 64], reserved: [[], [[8, 10]], [], []],
+      parking: [{ side: 1, start: 8, slots: 2 }],
+    })).toThrow();
+  });
 });

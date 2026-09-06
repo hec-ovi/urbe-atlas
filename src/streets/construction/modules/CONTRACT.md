@@ -12,6 +12,8 @@ Each definition contains physical prisms with metre UV coordinates. Panel bodies
 
 Block output supplies the buildable rectangle and complete outer bounds, including curb and gutter. Geometry construction is independent of material selection. Repeated calls with identical inputs produce identical data. Invalid panel counts, widths or dimensions throw `E_INVALID_PARAMS`.
 
+Optional parking replaces complete straight groups on 4/6 m sidewalks. Each bay has 1 to 3 slots of 4 by 2 m, plus a fixed 2 m return at each end. Starts are even panel stations, at least 6 m from either corner reservation. Curbs, gutter beds and lips follow the same rectangular cut; at least 2 m of paved walking width remains. Published parking records contain the station range, slot count and footprints. Bays cannot overlap each other or caller reservations, and they suppress guardrails. The caller controls their frequency.
+
 ## Dependencies
 
 - [Atlas](../../../../CONTRACT.md): coordinates in metres and error vocabulary.
