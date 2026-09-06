@@ -1,3 +1,4 @@
+import type { GenerationProgress, ProgressObserver } from '../../schema/progress';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { CityBlueprint } from '../../schema/blueprint';
 import type { AtlasParams, Seed } from '../../schema/params';
@@ -20,6 +21,7 @@ export interface CityRecord {
   seed: Seed;
   params: AtlasParams;
   stage: 'blueprint';
+  progress?: GenerationProgress;
   status: CityStatus;
   createdAt: string;
   updatedAt: string;
@@ -36,7 +38,7 @@ export interface CityErrorResponse { error: CityError }
 export interface GeneratedCity { json: string; stats: CityBlueprint['stats'] }
 
 /** Resolves after generation and serialization; rejects with a CityError or Error. */
-export type CityGenerator = (params: AtlasParams, signal: AbortSignal) => Promise<GeneratedCity>;
+export type CityGenerator = (params: AtlasParams, signal: AbortSignal, onProgress?: ProgressObserver) => Promise<GeneratedCity>;
 
 export interface CityApiOptions {
   /** Relative paths resolve from the server working directory. */

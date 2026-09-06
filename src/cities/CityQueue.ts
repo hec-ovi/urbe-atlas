@@ -74,7 +74,12 @@ export class CityQueue {
     await this.store.save(record);
     try {
       if (signal.aborted) throw interruptedError();
-      const result = await this.generate(record.params, signal);
+      const result = await this.generate(record.params, signal, progress => {
+        if (signal.aborted || !this.store.has(id)) return;
+        record.progress = progress;
+        record.updatedAt = new Date().toISOString();
+        this.store.observe({ ...record });
+      });
       if (signal.aborted) throw interruptedError();
       if (!this.store.has(id)) return;
       await this.store.complete(record, result);

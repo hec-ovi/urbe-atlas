@@ -21,8 +21,8 @@ Purpose: queues server-side blueprint generation and keeps every created city on
 | GET /api/forms | None | 200 `{ forms: ["creation", "visualization"] }` |
 | GET /api/forms/:name | `creation` or `visualization` | 200 [WorkspaceForm](forms/schema.ts) |
 
-Records include original params, source, seed, timestamps and blueprint stage/status. Ready records add `blueprintUrl` and stats. Failed records add an error. Each creation gets a distinct UUID, including repeated seeds. Imports check complete top-level structure; they preserve every field and do not certify geometry. Requests require JSON objects; full generation parameter validation runs in the worker. JSON bodies are limited to 128 MiB.
-Delete removes the catalog record and its directory. A running job is aborted first; a queued job is dropped. Missing ids return 404.
+Records include original params, source, seed, timestamps and blueprint stage/status. Active worker reports add `progress: {completed, total, phase}` from [schema/progress.ts](../../schema/progress.ts). Completed counts measure pipeline stages, not time. Active updates live in memory; terminal records persist them. Ready records add `blueprintUrl` and stats. Failed records add an error. Each creation gets a distinct UUID, including repeated seeds. Imports check complete top-level structure; they preserve every field and do not certify geometry. Requests require JSON objects; full generation parameter validation runs in the worker. JSON bodies are limited to 128 MiB.
+Delete removes the catalog record and its directory. A running job is terminated first; the response waits for worker exit and directory removal. A queued job is dropped. The UI uses this endpoint for Cancel, including requests made while submission is pending. Missing ids return 404.
 Workspace forms are the creation and visualization documents the UI iterates. `name` is `creation` or `visualization`. Each document lists layout, default values and widgets (heading, note, section, text, slider, select, choice, toggle, optional-number, action, action-row, presets, file, grid, layers). Adding, removing or editing a supported control is a form JSON change. Unknown names return 404.
 
 ## Errors
@@ -38,7 +38,7 @@ HTTP failures return [CityErrorResponse](schema.ts): `E_BAD_REQUEST` (400, malfo
 - Only blueprint generation runs. Exterior and interior stages require separate explicit requests to their owners.
 - The catalog contains submitted and imported cities; it cannot recover unsaved browser memory.
 - Delete is terminal: a removed city cannot be opened, and its blueprint file is gone.
-- Form documents are static copies of [forms/creation.json](forms/creation.json) and [forms/visualization.json](forms/visualization.json). Identical requests return identical JSON.
+- Form documents are static copies of [forms/creation.json](forms/creation.json) and [forms/visualization.json](forms/visualization.json). Identical requests return identical JSON. Creation offers templates, city controls and Generate; new browser sessions supply a fresh seed.
 
 ## Depends on
 

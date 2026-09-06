@@ -130,6 +130,25 @@ describe('city HTTP catalog', () => {
     await status(app, second.id, 'ready');
   });
 
+  it('reports completed worker stages and confirms cancellation only after a CPU-bound worker stops', async () => {
+    const dataDir = await directory();
+    const release = join(dataDir, 'cancel-worker');
+    const app = await serve({ dataDir, workerUrl: new URL('./test.worker.mjs', import.meta.url) });
+    const first = await (await app.post({ seed: release })).json() as CityRecord;
+    const progress = await eventually(async () => (await app.request(`/api/cities/${first.id}`)).json() as Promise<CityRecord>,
+      record => record.progress?.completed === 3);
+    expect(progress).toMatchObject({ status: 'running', progress: { completed: 3, total: 13, phase: 'Constructing street surfaces' } });
+    await eventually(() => access(`${release}.started`).then(() => true, () => false), Boolean);
+    expect((await app.request(`/api/cities/${first.id}`, { method: 'DELETE' })).status).toBe(204);
+    await writeFile(release, 'released after cancellation');
+    expect((await app.request(`/api/cities/${first.id}`)).status).toBe(404);
+    await expect(access(`${release}.finished`)).rejects.toMatchObject({ code: 'ENOENT' });
+    await expect(access(join(dataDir, first.id))).rejects.toMatchObject({ code: 'ENOENT' });
+    const second = await (await app.post({ seed: release })).json() as CityRecord;
+    const ready = await status(app, second.id, 'ready');
+    expect(ready.progress).toEqual({ completed: 13, total: 13, phase: 'City ready' });
+  });
+
   it('imports saved blueprints with all fields intact and without invoking generation', async () => {
     const dataDir = await directory();
     const app = await serve({ dataDir, generator: async () => { throw new Error('Imports must not generate.'); } });

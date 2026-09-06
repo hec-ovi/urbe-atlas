@@ -43,6 +43,10 @@ export class DiskCityStore {
     }
   }
 
+  observe(record: CityRecord): void {
+    if (!this.removed.has(record.id)) this.records.set(record.id, record);
+  }
+
   list(): CityRecord[] {
     return [...this.records.values()].sort((a, b) => b.createdAt.localeCompare(a.createdAt) || b.id.localeCompare(a.id));
   }
@@ -77,6 +81,7 @@ export class DiskCityStore {
     const now = new Date().toISOString();
     const ready: CityRecord = {
       ...record, status: 'ready', updatedAt: now, completedAt: now,
+      progress: { completed: 13, total: 13, phase: 'City ready' },
       stats: result.stats, blueprintUrl: `/api/cities/${record.id}/blueprint`,
     };
     await this.save(ready);
