@@ -5,7 +5,6 @@ import userEvent from '@testing-library/user-event';
 import type { CityBlueprint } from '../../schema/blueprint';
 import { PreviewApp } from './views/PreviewApp';
 import { Map3DView } from './views/Map3DView';
-import { Notifications } from './widgets/Notifications';
 import { selectionBlueprint } from './fixtures/selectionBlueprint';
 import { stubWorkspaceFetch } from './test/forms';
 
@@ -64,18 +63,4 @@ it('3D envelope picking uses left click and suppresses right click and orbit dra
   expect(selected).not.toHaveBeenCalled();
   await user.pointer({ target: view.canvas, coords: { clientX: 300, clientY: 300 }, keys: '[MouseLeft]' });
   expect(selected).toHaveBeenCalledWith(parcel);
-});
-
-it('notification toasts expire and can be dismissed manually', async () => {
-  vi.useFakeTimers();
-  const log = new Notifications();
-  document.body.append(log.root);
-  log.info('Saved city ready');
-  await vi.advanceTimersByTimeAsync(8150);
-  expect(log.root.children).toHaveLength(0);
-  log.error('Missing asset');
-  const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
-  await user.click(getByRole(log.root, 'button', { name: 'Dismiss' }));
-  await vi.advanceTimersByTimeAsync(150);
-  expect(log.root.children).toHaveLength(0);
 });

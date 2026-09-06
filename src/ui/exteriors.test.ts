@@ -36,7 +36,7 @@ async function mount() {
   await app.loadBlueprint(blueprint);
   app.resize();
   expect(getByRole(app.root, 'button', { name: 'Generate exteriors' }).closest('.workspace-creation')).toBeNull();
-  expect(getByRole(app.root, 'button', { name: 'View' }).getAttribute('aria-pressed')).toBe('true');
+  expect(app.root.querySelector<HTMLElement>('.workspace-visualization')!.hidden).toBe(false);
   await userEvent.pointer({ target: app.root.querySelector('canvas')!, coords: { clientX: 300, clientY: 300 }, keys: '[MouseLeft]' });
   return app;
 }

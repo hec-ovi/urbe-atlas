@@ -1,11 +1,11 @@
 // @vitest-environment happy-dom
 /** UI box contract: components render and emit the events src/ui/CONTRACT.md lists. */
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { getByLabelText, getByRole, getByText, waitFor } from '@testing-library/dom';
 import userEvent from '@testing-library/user-event';
 import * as THREE from 'three';
-import { generateCity } from '..';
-import type { AtlasParams } from '../../schema/params';
+import { selectionBlueprint } from './fixtures/selectionBlueprint';
+import { renderBlueprint } from './fixtures/renderBlueprint';
 import { LegendWidget } from './widgets/LegendWidget';
 import { defaultFilters } from './views/filters';
 import { LayerToggles } from './widgets/LayerToggles';
@@ -17,24 +17,13 @@ import { Map3DView } from './views/Map3DView';
 import { streetSurfaceRegions } from './views/StreetSurfaceRegions';
 import { difference, intersection, offset } from '../geom/clip';
 
-/** A city small enough to build inside a test, big enough to have parcels. */
-const SMALL: AtlasParams = { seed: 'preview', size: { width: 600, depth: 600 } };
 const CANVAS = 600;
 
 beforeEach(() => {
   document.body.replaceChildren();
   stubWorkspaceFetch();
 });
-
-/** Clicks a grid over the map until `hit` reports the pick landed. */
-async function inspectUntil(canvas: HTMLElement, hit: () => boolean): Promise<void> {
-  const user = userEvent.setup();
-  for (let x = 30; x < CANVAS && !hit(); x += 30) {
-    for (let z = 30; z < CANVAS && !hit(); z += 30) {
-      await user.pointer({ target: canvas, coords: { clientX: x, clientY: z }, keys: '[MouseLeft]' });
-    }
-  }
-}
+afterEach(() => { document.body.replaceChildren(); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 
 async function mount(fetchManifest: ManifestFetcher = async () => ({ ok: false, json: async () => ({}) })): Promise<PreviewApp> {
   const app = new PreviewApp(fetchManifest);
@@ -132,11 +121,7 @@ describe('LayerToggles', () => {
 });
 
 describe('ParamsPanel', () => {
-  const events = (): { onGenerate: ReturnType<typeof vi.fn>; onExport: ReturnType<typeof vi.fn>; onImport: ReturnType<typeof vi.fn> } => ({
-    onGenerate: vi.fn(),
-    onExport: vi.fn(),
-    onImport: vi.fn(),
-  });
+  const events = () => ({ onGenerate: vi.fn() });
 
   it('emits every contract parameter on Generate', async () => {
     const handlers = events();
@@ -169,7 +154,7 @@ describe('ParamsPanel', () => {
     });
   });
 
-  it('exposes imported district caps and weights in the editable form and export', async () => {
+  it('preserves supplied district caps and weights in generated parameters', async () => {
     const handlers = events();
     const panel = new ParamsPanel(handlers);
     document.body.append(panel.root);
@@ -183,8 +168,8 @@ describe('ParamsPanel', () => {
       features: { alleys: false },
       hydrology: { type: 'river' },
     });
-    await userEvent.click(getByText(panel.root, 'Save parameters'));
-    const params = handlers.onExport.mock.calls[0][0];
+    await userEvent.click(getByText(panel.root, 'Generate city'));
+    const params = handlers.onGenerate.mock.calls[0][0];
     expect(params.seed).toBe('from-file');
     expect(params.size).toEqual({ width: 900, depth: 700 });
     expect(params.maxFloors).toBe(12);
@@ -200,8 +185,8 @@ describe('ParamsPanel', () => {
     const handlers = events();
     const panel = new ParamsPanel(handlers);
     document.body.append(panel.root);
-    const width = getByLabelText(panel.root, 'Width (m)') as HTMLInputElement;
-    const slider = getByLabelText(panel.root, 'Width (m) slider') as HTMLInputElement;
+    const width = getByLabelText(panel.root, 'Width') as HTMLInputElement;
+    const slider = getByLabelText(panel.root, 'Width slider') as HTMLInputElement;
     await userEvent.clear(width);
     await userEvent.type(width, '0');
     expect(getByRole(panel.root, 'alert').textContent).toContain('greater than zero');
@@ -221,14 +206,10 @@ describe('ParamsPanel', () => {
     const generatedSeed = seed.value;
     const footprint = getByRole(panel.root, 'combobox', { name: 'Building footprint' }) as HTMLSelectElement;
     await userEvent.selectOptions(footprint, 'parcel');
-    await userEvent.click(getByRole(panel.root, 'button', { name: 'Compact' }));
+    await userEvent.selectOptions(getByRole(panel.root, 'combobox', { name: 'Template' }), 'compact');
     expect(seed.value).toBe(generatedSeed);
-    expect((getByLabelText(panel.root, 'Width (m)') as HTMLInputElement).value).toBe('600');
+    expect((getByLabelText(panel.root, 'Width') as HTMLInputElement).value).toBe('600');
     expect((getByLabelText(panel.root, 'Highways') as HTMLInputElement).checked).toBe(false);
-    expect(footprint.value).toBe('rectangle');
-    await userEvent.selectOptions(footprint, 'parcel');
-    await userEvent.click(getByRole(panel.root, 'button', { name: 'Reset' }));
-    expect(seed.value).toBe('urbe');
     expect(footprint.value).toBe('rectangle');
   });
 
@@ -257,7 +238,7 @@ describe('MapView', () => {
   });
 
   it('selects a map feature from a click', async () => {
-    const blueprint = generateCity(SMALL);
+    const blueprint = selectionBlueprint();
     const selected = vi.fn();
     const view = new MapView(selected);
     document.body.append(view.canvas);
@@ -265,31 +246,30 @@ describe('MapView', () => {
     view.resize(CANVAS, CANVAS);
     await userEvent.click(view.canvas);
     expect(selected).not.toHaveBeenCalled();
-    await inspectUntil(view.canvas, () => selected.mock.calls.length > 0);
-    expect(selected).toHaveBeenCalled();
-    expect(['parcel', 'street', 'station']).toContain(selected.mock.calls[0][0].kind);
+    await userEvent.pointer({ target: view.canvas, coords: { clientX: 300, clientY: 300 }, keys: '[MouseLeft]' });
+    expect(selected).toHaveBeenCalledWith({ kind: 'parcel', parcel: blueprint.parcels[0] });
   });
 
-  it('removes shell parcels from hit testing when the interiors-only filter is active', () => {
-    const blueprint = generateCity(SMALL);
-    const view = new MapView();
-    const target = blueprint.parcels[0];
+  it('removes shell parcels from hit testing when the interiors-only filter is active', async () => {
+    const blueprint = selectionBlueprint();
+    const selected = vi.fn();
+    const view = new MapView(selected);
+    document.body.append(view.canvas);
     view.setBlueprint(blueprint);
+    view.resize(CANVAS, CANVAS);
+    const target = blueprint.parcels[0];
     view.setInteriorParcels([target.id]);
-    const filters = Object.fromEntries(Object.keys(defaultFilters()).map((key) => [key, false])) as ReturnType<typeof defaultFilters>;
-    filters[`zone.${target.type}`] = true;
-    filters.interiorsOnly = true;
-    view.setFilters(filters);
-    const centre = target.lot.reduce<[number, number]>((sum, point) => [sum[0] + point[0], sum[1] + point[1]], [0, 0])
-      .map((value) => value / target.lot.length) as [number, number];
-    const featureAt = (view as unknown as { featureAt(point: [number, number]): { kind: string; parcel?: { id: string } } | null }).featureAt.bind(view);
-    expect(featureAt(centre)?.parcel?.id).toBe(target.id);
+    view.setFilters({ ...defaultFilters(), interiorsOnly: true });
+    await userEvent.pointer({ target: view.canvas, coords: { clientX: 300, clientY: 300 }, keys: '[MouseLeft]' });
+    expect(selected).toHaveBeenCalledWith({ kind: 'parcel', parcel: target });
+    selected.mockClear();
     view.setInteriorParcels([]);
-    expect(featureAt(centre)).toBeNull();
+    await userEvent.pointer({ target: view.canvas, coords: { clientX: 300, clientY: 300 }, keys: '[MouseLeft]' });
+    expect(selected).not.toHaveBeenCalled();
   });
 
   it('draws the exact water surface and shoreline band on independent layers', () => {
-    const blueprint = generateCity({ seed: 'flat-water', size: { width: 600, depth: 600 }, hydrology: { type: 'lagoon' } });
+    const blueprint = renderBlueprint();
     const view = new MapView();
     vi.spyOn(view.canvas, 'getContext').mockReturnValue({
       fillRect: vi.fn(), beginPath: vi.fn(), moveTo: vi.fn(), lineTo: vi.fn(), closePath: vi.fn(),
@@ -308,7 +288,7 @@ describe('MapView', () => {
 
 describe('3D street surfaces', () => {
   it('clips the reported city street classes to disjoint roadway regions', () => {
-    const blueprint = generateCity({ seed: 'urbe', size: { width: 1000, depth: 1000 } });
+    const blueprint = renderBlueprint();
     const regions = streetSurfaceRegions(blueprint);
     const roadway = blueprint.volumetric.ground
       .filter((surface) => surface.surface === 'roadway')
@@ -324,7 +304,7 @@ describe('PreviewApp', () => {
   it('defers 3D geometry until that view is selected', async () => {
     const built3d = vi.spyOn(Map3DView.prototype, 'setBlueprint');
     const app = await mount();
-    await app.loadBlueprint(generateCity(SMALL));
+    await app.loadBlueprint(selectionBlueprint());
     expect(built3d).not.toHaveBeenCalled();
     app.setMode('3d');
     expect(built3d).toHaveBeenCalledTimes(1);
@@ -334,7 +314,7 @@ describe('PreviewApp', () => {
   it('builds the published 3D systems without invalid geometry', () => {
     const error = vi.spyOn(console, 'error').mockImplementation(() => undefined);
     const view = new Map3DView();
-    const blueprint = generateCity({ seed: 'urbe', size: { width: 1000, depth: 1000 } });
+    const blueprint = renderBlueprint();
     expect(blueprint.transit.trainStations.length).toBeGreaterThan(0);
     expect(blueprint.transit.subwayStations.length).toBeGreaterThan(0);
     view.setBlueprint(blueprint);
@@ -361,7 +341,7 @@ describe('PreviewApp', () => {
 
   it('builds exact water and shoreline meshes and applies their visibility switches', () => {
     const view = new Map3DView();
-    const blueprint = generateCity({ seed: 'three-water', size: { width: 600, depth: 600 }, hydrology: { type: 'river' } });
+    const blueprint = renderBlueprint();
     view.setBlueprint(blueprint);
     const layers = (view as unknown as { layers: Map<string, THREE.Group> }).layers;
     expect(layers.get('hydrology.water')?.getObjectByName('water.river')).toBeTruthy();
@@ -373,7 +353,7 @@ describe('PreviewApp', () => {
 
   it('shows only assembled interior building batches in the 3D constraint', () => {
     const view = new Map3DView();
-    const blueprint = generateCity(SMALL);
+    const blueprint = selectionBlueprint();
     const interiorId = blueprint.volumetric.buildings[0].parcelId;
     view.setBlueprint(blueprint);
     view.setInteriorParcels([interiorId]);
@@ -388,7 +368,7 @@ describe('PreviewApp', () => {
 
   it('inserts highway profile breakpoints into a 3D deck', () => {
     const view = new Map3DView();
-    const blueprint = generateCity({ seed: 'profile-preview', size: { width: 1000, depth: 1000 } });
+    const blueprint = renderBlueprint();
     const structure = blueprint.streets.highwayStructures[0];
     expect(structure).toBeTruthy();
     structure.path = [[0, 0], [20, 0]];
@@ -417,7 +397,7 @@ describe('PreviewApp', () => {
 
   it('shares one miter across the deck, barriers and underside at a highway corner', () => {
     const view = new Map3DView();
-    const blueprint = generateCity({ seed: 'corner-preview', size: { width: 1000, depth: 1000 } });
+    const blueprint = renderBlueprint();
     const structure = blueprint.streets.highwayStructures[0];
     structure.path = [[0, 0], [20, 0], [20, 20]];
     structure.elevationProfile = [{ distance: 0, level: 8 }, { distance: 40, level: 8 }];
@@ -461,91 +441,12 @@ describe('PreviewApp', () => {
   it('surfaces parameter validation failure before contacting the service', async () => {
     const app = await mount();
     await app.generate({ seed: 'invalid', size: { width: -1, depth: 100 } });
-    expect(getByRole(app.root, 'log').textContent).toContain('E_INVALID_PARAMS');
-    expect(fetch).not.toHaveBeenCalled();
+    expect(app.root.querySelector('.workspace-message')!.textContent).toContain('size.width and size.depth must be positive');
+    expect(vi.mocked(fetch).mock.calls.every(([, init]) => init?.method !== 'POST')).toBe(true);
   });
-
-  it('imports a parameter file into the form and refuses a broken one', async () => {
-    const app = await mount();
-    const input = getByLabelText(app.root, 'Parameter file');
-    const streetDesign: AtlasParams['streetDesign'] = {
-      profiles: [{ id: 'wide', classes: ['street'],
-        lanes: [{ direction: 'forward', width: 4 }, { direction: 'backward', width: 4 }],
-        shoulders: { left: 0.25, right: 0.25 } },
-      { id: 'avenue', classes: ['road'],
-        lanes: [{ direction: 'forward', width: 3.5 }, { direction: 'forward', width: 3.5 },
-          { direction: 'backward', width: 3.5 }, { direction: 'backward', width: 3.5 }],
-        shoulders: { left: 0, right: 0 } }],
-      sidewalkProfiles: [{ id: 'walk', curb: 0.15, border: 0.25, furnishing: 1, walking: 3, frontage: 0.6 }],
-      crossings: { pedestrianClearance: 3 },
-    };
-    const pavingDesign: AtlasParams['pavingDesign'] = {
-      defaultLayoutId: 'grid', districtLayouts: [{ districtId: 'd0', layoutId: 'grid' }],
-      layouts: [{ id: 'grid', familyId: 'finish-a',
-        modules: [{ id: 'slab', pitch: [2, 1], joint: [0.012, 0.012] }],
-        bands: {
-          curb: { moduleId: 'slab', borderWidth: 0.1 },
-          border: { moduleId: 'slab', borderWidth: 0.1 },
-          furnishing: { moduleId: 'slab', borderWidth: 0.1 },
-          walking: { moduleId: 'slab', borderWidth: 0.1 },
-          frontage: { moduleId: 'slab', borderWidth: 0.1 },
-        } }],
-    };
-    const params = { seed: 'imported', size: { width: 900, depth: 700 }, features: { alleys: false },
-      footprintShape: 'parcel', streetDesign, pavingDesign, unknownSetting: 'discard' };
-    await userEvent.upload(input, new File([JSON.stringify(params)], 'city.json', { type: 'application/json' }));
-    await waitFor(() => {
-      expect((getByLabelText(app.root, 'Seed') as HTMLInputElement).value, getByRole(app.root, 'log').textContent ?? '').toBe('imported');
-    });
-    expect((getByLabelText(app.root, 'Width (m)') as HTMLInputElement).value).toBe('900');
-    expect((getByLabelText(app.root, 'Alleys') as HTMLInputElement).checked).toBe(false);
-    const footprint = getByRole(app.root, 'combobox', { name: 'Building footprint' }) as HTMLSelectElement;
-    expect(footprint.value).toBe('parcel');
-    expect(getByRole(app.root, 'log').textContent).toContain('city.json');
-
-    const createUrl = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:atlas-params');
-    const revokeUrl = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => undefined);
-    const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined);
-    await userEvent.selectOptions(footprint, 'rectangle');
-    await userEvent.click(getByRole(app.root, 'button', { name: 'Save parameters' }));
-    const saved = JSON.parse(await (createUrl.mock.lastCall![0] as Blob).text());
-    expect(saved.footprintShape).toBe('rectangle');
-    expect(saved.streetDesign).toEqual(streetDesign);
-    expect(saved.pavingDesign).toEqual(pavingDesign);
-    expect(saved).not.toHaveProperty('unknownSetting');
-    createUrl.mockRestore();
-    revokeUrl.mockRestore();
-    click.mockRestore();
-
-    await userEvent.upload(input, new File([JSON.stringify({ seed: 'invalid-shape', footprintShape: 'round' })],
-      'invalid-shape.json', { type: 'application/json' }));
-    await waitFor(() => expect(getByRole(app.root, 'log').textContent)
-      .toContain('invalid-shape.json: footprintShape must be rectangle or parcel'));
-    expect(footprint.value).toBe('rectangle');
-    expect((getByLabelText(app.root, 'Seed') as HTMLInputElement).value).toBe('imported');
-
-    await userEvent.upload(input, new File(['not json'], 'broken.json', { type: 'application/json' }));
-    await waitFor(() => {
-      expect(getByRole(app.root, 'log').textContent).toContain('broken.json: not valid JSON');
-    });
-
-    await userEvent.upload(input, new File([
-      JSON.stringify({ seed: 'invalid', size: { width: -1, depth: 700 } }),
-    ], 'invalid.json', { type: 'application/json' }));
-    await waitFor(() => {
-      expect(getByRole(app.root, 'log').textContent).toContain('invalid.json: size.width and size.depth must be positive');
-    });
-
-    await userEvent.selectOptions(footprint, 'parcel');
-    await userEvent.upload(input, new File([JSON.stringify({ seed: 'default-shape' })],
-      'default-shape.json', { type: 'application/json' }));
-    await waitFor(() => expect((getByLabelText(app.root, 'Seed') as HTMLInputElement).value).toBe('default-shape'));
-    expect(footprint.value).toBe('rectangle');
-  });
-
 
   it('loads exact interior ids from the selected assembled manifest', async () => {
-    const fixture = generateCity(SMALL);
+    const fixture = selectionBlueprint();
     const interiorId = fixture.parcels[0].id;
     const fetchManifest = vi.fn<ManifestFetcher>(async () => ({
       ok: true,
@@ -578,7 +479,7 @@ describe('PreviewApp', () => {
       ok: true,
       json: async () => ({ contractVersion: '1.0.0', interiors: ['p0'] }),
     }));
-    await app.loadBlueprint(generateCity(SMALL));
+    await app.loadBlueprint(selectionBlueprint());
     await waitFor(() => expect(getByText(app.root, 'Assembled interior list unavailable')).toBeTruthy());
     await userEvent.click(getByLabelText(app.root, 'Only buildings with interiors'));
     expect((getByLabelText(app.root, 'Only buildings with interiors') as HTMLInputElement).checked).toBe(true);
@@ -587,8 +488,7 @@ describe('PreviewApp', () => {
   it('uses the dark workspace and exposes generated geometry diagnostics', async () => {
     const app = await mount();
     expect(app.root.dataset.theme).toBe('dark');
-    await app.loadBlueprint(generateCity({ seed: 'diagnostics', size: { width: 1000, depth: 1000 } }));
-    await userEvent.click(getByRole(app.root, 'button', { name: 'View' }));
+    await app.loadBlueprint(renderBlueprint());
     expect(getByText(app.root, 'Blueprint summary')).toBeTruthy();
     expect(getByText(app.root, /runs · \d+ ramps · \d+ supports/)).toBeTruthy();
     expect(getByLabelText(app.root, 'highway centerlines')).toBeTruthy();
@@ -600,50 +500,35 @@ describe('PreviewApp', () => {
     const revokeUrl = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => undefined);
     const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined);
     const app = await mount();
-    const download = getByRole(app.root, 'button', { name: 'Download blueprint' }) as HTMLButtonElement;
+    const download = getByRole(app.root, 'button', { name: 'Download blueprint', hidden: true }) as HTMLButtonElement;
     expect(download.disabled).toBe(true);
-    await app.loadBlueprint(generateCity(SMALL));
+    await app.loadBlueprint(selectionBlueprint());
     expect(download.disabled).toBe(false);
     await userEvent.click(download);
     expect(createUrl).toHaveBeenCalledTimes(1);
     expect(click).toHaveBeenCalledTimes(1);
-    expect(getByRole(app.root, 'log').textContent).toContain('atlas-blueprint-preview.json');
+    expect(JSON.parse(await (createUrl.mock.lastCall![0] as Blob).text())).toEqual(selectionBlueprint());
     createUrl.mockRestore();
     revokeUrl.mockRestore();
     click.mockRestore();
   });
 });
 
-describe('workspace views and view mode', () => {
-  it('keeps Create and View as separate workspaces and selects 3D from the view form', async () => {
+describe('workspace view mode', () => {
+  it('selects 3D from a loaded city and returns to creation through Atlas home', async () => {
     const app = await mount();
-    const creation = getByRole(app.root, 'button', { name: 'Create' });
-    const view = getByRole(app.root, 'button', { name: 'View' });
-    expect(creation.getAttribute('aria-pressed')).toBe('true');
     expect(app.root.querySelector<HTMLElement>('.workspace-visualization')?.hidden).toBe(true);
-
-    await userEvent.click(view);
-    expect(view.getAttribute('aria-pressed')).toBe('true');
-    expect(creation.getAttribute('aria-pressed')).toBe('false');
-    expect(app.root.querySelector<HTMLElement>('.workspace-creation')?.hidden).toBe(true);
-    expect(app.viewMode).toBe('2d');
-
+    await app.loadBlueprint(selectionBlueprint());
     const threeD = getByLabelText(app.root, 'City in 3D');
     await userEvent.click(threeD);
     expect(app.viewMode).toBe('3d');
     expect((threeD as HTMLInputElement).checked).toBe(true);
     expect(app.root.querySelector<HTMLElement>('.map-view-3d')?.hidden).toBe(false);
-
-    const flat = getByLabelText(app.root, 'Flat map');
-    await userEvent.click(flat);
+    await userEvent.click(getByLabelText(app.root, 'Flat map'));
     expect(app.viewMode).toBe('2d');
-    expect((flat as HTMLInputElement).checked).toBe(true);
     expect(app.root.querySelector<HTMLElement>('.map-view')?.hidden).toBe(false);
-
-    await userEvent.click(creation);
+    await userEvent.click(getByRole(app.root, 'link', { name: 'Atlas home' }));
     expect(app.root.querySelector<HTMLElement>('.workspace-creation')?.hidden).toBe(false);
-    await userEvent.click(view);
-    expect(view.getAttribute('aria-pressed')).toBe('true');
-    expect(app.viewMode).toBe('2d');
+    expect(app.root.querySelector<HTMLElement>('.workspace-visualization')?.hidden).toBe(true);
   });
 });

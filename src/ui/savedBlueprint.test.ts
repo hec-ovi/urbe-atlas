@@ -75,25 +75,24 @@ it('rejects malformed nested geometry before either renderer and keeps the loade
   malformed.volumetric.ground[0].polygon = [[0, 0], [1, Number.NaN], [2, 3]];
   await app.loadBlueprint(malformed);
   expect(MapView.prototype.setBlueprint).toHaveBeenCalledTimes(1);
-  expect(getByRole(app.root, 'log').textContent).toContain('blueprint.volumetric.ground[0].polygon[1][1]');
-  await userEvent.click(getByRole(app.root, 'button', { name: 'Create' }));
+  expect(app.root.querySelector('.workspace-message')!.textContent).toContain('blueprint.volumetric.ground[0].polygon[1][1]');
+  await userEvent.click(getByRole(app.root, 'link', { name: 'Atlas home' }));
   expect(getByRole(app.root, 'button', { name: 'Generate city' }).hasAttribute('disabled')).toBe(false);
 });
 
 it('reports unreadable JSON and URL failures without falling back to generation', async () => {
   const app = await mount();
   const user = userEvent.setup();
-  await user.click(getByRole(app.root, 'button', { name: 'View' }));
   await user.upload(getByLabelText(app.root, 'Open saved blueprint'), new File(['{'], 'broken.json', { type: 'application/json' }));
-  await waitFor(() => expect(getByRole(app.root, 'log').textContent).toContain('broken.json:'));
+  await waitFor(() => expect(app.root.querySelector('.workspace-message')!.textContent).toContain('broken.json:'));
   const generation = vi.spyOn(app, 'generate');
   const fetcher = vi.fn(async (_url: string) => ({ ok: false, status: 404, json: async () => ({}) }));
   vi.stubGlobal('fetch', fetcher);
   await startPreview(app, '?blueprint=https://other.example/city.json');
   expect(fetcher.mock.calls.every(([url]) => url === '/api/cities')).toBe(true);
-  expect(getByRole(app.root, 'log').textContent).toContain('must use this preview origin');
+  expect(app.root.querySelector('.workspace-message')!.textContent).toContain('must use this preview origin');
   await startPreview(app, '?blueprint=/missing.json');
-  expect(getByRole(app.root, 'log').textContent).toContain('404');
+  expect(app.root.querySelector('.workspace-message')!.textContent).toContain('404');
   expect(generation).not.toHaveBeenCalled();
   expect(MapView.prototype.setBlueprint).not.toHaveBeenCalled();
 });
