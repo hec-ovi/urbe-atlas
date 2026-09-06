@@ -1,6 +1,6 @@
 # Box map
 
-- src/cities: backend blueprint jobs, persistent saved-city catalog, city delete, and workspace form documents. src/cities/CONTRACT.md. Depends on the root generator; the preview server mounts its HTTP handler.
+- src/cities: backend blueprint jobs with stage progress and worker cancellation, persistent city catalog and workspace form documents. Input/output: `src/cities/schema.ts`, forms: `src/cities/forms/schema.ts`. src/cities/CONTRACT.md. Depends on the root generator; the preview server mounts its HTTP handler.
 
 - src/streets/crossings/intervals: safe full-footprint station ranges, complete coordinate coverage and shared source-edge subdivisions. src/streets/crossings/intervals/CONTRACT.md. Depends on geometry, exact source partition and street construction.
 
@@ -8,7 +8,7 @@
 
 - src/streets/construction/corridors: exact edge-local roadway, sidewalk and walking query data for consumer conformance. src/streets/construction/corridors/CONTRACT.md. Depends on street construction and geometry; final ground owns rendering and collision.
 
-- src/geom/partition: source-preserving ownership, exact edge construction, tight coordinate diagnostics, protected cells and coverage certificates. src/geom/partition/CONTRACT.md. Depends on Atlas coordinates/errors and the existing Three.js triangulator.
+- src/geom/partition: indexed ownership, reusable prepared exact masks, edge construction, coordinate diagnostics and coverage certificates. src/geom/partition/CONTRACT.md. Depends on Atlas coordinates/errors and the existing Three.js triangulator.
 
 - src/geom/partition/published: independent saved-ground coverage and shared numeric incidence. src/geom/partition/published/CONTRACT.md. Depends on the exact partition kernel and Atlas coordinates/errors.
 
@@ -25,10 +25,10 @@
 - src/streets/construction/paving: shared-source fitted slabs, integer group offsets, curb stations and saved ownership validation. src/streets/construction/paving/CONTRACT.md. Depends on street construction, crossing construction, exact partition and published coverage; finish settings come from the caller.
 
 - src/geom: polygon operations, exact contacts, complete coverage and numeric-view diagnostics. src/geom/CONTRACT.md. Depends on root Atlas coordinates, source-partition support enclosures and the existing integer clipping library.
-- atlas (root): city blueprint, exact world-axis regular streets, checked street capabilities and retained source-owned ground. CONTRACT.md, schemas in schema/, generator in src/, reusable CLI at dist/cli.mjs. Depends on street domain, geometry, grade datum, exact source partition and Highway envelopes; mirrors the Interior core-feasibility and Exterior floor-constant contracts.
+- atlas (root): city blueprint, exact world-axis regular streets, checked street capabilities and retained source-owned ground. CONTRACT.md, schemas in schema/, generator in src/, optional stage progress in `schema/progress.ts`, reusable CLI at dist/cli.mjs. Depends on street domain, geometry, grade datum, exact source partition and Highway envelopes; mirrors the Interior core-feasibility and Exterior floor-constant contracts.
   - `JunctionGround`: shared beveled gutter, curb and paved returns plus original-arm fitting fields and corner transition supports; uses original contacts, Datum roles and run stations through the retained ground partition. Root CONTRACT and `schema/junction-ground.ts`.
 - src/hydro: deterministic water, shoreline bands, land exclusions and exact bridge/tunnel contact reservations. src/hydro/CONTRACT.md. Depends on the root blueprint, geometry, errors and street construction corridors.
-- src/ui: separate Create and View workspaces rendered from catalog form documents, city list with delete, 2D/3D inspection and explicit exterior builds. src/ui/CONTRACT.md. Depends on the city catalog, root blueprint, fitted paving and Engine exterior/manifest contracts.
+- src/ui: URL-selected creation and city inspection, template dropdown, blocking generation progress and cancellation. Input: `src/cities/forms/schema.ts`, jobs: `src/cities/schema.ts`, output: mounted DOM and component events. src/ui/CONTRACT.md. Depends on the city catalog, root blueprint, fitted paving and Engine exterior/manifest contracts.
 - src/zoning: district population forecasts, use eligibility and complete rectangular or lot-following footprints on the published building grid. src/zoning/CONTRACT.md. Depends on Atlas geometry and mirrored Interior core feasibility; Buildability consumes its hosting policy.
 - src/transit: bus service and early rail plans with full sidewalk-connected subway bays. src/transit/CONTRACT.md. Depends on street construction and zoning capacity; reservations/ owns entrance land geometry.
 - src/streets/construction: road profiles and normalized per-side curb, gutter and paved dimensions before parcels. src/streets/construction/CONTRACT.md. Depends on the Atlas graph, geometry and district contracts; corridor format support governs production reservations.

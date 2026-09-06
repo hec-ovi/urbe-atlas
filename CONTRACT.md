@@ -11,7 +11,9 @@ Status: package v0.4.0, blueprint v0.17.0. Breaking changes go through the orche
 - IDs: deterministic strings with a disjoint prefix per collection: `d` district, `n` street node, `e` street edge, `b` block, `p` parcel, `bs` bus stop, `br` bus route, `ts` train station, `tl` train line, `ss` subway station, `sl` subway line, `w` water body, `sh` shoreline and `ws` water structure.
 
 ## In
-`generateCity(params: AtlasParams): CityBlueprint`
+`generateCity(params: AtlasParams, onProgress?: ProgressObserver): CityBlueprint`
+
+The optional observer receives completed pipeline stages and the current phase, [schema/progress.ts](schema/progress.ts). Counts measure completed stages, not elapsed time; serialized worker results complete the final stage. The blueprint and deterministic geometry are unchanged by observation.
 
 Params: [schema/params.ts](schema/params.ts). Only `seed` is required; every other field has a documented default (size, irregularity, district count range, max floors global and per district kind, wealth tier weights, feature toggles for highways, trains, subways, alleys, air and underground tunnels). `hydrology: { type }` optionally selects `lagoon`, `river`, or `sea-coast`; omission means no water and adds no output field.
 `streetDesign` supplies numeric road and sidewalk profiles, [src/streets/construction/schema/design.ts](src/streets/construction/schema/design.ts). Omission selects 7, 14 and 21 m ground roadways and 3, 4.5, 6.5 and 8.5 m sidewalk profiles. Profiles are selected before land subdivision.

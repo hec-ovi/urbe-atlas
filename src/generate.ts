@@ -12,6 +12,7 @@ import type {
   Vec2,
 } from '../schema/blueprint';
 import type { AtlasParams, DistrictKind } from '../schema/params';
+import type { ProgressObserver } from '../schema/progress';
 import { Rng } from './core/rng';
 import { resolveParams } from './params/defaults';
 import { CityConstructionSupport } from './CityConstructionSupport';
@@ -63,11 +64,14 @@ const SUBDIVISION: Record<DistrictKind, SubdivisionConfig> = {
   mixed: { minLotArea: 300, maxLotArea: 1900, chanceNoDivide: 0.12 },
 };
 
-export function generateCity(input: AtlasParams): CityBlueprint {
+export function generateCity(input: AtlasParams, onProgress?: ProgressObserver): CityBlueprint {
+  const progress = (completed: number, phase: string) => onProgress?.({ completed, total: 13, phase });
+  progress(0, 'Checking settings');
   const params = resolveParams(input);
   CityConstructionSupport.assert(params.streetDesign);
   const seed = String(params.seed);
 
+  progress(1, 'Planning city');
   // --- boundary, districts, streets -------------------------------------
   const boundary = CityBoundary.generate(Rng.from(seed, 'boundary'), params.size, params.irregularity);
   const plannedHydrology = planHydrology({ seed, size: params.size, boundary, config: params.hydrology });
@@ -100,6 +104,7 @@ export function generateCity(input: AtlasParams): CityBlueprint {
     return best;
   };
 
+  progress(2, 'Building street network');
   // --- street graph, then the alleys cut into its long blocks ------------
   // An alley crosses the buildable land of a block, so the graph is built
   // twice: once to read those blocks, once with the alleys inside it, which
@@ -152,6 +157,7 @@ export function generateCity(input: AtlasParams): CityBlueprint {
   // promoted before widths, blocks and parcels are derived.
   if (params.features.highways) ensureUsableHighway(graph.edges, graph.nodes, boundary);
 
+  progress(3, 'Constructing street surfaces');
   // --- street edges with widths and districts ---------------------------
   const streetPlan = sectionsOf(graph);
   const edgeDistrict = new Map<string, number>();
@@ -207,6 +213,7 @@ export function generateCity(input: AtlasParams): CityBlueprint {
       })
     : undefined;
 
+  progress(4, 'Building blocks');
   // --- blocks -----------------------------------------------------------
   // An alley has no carriageway to carve out: the sidewalk rings of the two
   // blocks it separates meet at its centerline and are the whole alley, so
@@ -230,6 +237,7 @@ export function generateCity(input: AtlasParams): CityBlueprint {
     Rng.from(seed, 'curbs'),
   );
 
+  progress(5, 'Placing buildings');
   // --- parcels ----------------------------------------------------------
   const lotRng = Rng.from(seed, 'parcels');
   interface RawLot {
@@ -385,6 +393,7 @@ export function generateCity(input: AtlasParams): CityBlueprint {
     maxFloors: d.maxFloors,
   }));
 
+  progress(6, 'Planning transit');
   // --- transit -----------------------------------------------------------
   const population = zonedParcels.reduce((s, z) => s + z.residents, 0);
   const transit = planner.plan({
@@ -401,7 +410,9 @@ export function generateCity(input: AtlasParams): CityBlueprint {
   pruneUnusedStops(transit.busStops, transit.busRoutes.flatMap((r) => r.stopIds));
   if (waterSurfaces.length > 0) pruneWaterStops(transit, waterSurfaces);
 
+  progress(7, 'Constructing ground');
   // --- crossings, ground, volumetric -------------------------------------
+  progress(8, 'Proving pedestrian crossings');
   const crossings = Crossings.build(graph.nodes, streetEdges);
   const streetNodes = streetNodesWithConnections(graph.nodes, streetEdges);
   const signals = Signals.build(streetNodes, streetEdges);
@@ -471,6 +482,7 @@ export function generateCity(input: AtlasParams): CityBlueprint {
     ...transit.subwayLines.map((line) => ({ network: 'subway' as const, refId: line.id, path: line.path, width: line.width, level: line.level })),
   ]);
 
+  progress(9, 'Assembling blueprint');
   // --- stats --------------------------------------------------------------
   const emptyCounts = (): Record<string, number> =>
     Object.fromEntries(
@@ -520,7 +532,10 @@ export function generateCity(input: AtlasParams): CityBlueprint {
     },
   };
 
+  progress(10, 'Validating city');
   Invariants.check(blueprint);
+  progress(11, 'Fitting paving');
+  progress(12, 'Serializing blueprint');
   return blueprint;
 }
 
