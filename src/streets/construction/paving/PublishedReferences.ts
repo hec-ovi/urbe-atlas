@@ -22,7 +22,7 @@ function table<T extends { id: string }>(values: T[], name: string): Map<string,
 }
 
 export class PublishedReferences {
-  readonly construction: Extract<PavingConstruction, { version: '1.1.0' }>;
+  readonly construction: Extract<PavingConstruction, { version: '1.1.0' | '1.2.0' }>;
   readonly layouts: Map<string, PavingLayout>;
   readonly frames: Map<string, PavingFrame>;
   readonly regions: Map<string, PavingRegion>;
@@ -31,8 +31,8 @@ export class PublishedReferences {
 
   constructor(private readonly city: PublishedPavingInput) {
     const construction = city?.streets?.construction?.paving;
-    if (!construction || construction.version !== '1.1.0') {
-      throw invariantFailure('published paving requires fitted construction version 1.1.0');
+    if (!construction || construction.version !== '1.1.0' && construction.version !== '1.2.0') {
+      throw invariantFailure('published paving requires fitted construction version 1.1.0 or 1.2.0');
     }
     this.construction = construction;
     this.layouts = table(construction.layouts, 'layouts');

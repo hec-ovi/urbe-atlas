@@ -3,7 +3,7 @@ import type { Field } from './Ownership';
 import type { PavingConstruction, PavingDesign, PavingFrame, PavingLayout, PavingRegion } from './schema';
 
 export class Regions {
-  readonly construction: Extract<PavingConstruction, { version: '1.1.0' }>;
+  readonly construction: Extract<PavingConstruction, { version: '1.1.0' | '1.2.0' }>;
   private readonly layouts: Map<string, PavingLayout>;
   private readonly frames = new Map<string, PavingFrame>();
   private readonly regions = new Map<string, PavingRegion & { sourceId: string }>();

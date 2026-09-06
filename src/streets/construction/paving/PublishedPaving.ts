@@ -18,7 +18,7 @@ export class PublishedPaving {
     for (const ground of city.volumetric.ground) {
       const region = references.ground(ground);
       if (region) PublishedCells.validate(ground, region, references.layouts.get(region.layoutId)!,
-        references.frames.get(region.frameId)!);
+        references.frames.get(region.frameId)!, references.construction.version);
     }
     references.complete();
     verifyPublishedCover({ boundary: city.meta.boundary, exclusions,

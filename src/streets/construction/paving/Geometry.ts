@@ -55,16 +55,19 @@ export function corner(frame: PavingFrame, module: PavingModule, column: number,
   ];
 }
 
-export function cell(frame: PavingFrame, module: PavingModule, column: number, row: number): Polygon {
-  return outline(frame, module, column, column + 1, row, row + 1);
+export function cell(frame: PavingFrame, module: PavingModule, column: number, row: number, baseOffset: Vec2 = [0, 0]): Polygon {
+  return outline(frame, module, column, column + 1, row, row + 1, baseOffset);
 }
 
-export function outline(frame: PavingFrame, module: PavingModule, left: number, right: number, bottom: number, top: number): Polygon {
+export function outline(frame: PavingFrame, module: PavingModule, left: number, right: number, bottom: number, top: number,
+  baseOffset: Vec2 = [0, 0]): Polygon {
   const u = module.baseCells?.[0] ?? 1, v = module.baseCells?.[1] ?? 1;
+  const firstColumn = left * u + baseOffset[0], lastColumn = right * u + baseOffset[0];
+  const firstRow = bottom * v + baseOffset[1], lastRow = top * v + baseOffset[1];
   const points: Vec2[] = [];
-  for (let column = left * u; column < right * u; column++) points.push(corner(frame, module, column, bottom * v));
-  for (let row = bottom * v; row < top * v; row++) points.push(corner(frame, module, right * u, row));
-  for (let column = right * u; column > left * u; column--) points.push(corner(frame, module, column, top * v));
-  for (let row = top * v; row > bottom * v; row--) points.push(corner(frame, module, left * u, row));
+  for (let column = firstColumn; column < lastColumn; column++) points.push(corner(frame, module, column, firstRow));
+  for (let row = firstRow; row < lastRow; row++) points.push(corner(frame, module, lastColumn, row));
+  for (let column = lastColumn; column > firstColumn; column--) points.push(corner(frame, module, column, lastRow));
+  for (let row = lastRow; row > firstRow; row--) points.push(corner(frame, module, firstColumn, row));
   return points;
 }

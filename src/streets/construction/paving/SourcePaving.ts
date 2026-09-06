@@ -3,7 +3,7 @@ import { offset } from '../../../geom/clip';
 import type { SourcePartition } from '../../../geom/partition/SourcePartition';
 import type { PartitionClaim, PartitionEncoding } from '../../../geom/partition/schema';
 import { Cells } from './Cells';
-import { acceptsGroup } from './Grouping';
+import { acceptsGroup, groupBaseOffset } from './Grouping';
 import { bounds, overlaps, type Bounds } from './Geometry';
 import { Ownership, type Field } from './Ownership';
 import { Regions } from './Regions';
@@ -88,11 +88,13 @@ export class SourcePaving {
         const accepts = grouping && candidate === grouping.module
           ? (column: number, row: number) => acceptsGroup(candidate, grouping.setting, column, row) : undefined;
         const cells = Cells.select(this.partition.boundaries(coreId), frame, candidate,
-          polygon => this.partition.covers(coreId, polygon, { encoding: this.encoding('authored-1mm') }), accepts);
+          polygon => this.partition.covers(coreId, polygon, { encoding: this.encoding('authored-1mm') }), accepts,
+          grouping && candidate === grouping.module ? groupBaseOffset(candidate, grouping.setting) : undefined);
         for (const cell of cells) {
           const id = this.id();
           this.partition.reserve(coreId, { id, polygon: cell.polygon, encoding: this.encoding('authored-1mm') });
           this.metadata.set(id, { regionId: region.id, part: cell.part });
+          if (cell.part.baseOffset) this.regions.construction.version = '1.2.0';
         }
       }
       if (region.band === 'curb') {

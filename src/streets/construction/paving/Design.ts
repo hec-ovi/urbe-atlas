@@ -53,7 +53,7 @@ export function resolvePavingDesign(input: unknown): PavingDesign {
               || group.joint[axis] !== module.joint[axis] || !Number.isSafeInteger(grouping.period[axis])
               || grouping.period[axis] < count || grouping.period[axis] % count !== 0
               || !Number.isSafeInteger(grouping.offset[axis]) || grouping.offset[axis] < 0
-              || grouping.offset[axis] >= grouping.period[axis] || grouping.offset[axis] % count !== 0;
+              || grouping.offset[axis] >= grouping.period[axis] || grouping.offset[axis] % base !== 0;
           }) || [0, 1].every(axis => (group.baseCells?.[axis] ?? 1) === (module.baseCells?.[axis] ?? 1))) {
           throw invalidParams(`paving layout ${layout.id} ${band} grouping needs aligned whole groups on the same base lattice`);
         }

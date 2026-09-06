@@ -15,7 +15,7 @@ Data shapes: [schema.ts](schema.ts). Producer shapes: [producer-schema.ts](produ
 - Optional `PavingDesign.roadwayLayoutId` selects the continuous roadway finish; omission selects `defaultLayoutId`. Modern construction publishes the resolved `roadwayLayoutId`. Roadway consumers use that layout's family without choosing a nearby region or seeded fallback.
 - `StreetConstruction.paving` carries the selected layouts, frames and regions. Each region names its run, junction or station-bay owner, layout, frame and functional band.
 - `GroundSurface.construction` references a region and either complete integer cell spans or one explicit solid role. `GroundSurface.polygon` remains the only render/collision owner polygon. Root ground `surface`, `bottom` and `top` remain authoritative.
-- Modern fitted output is `1.1.0`. Its geometry-free `sources` records retain curb/sidewalk source identity, surface and levels; every region references one `sourceId`. Sources, frames and regions are all used. The `1.0.0` data shape remains readable, but the strict persisted validator requires modern fitted data. Unfitted legacy city validation belongs to the caller.
+- Modern fitted output is `1.1.0`, or `1.2.0` when a grid uses a nonzero base-cell offset. Its geometry-free `sources` records retain curb/sidewalk source identity, surface and levels; every region references one `sourceId`. Sources, frames and regions are all used. The `1.0.0` data shape remains readable, but the strict persisted validator requires modern fitted data. Consumers must support `1.2.0` before expanding offset groups. Unfitted legacy city validation belongs to the caller.
 
 ## Invariants
 
@@ -42,8 +42,9 @@ Data shapes: [schema.ts](schema.ts). Producer shapes: [producer-schema.ts](produ
 ## Integer grouping
 
 - `PavingModule.pitch` is the complete slab footprint. Optional integer `baseCells` divides it into the shared base lattice; omission means `[1, 1]`. Each base pitch is at least 1 mm and each joint is smaller than its base pitch.
-- A band's optional `grouping` selects another module using integer base-cell `period` and `offset`. Both dimensions of its period contain whole groups, and its offset aligns with group boundaries. The group and base module share base pitches and joints. A group is emitted only when every base cell fits; otherwise base slabs and explicit residual owners remain.
-- For group column `c`, row `r` and local base indices `i`, `j`, evaluate `du = (c * baseCells[0] + i) * (pitch[0] / baseCells[0])` and `dv = (r * baseCells[1] + j) * (pitch[1] / baseCells[1])`, then use the coordinate formula below. The group perimeter retains every canonical base-cell corner.
+- A band's optional `grouping` selects another module using integer base-cell `period` and `offset`. Both dimensions of its period contain whole groups; its offset aligns with base slabs. The group and base module share base pitches and joints. A group is emitted only when every base cell fits; otherwise base slabs and explicit residual owners remain.
+- A grid's optional `baseOffset` is an integer base-cell translation, default `[0, 0]`. Group offsets equal the band's grouping offset modulo the group's base-cell count; base slabs use zero. Nonzero offsets require `1.2.0`. A full 4 m walking band can use period `[2, 4]`, offset `[0, 1]` for 1 + 2 + 1 m rows; a 6 m band uses `[2, 2]`, `[0, 0]` for 2 + 2 + 2 m rows, both with zero perimeter width.
+- For group column `c`, row `r` and local base indices `i`, `j`, evaluate `du = (c * baseCells[0] + baseOffset[0] + i) * (pitch[0] / baseCells[0])` and `dv = (r * baseCells[1] + baseOffset[1] + j) * (pitch[1] / baseCells[1])`, then use the coordinate formula below. The group perimeter retains every canonical base-cell corner.
 - Consumers expand each group into those base quads. Only the outside group edges carry joint strips; internal base edges meet as body material with no center joint. Texture UV scale is independent of base pitch, group pitch and joint geometry. Consumers use the published group module and spans without inferring merges.
 
 ## Cell expansion

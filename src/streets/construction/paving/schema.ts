@@ -76,6 +76,8 @@ export interface GroundConstruction {
     | {
       kind: 'grid';
       moduleId: string;
+      /** Integer base-cell translation. Omission is [0, 0]; nonzero requires 1.2.0. */
+      baseOffset?: [number, number];
       /** Sorted disjoint row spans, from inclusive and to exclusive. */
       cells: { row: number; from: number; to: number }[];
     }
@@ -88,7 +90,14 @@ interface PavingConstructionData {
   frames: PavingFrame[];
 }
 
+interface FittedPavingData {
+  roadwayLayoutId: string;
+  sources: PavingSource[];
+  regions: (PavingRegion & { sourceId: string })[];
+}
+
 export type PavingConstruction = PavingConstructionData & (
   | { version: '1.0.0'; regions: PavingRegion[] }
-  | { version: '1.1.0'; roadwayLayoutId: string; sources: PavingSource[]; regions: (PavingRegion & { sourceId: string })[] }
+  | ({ version: '1.1.0' } & FittedPavingData)
+  | ({ version: '1.2.0' } & FittedPavingData)
 );
