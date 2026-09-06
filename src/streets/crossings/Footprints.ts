@@ -51,6 +51,7 @@ export class CrossingFrame {
 
 export class FootprintIndex {
   private readonly entries: { polygon: Polygon; bounds: Bounds }[];
+  private prepared?: FootprintRegions;
   constructor(polygons: readonly Polygon[]) {
     this.entries = polygons.map((polygon) => ({ polygon, bounds: bounds(polygon) }));
   }
@@ -59,8 +60,11 @@ export class FootprintIndex {
     const neighborhood: Bounds = [target[0] - GRID_STEP, target[1] - GRID_STEP, target[2] + GRID_STEP, target[3] + GRID_STEP];
     return this.entries.filter((entry) => overlaps(neighborhood, entry.bounds)).map((entry) => entry.polygon);
   }
+  get regions(): FootprintRegions {
+    return this.prepared ??= new FootprintRegions(this.entries.map(entry => entry.polygon));
+  }
   covers(polygon: Polygon): boolean {
-    return FootprintRegions.covers(polygon, this.near(polygon));
+    return this.regions.covers(polygon);
   }
   intersects(polygon: Polygon): boolean {
     return hasInteriorBeyondPrecision(FootprintRegions.inside(polygon, this.near(polygon)));

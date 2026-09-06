@@ -4,21 +4,17 @@ import { isCrossingArm } from './Eligibility';
 import { approachGeometry } from './ApproachGeometry';
 import { CROSSING_DIMENSIONS, CrossingFrame, FootprintIndex } from './Footprints';
 import { ContactDomains } from './ContactDomains';
-import { Traffic } from './Traffic';
+import { CrossingFields } from './CrossingFields';
 import type { CrossingInput, CrossingValidationPlan, JunctionApproach, SourceContactPlan } from './schema';
 
 export function validateCrossingPlan(input: CrossingInput, plan: CrossingValidationPlan,
-  contacts: SourceContactPlan = ContactDomains.plan(input)): void {
+  contacts: SourceContactPlan = ContactDomains.plan(input), fieldInputs: CrossingFields = new CrossingFields(input)): void {
   const fail = (message: string, details?: Record<string, unknown>): never => { throw invariantFailure(`crossing construction ${message}`, details); };
   const groups = new Map(contacts.domains.flatMap(domain => domain.groups.map(group => [group.id, group] as const)));
   const edges = new Map(input.edges.map((e) => [e.id, e]));
-  const reservations = new Map(input.reservations.edges.map((e) => [e.edgeId, e]));
+  const reservations = fieldInputs.reservations;
   const roads = input.edges.filter(isCrossingArm);
-  const traffic = new Traffic(input).byEdge;
-  const roadway = new FootprintIndex(input.ground.filter((g) => g.surface === 'roadway').map((g) => g.polygon));
-  const pavement = new FootprintIndex(input.ground.filter((g) => g.surface === 'curb' || g.surface === 'sidewalk').map((g) => g.polygon));
-  const crossingGround = new FootprintIndex(input.ground.filter((g) => ['roadway', 'curb', 'sidewalk'].includes(g.surface)).map((g) => g.polygon));
-  const obstacles = new FootprintIndex(input.obstacles ?? []);
+  const { roadway, pavement, crossingGround, obstacles } = fieldInputs;
   const groupOwners = new Map<string, string>();
   const usedJunctions = new Set<string>();
   const usedSegments = new Set<string>();
@@ -57,7 +53,7 @@ export function validateCrossingPlan(input: CrossingInput, plan: CrossingValidat
       usedSegments.add(`${junction.id}:${approach.nodeId}:${approach.edgeId}`);
       verifyGeometry(edge!, approach, segment[0]);
       const own = reservations.get(edge!.id);
-      const ownRoad = new FootprintIndex(traffic.get(edge!.id) ?? []);
+      const ownRoad = fieldInputs.ownRoad(edge!.id);
       if (!own || !roadway.covers(approach.field) || !ownRoad.covers(approach.field)) fail('field leaves its grade carriageway', {
         key, field: approach.field, distance: approach.distance,
         ownsGround: roadway.covers(approach.field), ownsSource: ownRoad.covers(approach.field),
@@ -65,9 +61,9 @@ export function validateCrossingPlan(input: CrossingInput, plan: CrossingValidat
       if (!crossingGround.covers(approach.landings.left) || !crossingGround.covers(approach.landings.right)) fail('connector leaves crossing ground', { key });
       for (const side of ['left', 'right'] as const) {
         if (!pavement.covers(approach.walkingLandings[side])
-          || !new FootprintIndex(own!.sides[side].walking).covers(approach.walkingLandings[side])) fail('terminal leaves its pedestrian walking band', { key, side });
+          || !fieldInputs.walking(edge!.id, side).covers(approach.walkingLandings[side])) fail('terminal leaves its pedestrian walking band', { key, side });
       }
-      const otherRoads = new FootprintIndex([...traffic].filter(([id]) => id !== edge!.id).flatMap(([, polygons]) => polygons));
+      const otherRoads = fieldInputs.foreignRoads(edge!.id);
       if (otherRoads.overlapsArea(approach.field)) fail('field enters intersecting traffic', { key, field: approach.field });
       for (const polygon of [approach.field, approach.landings.left, approach.landings.right, approach.walkingLandings.left, approach.walkingLandings.right]) {
         if (obstacles.intersects(polygon) || (polygon !== approach.field && otherRoads.intersects(polygon))) {

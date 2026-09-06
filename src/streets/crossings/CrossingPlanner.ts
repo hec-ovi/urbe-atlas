@@ -5,6 +5,7 @@ import { Approaches, type ApproachCandidate } from './Approaches';
 import { isCrossingArm } from './Eligibility';
 import { CROSSING_DIMENSIONS } from './Footprints';
 import { ContactDomains } from './ContactDomains';
+import { CrossingFields } from './CrossingFields';
 import { validateCrossingPlan } from './Validation';
 import { crossingConstruction } from './SourceConstruction';
 import type {
@@ -17,7 +18,8 @@ export class CrossingPlanner {
 
   static plan(input: CrossingInput): CrossingPlan {
     const contacts = ContactDomains.plan(input);
-    const solver = new Approaches(input);
+    const fields = new CrossingFields(input);
+    const solver = new Approaches(fields);
     const roads = input.edges.filter(isCrossingArm).sort((a, b) => a.id.localeCompare(b.id));
     const candidates = new Map<string, ReturnType<Approaches['ends']>>();
     const external = contacts.domains.flatMap(domain => domain.arms.filter(arm => arm.crossing));
@@ -66,7 +68,7 @@ export class CrossingPlanner {
       crossings.push(...[...byNode.values()].sort((a, b) => a.nodeId.localeCompare(b.nodeId)));
     }
     const result = { crossings, junctions };
-    validateCrossingPlan(input, result, contacts);
+    validateCrossingPlan(input, result, contacts, fields);
     return result;
   }
 
