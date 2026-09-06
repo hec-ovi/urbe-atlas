@@ -8,6 +8,8 @@ export interface GridLayoutInput {
   size: { width: number; depth: number };
   profiles: RoadProfile[];
   sideAt: (point: Vec2, streetClass: 'street' | 'road') => { profile: SidewalkProfile; finish: string };
+  /** Complete outer sidewalks with a shared profile and finish. */
+  perimeter?: { profile: SidewalkProfile; finish: string };
 }
 
 export interface GridLayoutBlock extends Omit<ModuleBlock, 'placements'> {

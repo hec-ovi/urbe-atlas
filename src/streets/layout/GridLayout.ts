@@ -1,6 +1,6 @@
 import type { StreetEdge, StreetNode, Vec2 } from '../../../schema/blueprint';
 import type { StreetRun } from '../construction/schema/sections';
-import type { BlockModuleInput, QuarterTurn } from '../construction/modules/schema';
+import type { BlockModuleInput, QuarterTurn, SidewalkWidth } from '../construction/modules/schema';
 import { StreetModuleKit } from '../construction/modules/StreetModuleKit';
 import { Rng } from '../../core/rng';
 import { axis, type GridAxis } from './Axis';
@@ -19,6 +19,10 @@ export class GridLayout {
     const runs: StreetRun[] = [];
     const horizontal: StreetEdge[][] = z.roads.map(() => []);
     const vertical: StreetEdge[][] = x.roads.map(() => []);
+    const sideAt: GridLayoutInput['sideAt'] = (point, kind) => input.perimeter
+      && (point[0] < x.roads[0].position || point[0] > x.roads.at(-1)!.position
+        || point[1] < z.roads[0].position || point[1] > z.roads.at(-1)!.position)
+      ? input.perimeter : input.sideAt(point, kind);
     const node = (column: number, row: number) => nodes[row * x.roads.length + column];
     for (let row = 0; row < z.roads.length; row++) {
       for (let column = 0; column < x.roads.length; column++) {
@@ -37,8 +41,8 @@ export class GridLayout {
       const length = Math.abs(dx) + Math.abs(dz);
       const middle: Vec2 = [(from.position[0] + to.position[0]) / 2, (from.position[1] + to.position[1]) / 2];
       const offset = road.width / 2 + 1;
-      const left = input.sideAt([middle[0] - dz / length * offset, middle[1] + dx / length * offset], kind);
-      const right = input.sideAt([middle[0] + dz / length * offset, middle[1] - dx / length * offset], kind);
+      const left = sideAt([middle[0] - dz / length * offset, middle[1] + dx / length * offset], kind);
+      const right = sideAt([middle[0] + dz / length * offset, middle[1] - dx / length * offset], kind);
       const section = crossSection(source.id, road.profile, sideSection(left.profile), sideSection(right.profile));
       const value: StreetEdge = { id: `e${edges.length}`, class: kind, from: from.id, to: to.id, path: [from.position, to.position],
         width: road.width, sidewalk: { left: section.sidewalks.left.geometry!.totalWidth, right: section.sidewalks.right.geometry!.totalWidth },
@@ -90,6 +94,9 @@ export class GridLayout {
         roadway.push(rectangle(road.position - road.width / 2, start, road.width, z.panels[row] + 1));
       }
     }
-    return { nodes, edges, runs, blocks, modules: kit.construction(), roadway, bounds: { min: [x.min, z.min], max: [x.max, z.max] } };
+    const bounds = { min: [x.min, z.min] as Vec2, max: [x.max, z.max] as Vec2 };
+    if (input.perimeter) kit.perimeter({ id: 'fringe', bounds,
+      width: sideSection(input.perimeter.profile).geometry!.pavedWidth as SidewalkWidth, finish: input.perimeter.finish });
+    return { nodes, edges, runs, blocks, modules: kit.construction(), roadway, bounds };
   }
 }
