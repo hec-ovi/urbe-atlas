@@ -5,7 +5,7 @@ import { StationFrame } from './StationFrame';
 import { StationProjection } from './StationProjection';
 import { Bounds } from './Bounds';
 import type { Range } from './Directed';
-import type { StationIntervalInput } from './schema';
+import type { StationIntervalQuery } from './schema';
 
 /** Numeric query envelope and fraction bounds share the same source-side error boxes. */
 export class Band {
@@ -14,7 +14,7 @@ export class Band {
   private readonly bounds: Bounds;
   private readonly projection: StationProjection;
 
-  constructor(input: StationIntervalInput) {
+  constructor(input: StationIntervalQuery) {
     const frame = new StationFrame(input.a, input.b);
     this.length = frame.length;
     const [min, max] = input.lateral;

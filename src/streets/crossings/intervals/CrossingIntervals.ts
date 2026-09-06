@@ -1,15 +1,14 @@
 import type { Polygon, Vec2 } from '../../../../schema/blueprint';
 import { invalidParams } from '../../../errors';
-import { coordinateCover, GRID_STEP, precisionInterior } from '../../../geom/clip';
+import { GRID_STEP, precisionInterior } from '../../../geom/clip';
 import { Band } from './Band';
-import { CoordinateCoverage } from './CoordinateCoverage';
 import { FootprintRegions } from './FootprintRegions';
 import { subtractIntervals } from './Intervals';
 import { StationLimits } from './StationLimits';
-import type { StationInterval, StationIntervalInput } from './schema';
+import type { StationInterval, StationIntervalQuery } from './schema';
 
 export class CrossingIntervals {
-  static find(input: StationIntervalInput): StationInterval[] {
+  static find(input: StationIntervalQuery): StationInterval[] {
     validate(input);
     const band = new Band(input);
     if (input.width > band.length) return [];
@@ -17,14 +16,14 @@ export class CrossingIntervals {
     const domain = limits.domain();
     if (domain.from > domain.to) return [];
 
-    const allowed = band.candidates(input.allowed, GRID_STEP);
-    if (!allowed.length) return [];
-    const forbidden = band.candidates(input.forbidden ?? []);
-    const excluded = band.candidates(input.excluded ?? []);
-    const blocked = CoordinateCoverage.missing(band.polygon, allowed, band.candidates(coordinateCover(allowed)));
-    if (excluded.length) blocked.push(...FootprintRegions.insideEnclosures(band.polygon, excluded));
-    if (forbidden.length) {
-      blocked.push(...precisionInterior(FootprintRegions.inside(band.polygon, forbidden))
+    const regions = (masks: Polygon[] | FootprintRegions, padding = 0): FootprintRegions =>
+      masks instanceof FootprintRegions ? masks : new FootprintRegions(band.candidates(masks, padding));
+    const allowed = regions(input.allowed, GRID_STEP);
+    if (allowed.empty) return [];
+    const blocked = allowed.missing(band.polygon);
+    if (input.excluded) blocked.push(...regions(input.excluded).insideEnclosures(band.polygon));
+    if (input.forbidden) {
+      blocked.push(...precisionInterior(regions(input.forbidden).inside(band.polygon))
         .map(polygon => polygon.map(point => ({ lower: point, upper: point }))));
     }
 
@@ -38,7 +37,7 @@ export class CrossingIntervals {
   }
 }
 
-function validate(input: StationIntervalInput): void {
+function validate(input: StationIntervalQuery): void {
   if (!input || !point(input.a) || !point(input.b)) {
     throw invalidParams('Crossing interval segment requires finite a and b coordinates');
   }
@@ -60,6 +59,7 @@ function validate(input: StationIntervalInput): void {
   for (const field of ['allowed', 'forbidden', 'excluded'] as const) {
     const polygons = input[field];
     if (field !== 'allowed' && polygons === undefined) continue;
+    if (polygons instanceof FootprintRegions) continue;
     if (!Array.isArray(polygons) || !polygons.every(ring)) {
       throw invalidParams(`Crossing interval ${field} requires finite polygon rings`);
     }

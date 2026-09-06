@@ -4,13 +4,15 @@ Purpose: derives full-band crossing intervals and shared source-edge subdivision
 
 ## In and out
 
-`CrossingIntervals.find(input)` in [CrossingIntervals.ts](CrossingIntervals.ts) takes [StationIntervalInput](schema.ts) and returns [StationInterval](schema.ts) records.
+`CrossingIntervals.find(input)` in [CrossingIntervals.ts](CrossingIntervals.ts) takes [StationIntervalQuery](schema.ts) and returns [StationInterval](schema.ts) records. Its mask fields accept raw polygon arrays or prepared `FootprintRegions` fields; [StationIntervalInput](schema.ts) is the raw-array form.
 
 `FootprintRegions.outside(source, masks)` and `.inside(source, masks)` in [FootprintRegions.ts](FootprintRegions.ts) take a `Polygon` and a readonly `Polygon[]`, [types](schema.ts). They return simple polygon views of the source outside or inside the mask union. These views retain source boundaries and shared intersections without another coordinate snap.
 
 `FootprintRegions.outsideEnclosures(source, masks)` and `.insideEnclosures(source, masks)` take the same inputs and return tight representable coordinate bounds for each exact missing or intersection vertex, [PartitionPointEnclosure](../../../geom/partition/schema.ts). Projection consumes these enclosures without a rational-to-numeric view approximation.
 
 `FootprintRegions.covers(source, allowed)` takes a `Polygon` and readonly `Polygon[]`, [types](schema.ts). It returns whether the complete source fits `coordinateCover(allowed)` at its default precision. Empty allowed land returns false. This exact query retains uncovered ownership; no views rebuild geometry or acceptance survives a call.
+
+`new FootprintRegions(masks)` snapshots and validates a readonly `Polygon[]`. Its `covers(source)`, `inside(source)`, `outside(source)` and enclosure methods perform those same queries against the snapshot. `missing(source)` returns coordinate-cover omissions as exact vertex enclosures. The instance retains prepared masks and lazily prepared coordinate-cover masks; each query owns its partition and results. Changing caller inputs or returned results cannot change the field. `empty` reports an empty mask list.
 
 `new StationFrame(a, b)` in [StationFrame.ts](StationFrame.ts) takes finite `Vec2` endpoints with positive segment length. It exposes metric `length`, unit forward `u`, unit left `v`, canonical `point(station, lateral)` and metric `project(point)`. `edgePoint(station, lateral)` canonicalizes both source endpoints at that lateral offset once, then uses the source partition's authored-1 mm `edgePositionView` for interior fractions. Endpoints retain their cached coordinates. Crossing fields, stripes and landing cuts use this same subdivision.
 
@@ -22,7 +24,7 @@ Purpose: derives full-band crossing intervals and shared source-edge subdivision
 ## Invariants
 
 - The physical source band has canonical 1 mm corners. The diagnostic `numericSweepEnvelope` encloses every derived numeric footprint using source-side coordinate error boxes; its polygon is unsnapped and changes no physical geometry. Allowed land uses `coordinateCover`. Every exact piece outside that cover blocks its full station projection. Excluded masks block their exact intersection with the diagnostic sweep. Forbidden masks separately block the `precisionInterior` of their intersection.
-- Coverage constructs the default coordinate cover and validates original geometry before proving the retained uncovered owner empty or refining it with cover masks whose exact coordinate bounds overlap the source. Numeric views never rebuild that owner.
+- Coverage validates original geometry before proving the retained uncovered owner empty or refining it with the default coordinate cover. Prepared source-boundary indexes select only exact edges overlapping the queried owner. Numeric views never rebuild that owner. Prepared fields retain geometry within their caller's scope and never retain query partitions or acceptance results.
 - Obstruction projections use tight rational vertex enclosures and both sweep source-side error boxes. They retain outward fraction bounds, expanded by half the footprint width. Boundary contact is permitted.
 - Scalar arithmetic uses tight directed Float64 bounds. Exact binary-fraction comparisons retain exact operations; monotone inverse bounds include fraction division, half-width addition and source-offset encoding.
 - Coordinate exception: source long-band corners use the 1 mm grid; derived field, stripe and landing points retain their shared-edge interpolation coordinates without another snap. Nominal widths and station distances are unchanged. Only floating-point interpolation representation remains.

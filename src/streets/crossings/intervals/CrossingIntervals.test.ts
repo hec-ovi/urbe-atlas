@@ -60,6 +60,18 @@ function expectIntervals(query: StationIntervalInput, expected: StationInterval[
 }
 
 describe('CrossingIntervals public full-band query', () => {
+  it('shares exact field inputs across interval queries without changing their bounds', () => {
+    const query = input({ allowed: [rectangle(0, 10, -5, 5), rectangle(20, 30, -5, 5)],
+      forbidden: [rectangle(1, 3, -5, 5)], excluded: [rectangle(25, 27, -5, 5)] });
+    const prepared = { ...query, allowed: new FootprintRegions(query.allowed),
+      forbidden: new FootprintRegions(query.forbidden!), excluded: new FootprintRegions(query.excluded!) };
+    const expected = CrossingIntervals.find(query);
+    expect(CrossingIntervals.find(prepared)).toEqual(expected);
+    query.allowed.length = 0;
+    expect(CrossingIntervals.find(prepared)).toEqual(expected);
+    expect(CrossingIntervals.find(query)).toEqual([]);
+  });
+
   it('fits an oblique full footprint and retains metric stations', () => {
     const a: Vec2 = [10, 20], b: Vec2 = [34, 52];
     const query = input({ a, b, allowed: [transform(rectangle(5, 35, -6, 6), a, b)] });

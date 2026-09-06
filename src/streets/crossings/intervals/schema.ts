@@ -1,4 +1,5 @@
 import type { Polygon, Vec2 } from '../../../../schema/blueprint';
+import type { FootprintRegions } from './FootprintRegions';
 
 export type { Polygon, Vec2 };
 
@@ -17,6 +18,13 @@ export interface StationIntervalInput {
   /** Blocks every positive-area overlap, including sub-grid regions. */
   excluded?: Polygon[];
 }
+
+/** Prepared fields snapshot their masks and share exact geometry between queries. */
+export type StationIntervalQuery = Omit<StationIntervalInput, 'allowed' | 'forbidden' | 'excluded'> & {
+  allowed: Polygon[] | FootprintRegions;
+  forbidden?: Polygon[] | FootprintRegions;
+  excluded?: Polygon[] | FootprintRegions;
+};
 
 /** Inclusive centre stations in metres from the segment start. */
 export interface StationInterval {

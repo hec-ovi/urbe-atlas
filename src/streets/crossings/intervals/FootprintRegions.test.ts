@@ -6,6 +6,21 @@ import { FootprintRegions } from './FootprintRegions';
 const source: Polygon = [[0, 0], [10, 0], [10, 4], [0, 4]];
 
 describe('FootprintRegions complete coordinate coverage', () => {
+  it('reuses an immutable field while every query owns its results', () => {
+    const masks: Polygon[] = [[[0, 0.0006], [10, 0.0006], [10, 4], [0, 4]]];
+    const field = new FootprintRegions(masks);
+    const expected = FootprintRegions.inside(source, masks);
+    expect(field.covers(source)).toBe(true);
+    const first = field.inside(source);
+    expect(first).toEqual(expected);
+    first[0][0][0] = 100;
+    masks[0][1][0] = 1;
+    expect(field.inside(source)).toEqual(expected);
+    expect(field.covers(source)).toBe(true);
+    expect(FootprintRegions.covers(source, masks)).toBe(false);
+    expect(field.covers([[20, 0], [30, 0], [30, 4], [20, 4]])).toBe(false);
+  });
+
   it('proves the complete source against unions, gaps and precision-edge additions', () => {
     const cases: { allowed: Polygon[]; covered: boolean }[] = [
       { allowed: [], covered: false },
