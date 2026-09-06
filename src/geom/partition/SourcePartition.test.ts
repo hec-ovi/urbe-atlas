@@ -94,6 +94,13 @@ describe('source-preserving partition contract', () => {
     verifyPartition({ source, partition: plan.finish() });
   });
 
+  it('checks enclosed owner holes and permits their boundary contact', () => {
+    const source = rectangle(0, 0, 10, 10), plan = SourcePartition.create({ id: 'source', source });
+    plan.divide('source', { claims: [{ id: 'hole', masks: [rectangle(4, 4, 6, 6)] }], remainderId: 'frame' });
+    expect(plan.covers('frame', rectangle(2, 2, 8, 8))).toBe(false);
+    expect(plan.covers('frame', rectangle(1, 1, 4, 6))).toBe(true);
+  });
+
   it('assigns each nested hole to its immediate exterior component', () => {
     const source = rectangle(0, 0, 30, 30), plan = SourcePartition.create({ id: 'source', source });
     const frame = (low: number, high: number) => [rectangle(low, low, high, low + 2),

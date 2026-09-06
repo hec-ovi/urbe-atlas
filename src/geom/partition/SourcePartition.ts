@@ -1,7 +1,7 @@
 import { invariantFailure } from '../../errors';
 import { overlay } from './Arrangement';
 import { extent, overlaps, type Box } from './BoxIndex';
-import { PointPool, type Point, type Region, type Ring } from './Exact';
+import { leftProbe, PointPool, type Point, type Region, type Ring } from './Exact';
 import { readEdgeMask } from './EdgeMasks';
 import { CoordinateEnclosures } from './CoordinateEnclosures';
 import { connected, simple } from './Regions';
@@ -82,8 +82,12 @@ export class SourcePartition {
 
   covers(ownerId: string, polygon: Polygon, input: PartitionCoordinates = {}): boolean {
     const owner = this.readable(ownerId), ring = readRing(polygon, this.pool.reader(input.encoding));
-    if (overlay([ring], [owner.field ??= new WindingField(owner.read())], this.pool)[1].length) return false;
-    const box = extent([ring]);
+    const field = owner.field ??= new WindingField(owner.read()), box = extent([ring]);
+    // Without an owner boundary, winding is constant throughout this box.
+    if (!field.segments(box).length) {
+      const probe = leftProbe(ring[0], ring[1], this.pool);
+      if (!field.winding(probe, extent([[probe.base]]))) return false;
+    } else if (overlay([ring], [field], this.pool)[1].length) return false;
     for (const id of owner.reservations) {
       const fixed = this.owner(id);
       if (overlaps(box, fixed.fixedBox!) && overlay([ring], [[fixed.fixed!]], this.pool)[0].length) return false;
