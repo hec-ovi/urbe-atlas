@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { mkdir, open, readFile, readdir, rename, unlink } from 'node:fs/promises';
+import { mkdir, open, readFile, readdir, rename, rm, unlink } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import type { AtlasParams } from '../../schema/params';
 import type { CityRecord, GeneratedCity } from './schema';
@@ -7,6 +7,7 @@ import { CityApiError } from './errors';
 
 export class DiskCityStore {
   private readonly records = new Map<string, CityRecord>();
+  private readonly removed = new Set<string>();
   readonly directory: string;
 
   constructor(directory: string) {
@@ -46,6 +47,10 @@ export class DiskCityStore {
     return [...this.records.values()].sort((a, b) => b.createdAt.localeCompare(a.createdAt) || b.id.localeCompare(a.id));
   }
 
+  has(id: string): boolean {
+    return this.records.has(id);
+  }
+
   get(id: string): CityRecord {
     const record = this.records.get(id);
     if (!record) throw new CityApiError('E_NOT_FOUND', 'City not found.', 404);
@@ -61,11 +66,13 @@ export class DiskCityStore {
   }
 
   async save(record: CityRecord): Promise<void> {
+    if (this.removed.has(record.id)) return;
     await this.write(record.id, 'record.json', JSON.stringify(record));
     this.records.set(record.id, record);
   }
 
   async complete(record: CityRecord, result: GeneratedCity): Promise<CityRecord> {
+    if (this.removed.has(record.id)) return record;
     await this.write(record.id, 'blueprint.json', result.json);
     const now = new Date().toISOString();
     const ready: CityRecord = {
@@ -79,6 +86,17 @@ export class DiskCityStore {
   blueprintPath(id: string): string {
     this.get(id);
     return join(this.directory, id, 'blueprint.json');
+  }
+
+  async remove(id: string): Promise<void> {
+    this.get(id);
+    this.removed.add(id);
+    this.records.delete(id);
+    try {
+      await rm(join(this.directory, id), { recursive: true, force: true });
+    } catch {
+      throw new CityApiError('E_STORAGE', 'The city could not be deleted.', 500);
+    }
   }
 
   private async write(id: string, name: string, text: string): Promise<void> {

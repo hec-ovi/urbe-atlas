@@ -1,0 +1,109 @@
+{
+  "id": "visualization",
+  "title": "View city",
+  "layout": { "type": "split", "ratio": [28, 72], "items": ["form", "stage"] },
+  "values": {
+    "mode": "2d",
+    "filters": {
+      "ground.roadway": true, "ground.curb": true, "ground.sidewalk": true, "ground.block": true, "ground.open": true,
+      "zone.residential": true, "zone.hotel": true, "zone.offices": true, "zone.corpo": true, "zone.hospital": true,
+      "zone.clinic": true, "zone.police": true, "zone.military": true, "zone.factory": true, "zone.commerce": true,
+      "zone.mall": true, "zone.restaurant": true, "zone.coffee_shop": true,
+      "street.street": true, "street.road": true, "street.highway": true, "street.alley": true,
+      "hydrology.water": true, "hydrology.shoreline": true,
+      "diagnostic.highwayCenterlines": false, "diagnostic.highwaySupports": false, "diagnostic.stationAccess": false,
+      "transit.bus": true, "transit.train": true, "transit.subway": true,
+      "furniture.signal": false, "furniture.tree": false, "furniture.pole": false, "furniture.bin": false,
+      "districts": false, "interiorsOnly": false
+    }
+  },
+  "form": [
+    { "type": "heading", "eyebrow": "Map display", "text": "Visualization", "description": "Show one system at a time or combine layers to inspect their fit." },
+    {
+      "type": "choice", "path": "mode", "label": "Map",
+      "options": [{ "value": "2d", "label": "Flat map" }, { "value": "3d", "label": "City in 3D" }]
+    },
+    {
+      "type": "layers", "path": "filters",
+      "constraint": { "path": "filters.interiorsOnly", "label": "Only buildings with interiors" },
+      "actions": ["show-all", "hide-all", "defaults"],
+      "items": [
+        {
+          "id": "ground", "title": "Ground surfaces", "description": "Roadway, curb, sidewalk and open space", "open": true,
+          "items": [
+            { "key": "ground.roadway", "label": "roadway", "swatch": "#1e2935", "default": true },
+            { "key": "ground.curb", "label": "curb", "swatch": "#c6d3de", "default": true },
+            { "key": "ground.sidewalk", "label": "sidewalk", "swatch": "#5c6e80", "default": true },
+            { "key": "ground.block", "label": "block", "swatch": "#14202b", "default": true },
+            { "key": "ground.open", "label": "open", "swatch": "#245044", "default": true }
+          ]
+        },
+        {
+          "id": "zones", "title": "Building zones", "description": "Parcel use types", "open": true,
+          "items": [
+            { "key": "zone.residential", "label": "residential", "swatch": "hsl(211 85% 48%)", "default": true },
+            { "key": "zone.hotel", "label": "hotel", "swatch": "hsl(280 60% 48%)", "default": true },
+            { "key": "zone.offices", "label": "offices", "swatch": "hsl(262 70% 48%)", "default": true },
+            { "key": "zone.corpo", "label": "corpo", "swatch": "hsl(291 85% 48%)", "default": true },
+            { "key": "zone.hospital", "label": "hospital", "swatch": "hsl(0 75% 48%)", "default": true },
+            { "key": "zone.clinic", "label": "clinic", "swatch": "hsl(14 70% 48%)", "default": true },
+            { "key": "zone.police", "label": "police", "swatch": "hsl(225 45% 48%)", "default": true },
+            { "key": "zone.military", "label": "military", "swatch": "hsl(84 25% 48%)", "default": true },
+            { "key": "zone.factory", "label": "factory", "swatch": "hsl(30 25% 48%)", "default": true },
+            { "key": "zone.commerce", "label": "commerce", "swatch": "hsl(33 90% 48%)", "default": true },
+            { "key": "zone.mall", "label": "mall", "swatch": "hsl(45 95% 48%)", "default": true },
+            { "key": "zone.restaurant", "label": "restaurant", "swatch": "hsl(8 85% 48%)", "default": true },
+            { "key": "zone.coffee_shop", "label": "coffee shop", "swatch": "hsl(25 65% 48%)", "default": true }
+          ]
+        },
+        {
+          "id": "streets", "title": "Street network", "description": "Street, avenue, highway and pedestrian alley", "open": true,
+          "items": [
+            { "key": "street.street", "label": "street", "swatch": "#465867", "default": true },
+            { "key": "street.road", "label": "avenues", "swatch": "#384653", "default": true },
+            { "key": "street.highway", "label": "highway", "swatch": "#505963", "default": true },
+            { "key": "street.alley", "label": "alley", "swatch": "#c08b5a", "default": true }
+          ]
+        },
+        {
+          "id": "hydrology", "title": "Waterfront", "description": "Water surfaces and exact shoreline bands", "open": true,
+          "items": [
+            { "key": "hydrology.water", "label": "water", "swatch": "#16789c", "default": true },
+            { "key": "hydrology.shoreline", "label": "shoreline", "swatch": "#79c9d9", "default": true }
+          ]
+        },
+        {
+          "id": "diagnostics", "title": "Geometry diagnostics", "description": "Bright overlays for structure inspection", "open": true,
+          "items": [
+            { "key": "diagnostic.highwayCenterlines", "label": "highway centerlines", "swatch": "#fff26d", "default": false },
+            { "key": "diagnostic.highwaySupports", "label": "highway supports", "swatch": "#ff4fd8", "default": false },
+            { "key": "diagnostic.stationAccess", "label": "station access", "swatch": "#65fff0", "default": false }
+          ]
+        },
+        {
+          "id": "transit", "title": "Public transit", "description": "Bus, train and underground subway", "open": true,
+          "items": [
+            { "key": "transit.bus", "label": "bus", "swatch": "#51d68a", "default": true },
+            { "key": "transit.train", "label": "train", "swatch": "#59ccff", "default": true },
+            { "key": "transit.subway", "label": "subway", "swatch": "#f472b6", "default": true }
+          ]
+        },
+        {
+          "id": "furniture", "title": "Street furniture", "description": "Signals, trees, lights and bins",
+          "items": [
+            { "key": "furniture.signal", "label": "signal", "swatch": "#ff667d", "default": false },
+            { "key": "furniture.tree", "label": "tree", "swatch": "#51d68a", "default": false },
+            { "key": "furniture.pole", "label": "pole", "swatch": "#e6edf3", "default": false },
+            { "key": "furniture.bin", "label": "bin", "swatch": "#9aa8b7", "default": false }
+          ]
+        },
+        {
+          "id": "districts", "title": "District boundaries", "description": "Planning area outlines",
+          "items": [
+            { "key": "districts", "label": "districts", "swatch": "#c084fc", "default": false }
+          ]
+        }
+      ]
+    }
+  ]
+}

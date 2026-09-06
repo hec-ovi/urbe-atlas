@@ -16,9 +16,14 @@ Purpose: queues server-side blueprint generation and keeps every created city on
 | GET /api/cities | None | 200 [CityList](schema.ts), newest first |
 | GET /api/cities/:id | UUID | 200 [CityRecord](schema.ts) |
 | GET /api/cities/:id/blueprint | UUID | 200 exact saved [CityBlueprint](../../schema/blueprint.ts) JSON |
+| DELETE /api/cities/:id | UUID | 204 empty body; queued, running, ready or failed cities |
 | POST /api/cities/import | Raw [CityBlueprint](../../schema/blueprint.ts) | 201 ready [CityRecord](schema.ts) |
+| GET /api/forms | None | 200 `{ forms: ["creation", "visualization"] }` |
+| GET /api/forms/:name | `creation` or `visualization` | 200 [WorkspaceForm](forms/schema.ts) |
 
 Records include original params, source, seed, timestamps and blueprint stage/status. Ready records add `blueprintUrl` and stats. Failed records add an error. Each creation gets a distinct UUID, including repeated seeds. Imports check complete top-level structure; they preserve every field and do not certify geometry. Requests require JSON objects; full generation parameter validation runs in the worker. JSON bodies are limited to 128 MiB.
+Delete removes the catalog record and its directory. A running job is aborted first; a queued job is dropped. Missing ids return 404.
+Workspace forms are the creation and visualization documents the UI iterates. `name` is `creation` or `visualization`. Each document lists layout, default values and widgets (heading, note, section, text, slider, select, choice, toggle, optional-number, action, action-row, presets, file, grid, layers). Adding, removing or editing a supported control is a form JSON change. Unknown names return 404.
 
 ## Errors
 
@@ -32,6 +37,8 @@ HTTP failures return [CityErrorResponse](schema.ts): `E_BAD_REQUEST` (400, malfo
 - Each city uses `<dataDir>/<id>/record.json` and `blueprint.json`. Incomplete directories without records are not catalog entries. Unreadable or invalid records fail startup with `E_STORAGE`.
 - Only blueprint generation runs. Exterior and interior stages require separate explicit requests to their owners.
 - The catalog contains submitted and imported cities; it cannot recover unsaved browser memory.
+- Delete is terminal: a removed city cannot be opened, and its blueprint file is gone.
+- Form documents are static copies of [forms/creation.json](forms/creation.json) and [forms/visualization.json](forms/visualization.json). Identical requests return identical JSON.
 
 ## Depends on
 

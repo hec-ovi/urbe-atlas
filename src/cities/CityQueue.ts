@@ -7,6 +7,7 @@ export class CityQueue {
   private readonly pending: string[] = [];
   private active?: Promise<void>;
   private controller?: AbortController;
+  private runningId?: string;
   private stopped = false;
   private storageFailure?: CityApiError;
 
@@ -40,16 +41,29 @@ export class CityQueue {
     await this.active;
   }
 
+  async remove(id: string): Promise<void> {
+    this.store.get(id);
+    const index = this.pending.indexOf(id);
+    if (index >= 0) this.pending.splice(index, 1);
+    if (this.runningId === id) {
+      this.controller?.abort();
+      await this.active;
+    }
+    await this.store.remove(id);
+  }
+
   private runNext(): void {
     if (this.active || this.stopped || this.storageFailure) return;
     const id = this.pending.shift();
     if (!id) return;
     this.controller = new AbortController();
+    this.runningId = id;
     this.active = this.run(id, this.controller.signal).catch(() => {
       this.storageFailure = new CityApiError('E_STORAGE', 'The city catalog could not be updated.', 500);
     }).finally(() => {
       this.active = undefined;
       this.controller = undefined;
+      this.runningId = undefined;
       this.runNext();
     });
   }
@@ -62,8 +76,10 @@ export class CityQueue {
       if (signal.aborted) throw interruptedError();
       const result = await this.generate(record.params, signal);
       if (signal.aborted) throw interruptedError();
+      if (!this.store.has(id)) return;
       await this.store.complete(record, result);
     } catch (error) {
+      if (!this.store.has(id)) return;
       const now = new Date().toISOString();
       await this.store.save({
         ...record, status: 'failed', updatedAt: now, completedAt: now,

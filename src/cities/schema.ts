@@ -31,6 +31,7 @@ export interface CityRecord {
 }
 
 export interface CityList { cities: CityRecord[] }
+export type { FormList, FormName, WorkspaceForm } from './forms/schema';
 export interface CityErrorResponse { error: CityError }
 export interface GeneratedCity { json: string; stats: CityBlueprint['stats'] }
 

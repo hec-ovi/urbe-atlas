@@ -215,4 +215,42 @@ describe('city HTTP catalog', () => {
     await expect(createCityApi({ dataDir })).rejects.toMatchObject({ code: 'E_STORAGE' });
     expect(await readFile(join(dataDir, id, 'record.json'), 'utf8')).toBe('{');
   });
+
+  it('serves creation and visualization form documents', async () => {
+    const app = await serve({ dataDir: await directory() });
+    const list = await (await app.request('/api/forms')).json();
+    expect(list).toEqual({ forms: ['creation', 'visualization'] });
+    const creation = await (await app.request('/api/forms/creation')).json();
+    expect(creation.id).toBe('creation');
+    expect(creation.layout).toEqual({ type: 'split', ratio: [70, 30], items: ['form', 'cities'] });
+    expect(creation.values.seed).toBe('urbe');
+    expect(JSON.stringify(creation.form)).toContain('"type":"slider"');
+    const visualization = await (await app.request('/api/forms/visualization')).json();
+    expect(visualization.id).toBe('visualization');
+    expect(JSON.stringify(visualization.form)).toContain('"type":"layers"');
+    expect((await app.request('/api/forms/unknown')).status).toBe(404);
+    expect((await app.request('/api/forms', { method: 'POST' })).status).toBe(400);
+  });
+
+  it('deletes queued, ready and running cities', async () => {
+    const dataDir = await directory();
+    const generator = new ControlledGenerator();
+    const app = await serve({ dataDir, generator: generator.generate });
+    const running = await (await app.post({ seed: 'run' })).json() as CityRecord;
+    await status(app, running.id, 'running');
+    const queued = await (await app.post({ seed: 'queued' })).json() as CityRecord;
+    expect((await app.request(`/api/cities/${queued.id}`, { method: 'DELETE' })).status).toBe(204);
+    expect((await app.request(`/api/cities/${queued.id}`)).status).toBe(404);
+    generator.calls[0].resolve(result('run'));
+    await status(app, running.id, 'ready');
+    expect((await app.request(`/api/cities/${running.id}`, { method: 'DELETE' })).status).toBe(204);
+    expect((await (await app.request('/api/cities')).json()).cities).toEqual([]);
+    await expect(access(join(dataDir, running.id))).rejects.toMatchObject({ code: 'ENOENT' });
+    const live = await (await app.post({ seed: 'live' })).json() as CityRecord;
+    await status(app, live.id, 'running');
+    expect((await app.request(`/api/cities/${live.id}`, { method: 'DELETE' })).status).toBe(204);
+    generator.calls[1].resolve(result('live'));
+    expect((await app.request(`/api/cities/${live.id}`)).status).toBe(404);
+    expect((await app.request('/api/cities/00000000-0000-0000-0000-000000000000', { method: 'DELETE' })).status).toBe(404);
+  });
 });

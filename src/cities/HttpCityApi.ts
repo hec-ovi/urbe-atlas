@@ -5,6 +5,7 @@ import { pipeline } from 'node:stream/promises';
 import { CityQueue } from './CityQueue';
 import { DiskCityStore } from './DiskCityStore';
 import { CityApiError } from './errors';
+import { Forms } from './forms/Forms';
 import { cityParams, importedBlueprint } from './validation';
 
 const BODY_LIMIT = 128 * 1024 * 1024;
@@ -14,7 +15,7 @@ export class HttpCityApi {
 
   handle(request: IncomingMessage, response: ServerResponse, next: () => void): void {
     const path = (request.url ?? '/').split('?')[0];
-    if (path !== '/api/cities' && !path.startsWith('/api/cities/')) return next();
+    if (path !== '/api/cities' && !path.startsWith('/api/cities/') && path !== '/api/forms' && !path.startsWith('/api/forms/')) return next();
     void this.route(request, response, path).catch(error => {
       if (response.headersSent || response.destroyed) return;
       const failure = error instanceof CityApiError
@@ -24,6 +25,7 @@ export class HttpCityApi {
   }
 
   private async route(request: IncomingMessage, response: ServerResponse, path: string): Promise<void> {
+    if (path === '/api/forms' || path.startsWith('/api/forms/')) return this.form(request, response, path);
     if (path === '/api/cities') {
       if (request.method === 'GET') return this.json(response, 200, { cities: this.store.list() });
       if (request.method === 'POST') {
@@ -46,7 +48,14 @@ export class HttpCityApi {
     }
     const match = /^\/api\/cities\/([a-f0-9-]{36})(\/blueprint)?$/.exec(path);
     if (!match) throw new CityApiError('E_NOT_FOUND', 'City endpoint not found.', 404);
-    if (request.method !== 'GET') throw new CityApiError('E_BAD_REQUEST', 'Use GET to read a city.', 400);
+    if (request.method === 'DELETE') {
+      if (match[2]) throw new CityApiError('E_BAD_REQUEST', 'Use DELETE /api/cities/:id to remove a city.', 400);
+      await this.queue.remove(match[1]);
+      response.writeHead(204);
+      response.end();
+      return;
+    }
+    if (request.method !== 'GET') throw new CityApiError('E_BAD_REQUEST', 'Use GET to read a city or DELETE to remove it.', 400);
     const record = this.store.get(match[1]);
     if (!match[2]) return this.json(response, 200, record);
     if (record.status !== 'ready') throw new CityApiError('E_NOT_READY', 'The city blueprint is not ready.', 409);
@@ -58,6 +67,14 @@ export class HttpCityApi {
       'Cache-Control': 'no-store',
     });
     await pipeline(createReadStream(file), response);
+  }
+
+  private form(request: IncomingMessage, response: ServerResponse, path: string): void {
+    if (request.method !== 'GET') throw new CityApiError('E_BAD_REQUEST', 'Use GET to read a workspace form.', 400);
+    if (path === '/api/forms') return this.json(response, 200, { forms: Forms.names() });
+    const name = path.slice('/api/forms/'.length);
+    if (name.includes('/')) throw new CityApiError('E_NOT_FOUND', 'Form not found.', 404);
+    return this.json(response, 200, Forms.get(name));
   }
 
   private body(request: IncomingMessage): Promise<{ value: unknown; json: string }> {

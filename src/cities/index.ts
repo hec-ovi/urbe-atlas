@@ -16,4 +16,4 @@ export async function createCityApi(options: CityApiOptions = {}): Promise<CityA
   return { handle: http.handle.bind(http), close: () => queue.close() };
 }
 
-export type { CityApi, CityApiOptions, CityRecord, CityList, CityErrorResponse } from './schema';
+export type { CityApi, CityApiOptions, CityRecord, CityList, CityErrorResponse, FormList, FormName, WorkspaceForm } from './schema';
