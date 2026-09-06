@@ -39,4 +39,4 @@
 
 ## Measurements
 
-- [Generation](PERFORMANCE.md): reproducible full-city fixture timings and scoped test budgets.
+- [Generation](PERFORMANCE.md): full-city and HTTP worker timings, stage CPU costs and bounded reproduction.
