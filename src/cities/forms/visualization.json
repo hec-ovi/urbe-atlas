@@ -5,7 +5,7 @@
   "values": {
     "mode": "2d",
     "filters": {
-      "ground.roadway": true, "ground.curb": true, "ground.sidewalk": true, "ground.block": true, "ground.open": true,
+      "ground.roadway": true, "ground.curb": true, "ground.gutter": true, "ground.sidewalk": true, "ground.block": true, "ground.open": true,
       "zone.residential": true, "zone.hotel": true, "zone.offices": true, "zone.corpo": true, "zone.hospital": true,
       "zone.clinic": true, "zone.police": true, "zone.military": true, "zone.factory": true, "zone.commerce": true,
       "zone.mall": true, "zone.restaurant": true, "zone.coffee_shop": true,
@@ -13,7 +13,7 @@
       "hydrology.water": true, "hydrology.shoreline": true,
       "diagnostic.highwayCenterlines": false, "diagnostic.highwaySupports": false, "diagnostic.stationAccess": false,
       "transit.bus": true, "transit.train": true, "transit.subway": true,
-      "furniture.signal": false, "furniture.tree": false, "furniture.pole": false, "furniture.bin": false,
+      "furniture.guardrail": true, "furniture.signal": false, "furniture.tree": false, "furniture.pole": false, "furniture.bin": false,
       "districts": false, "interiorsOnly": false
     }
   },
@@ -33,6 +33,7 @@
           "items": [
             { "key": "ground.roadway", "label": "roadway", "swatch": "#1e2935", "default": true },
             { "key": "ground.curb", "label": "curb", "swatch": "#c6d3de", "default": true },
+            { "key": "ground.gutter", "label": "gutter", "swatch": "#74818c", "default": true },
             { "key": "ground.sidewalk", "label": "sidewalk", "swatch": "#5c6e80", "default": true },
             { "key": "ground.block", "label": "block", "swatch": "#14202b", "default": true },
             { "key": "ground.open", "label": "open", "swatch": "#245044", "default": true }
@@ -91,6 +92,7 @@
         {
           "id": "furniture", "title": "Street furniture", "description": "Signals, trees, lights and bins",
           "items": [
+            { "key": "furniture.guardrail", "label": "guardrails", "swatch": "#597e7b", "default": true },
             { "key": "furniture.signal", "label": "signal", "swatch": "#ff667d", "default": false },
             { "key": "furniture.tree", "label": "tree", "swatch": "#51d68a", "default": false },
             { "key": "furniture.pole", "label": "pole", "swatch": "#e6edf3", "default": false },
