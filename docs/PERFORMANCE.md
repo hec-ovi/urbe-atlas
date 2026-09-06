@@ -1,5 +1,7 @@
 # Generation measurements
 
+The 0.18.1 built HTTP worker completed seed `urbe`, 1000 x 1000 m with default features, in 26.891 s wall and 6.706 s process CPU at the quota below. This includes submission, generation, persistence, blueprint download and browser input validation. Peak RSS was 380.1 MiB and Tctl was 41.5 C. Output: 9 parking bays, 21 rail groups across 19 blocks, 60 trees across 42 street segments, 13.82 MB JSON.
+
 2026-09-06, Node v24.20.0, blueprint 0.18.0, generator commit `76943ec`. Runs were sequential with a 25% quota of one CPU and a 10 ms quota period. All three completed successfully.
 
 | Fixture | Wall time | Process CPU | Peak RSS | JSON |

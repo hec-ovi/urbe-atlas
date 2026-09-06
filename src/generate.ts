@@ -24,7 +24,8 @@ import { applyHighwayElevationProfiles, HIGHWAY_DECK, highwayEnvelopes, supportH
 import { streetNodesWithConnections } from './streets/Connections';
 import { CityCrossings } from './CityCrossings';
 import { Signals } from './streets/Signals';
-import { Obstacles, Planting } from './streets/Planting';
+import { Obstacles } from './streets/Planting';
+import { CityFurniture } from './CityFurniture';
 import { StreetCorridors } from './streets/construction/StreetCorridors';
 import { Buildability } from './blocks/Buildability';
 import { FootprintHost } from './zoning/FootprintHost';
@@ -43,7 +44,7 @@ import { RAIL, STATION } from './transit/stations';
 import { GradeDatum } from './streets/construction/datum';
 import { planHydrology, withHydrologyStructures } from './hydro/Hydrology';
 
-export const BLUEPRINT_VERSION = '0.18.0';
+export const BLUEPRINT_VERSION = '0.18.1';
 export const HYDROLOGY_BLUEPRINT_VERSION = BLUEPRINT_VERSION;
 
 const SUBDIVISION: Record<DistrictKind, SubdivisionConfig> = {
@@ -359,12 +360,8 @@ export function generateCity(input: AtlasParams, onProgress?: ProgressObserver):
   obstacles.add(transit.busStops.map((s) => s.position));
   obstacles.add([...transit.trainStations, ...transit.subwayStations].flatMap((s) => s.entrances));
   obstacles.add(parcels.map((p) => p.access.point));
-  const planting = Planting.build(
-    streetEdges,
-    (edgeId) => planned[edgeDistrict.get(edgeId) ?? 0].kind,
-    obstacles,
-    Rng.from(seed, 'planting'),
-  ).filter((item) => !waterSurfaces.some((surface) => pointInPolygon(item.position, surface)));
+  const planting = CityFurniture.place({ edges: streetEdges, ground, modules: layout.modules, obstacles,
+    districtOf: edgeId => planned[edgeDistrict.get(edgeId) ?? 0].kind, rng: Rng.from(seed, 'planting') });
 
   const heightRng = Rng.from(seed, 'volumetric');
   const volumetric = {

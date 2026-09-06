@@ -202,7 +202,7 @@ describe('street furniture', () => {
     }
   });
 
-  it('plants the sidewalks at the district spacing, clear of every way in', () => {
+  it('places sparse tree groups on sidewalks, clear of every way in', () => {
     const bp = defaultCity();
     expect(bp.streets.planting.length).toBeGreaterThan(0);
     const edgeById = new Map(bp.streets.edges.map((e) => [e.id, e]));
@@ -220,6 +220,18 @@ describe('street furniture', () => {
       expect(['tree', 'pole', 'bin']).toContain(point.kind);
       expect([PLANTING_SPACING.dense, PLANTING_SPACING.rest]).toContain(point.spacing);
     }
+    const trees = new Map<string, number>();
+    for (const point of bp.streets.planting.filter(item => item.kind === 'tree')) {
+      const edge = edgeById.get(point.edgeId)!;
+      const [a, b] = edge.path;
+      const side = Math.sign((b[0] - a[0]) * (point.position[1] - a[1]) - (b[1] - a[1]) * (point.position[0] - a[0]));
+      const key = `${edge.id}:${side}`;
+      trees.set(key, (trees.get(key) ?? 0) + 1);
+      expect(bp.volumetric.ground.some(region => region.surface === 'sidewalk' && pointInPolygon(point.position, region.polygon))).toBe(true);
+    }
+    expect(trees.size).toBeGreaterThan(1);
+    expect(trees.size).toBeLessThan(bp.streets.edges.length);
+    expect([...trees.values()].every(count => count <= 2)).toBe(true);
     // the closest any piece of furniture stands to a crossing, a stop, an entrance or a door
     let worst = { gap: Infinity, at: '' };
     for (const point of bp.streets.planting) {

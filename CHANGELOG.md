@@ -1,5 +1,7 @@
 # Changelog
 
+0.18.1 blueprint: sparse 2-6 m guardrail groups and occasional tree pairs occupy selected frontages, with open gaps and finished-pavement clearance.
+
 0.18 blueprint: orthogonal streets use whole-panel block dimensions, shared physical sidewalk modules, 20 cm curbs, 30 cm gutters, guardrails and sparse parking bays. The preview instances module geometry.
 
 Unreleased: city creation uses templates, fresh entry seeds and URL-based saved-city inspection. Server stage progress appears in a blocking dialog with confirmed worker cancellation. Exact geometry queries use indexed winding and prepared masks.

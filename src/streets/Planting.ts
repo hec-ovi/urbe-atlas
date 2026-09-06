@@ -1,14 +1,9 @@
-/**
- * Street furniture along the sidewalks: trees, light poles and bins, standing
- * in the furnishing strip beside the kerb so the walking line stays clear
- * (NACTO zones). Dense districts plant closer. A point is dropped where it
- * would stand on a crossing, a bus stop, a station entrance or the way into a
- * building. Seeded and deterministic, like everything else here.
- */
+/** Sparse sidewalk tree groups and separately spaced lighting. */
 import type { PlantingKind, PlantingPoint, StreetEdge, Vec2 } from '../../schema/blueprint';
 import type { DistrictKind } from '../../schema/params';
 import type { Rng } from '../core/rng';
 import { length as lineLength, directionAt, distanceTo, pointAt } from '../geom/polyline';
+import { closestOnSegment, dist } from '../geom/vec';
 import { sidewalkBand } from './construction/SidewalkSection';
 
 /** Spacing along a sidewalk, meters: dense centers plant closer. */
@@ -19,9 +14,10 @@ export const PLANTING_CLEARANCE = 6;
 const END_MARGIN = 4;
 /** How far a verified point may read off its own band, meters: the 1 mm grid and a bend. */
 const BAND_SLACK = 0.5;
-/** A light pole every this many points; the rest are trees, minus the odd bin. */
+/** Lighting keeps its own regular spacing. */
 const POLE_EVERY = 3;
-const BIN_CHANCE = 0.08;
+const BIN_CHANCE = 0.04;
+const TREE_GROUP_CHANCE = 0.4;
 
 /** Everything a planting point keeps clear of. */
 export class Obstacles {
@@ -36,14 +32,14 @@ export class Obstacles {
     }
   }
 
-  blocks(p: Vec2): boolean {
-    const gx = Math.floor(p[0] / PLANTING_CLEARANCE);
-    const gz = Math.floor(p[1] / PLANTING_CLEARANCE);
-    for (let x = gx - 1; x <= gx + 1; x++) {
-      for (let z = gz - 1; z <= gz + 1; z++) {
-        for (const q of this.cells.get(`${x},${z}`) ?? []) {
-          if (Math.hypot(q[0] - p[0], q[1] - p[1]) < PLANTING_CLEARANCE) return true;
-        }
+  blocks(p: Vec2): boolean { return this.blocksLine(p, p); }
+
+  blocksLine(a: Vec2, b: Vec2): boolean {
+    const low = a.map((value, axis) => Math.floor((Math.min(value, b[axis]) - PLANTING_CLEARANCE) / PLANTING_CLEARANCE));
+    const high = a.map((value, axis) => Math.floor((Math.max(value, b[axis]) + PLANTING_CLEARANCE) / PLANTING_CLEARANCE));
+    for (let x = low[0]; x <= high[0]; x++) for (let z = low[1]; z <= high[1]; z++) {
+      for (const point of this.cells.get(`${x},${z}`) ?? []) {
+        if (dist(point, closestOnSegment(point, a, b).point) < PLANTING_CLEARANCE) return true;
       }
     }
     return false;
@@ -76,13 +72,20 @@ export class Planting {
         const reach = edge.width / 2 + band.offset;
         const sideRng = rng.fork(`${edge.id}:${side}`);
         const poleAt = sideRng.int(0, POLE_EVERY - 1);
+        const stations = Math.floor((armLength - END_MARGIN * 2) / spacing) + 1;
+        const treeRng = sideRng.fork('trees');
+        const treeCount = treeRng.chance(TREE_GROUP_CHANCE) ? treeRng.int(1, Math.min(2, stations)) : 0;
+        const treeStart = treeCount ? treeRng.int(0, stations - treeCount) : -1;
         let index = 0;
         for (let arc = END_MARGIN; arc <= armLength - END_MARGIN; arc += spacing, index++) {
           const along = directionAt(edge.path, arc);
           const left: Vec2 = [-along[1], along[0]];
           const base = pointAt(edge.path, arc);
           const position: Vec2 = [base[0] + left[0] * reach * side, base[1] + left[1] * reach * side];
-          const furniture: PlantingKind = index % POLE_EVERY === poleAt ? 'pole' : sideRng.chance(BIN_CHANCE) ? 'bin' : 'tree';
+          const furniture: PlantingKind | undefined = index % POLE_EVERY === poleAt ? 'pole'
+            : index >= treeStart && index < treeStart + treeCount ? 'tree'
+              : sideRng.chance(BIN_CHANCE) ? 'bin' : undefined;
+          if (!furniture) continue;
           if (obstacles.blocks(position)) continue;
           // a tight bend pinches the offset line back toward the roadway: verify every point on its own edge
           const off = distanceTo(edge.path, position);

@@ -25,7 +25,7 @@ function fixture() {
   })), edges);
   const kit = new StreetModuleKit();
   const blocks = [[7.5, 7.5], [-47.5, 7.5], [-47.5, -47.5], [7.5, -47.5]].map((origin, index) => kit.block({
-    id: `b${index}`, origin: origin as Vec2, panels: [40, 40], sidewalks: [4, 4, 4, 4], finish: 'plain', guardrails: true,
+    id: `b${index}`, origin: origin as Vec2, panels: [40, 40], sidewalks: [4, 4, 4, 4], finish: 'plain', guardrails: [{ side: 0, start: 6, segments: 1 }],
     parking: [{ side: 0, start: 6, slots: 1 }],
   }));
   const modules = kit.construction();
