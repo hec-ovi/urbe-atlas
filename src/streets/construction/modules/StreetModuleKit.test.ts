@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { StreetModuleKit } from './StreetModuleKit';
+import { ModuleGround } from './ModuleGround';
 import type { BlockModuleInput, ModuleConstruction } from './schema';
 import type { Polygon, Vec2 } from '../../../../schema/blueprint';
 
@@ -140,5 +141,18 @@ describe('StreetModuleKit public construction', () => {
     expect(() => new StreetModuleKit().block({ ...input, panels: [80, 64], reserved: [[], [[8, 10]], [], []],
       parking: [{ side: 1, start: 8, slots: 2 }],
     })).toThrow();
+  });
+
+  it('publishes compact planning cover over the same whole block and parking cuts', () => {
+    const kit = new StreetModuleKit();
+    const block = kit.block({ ...input, panels: [80, 64], parking: [{ side: 1, start: 8, slots: 2 }] });
+    const construction = kit.construction();
+    const cover = ModuleGround.cover(construction);
+    expect(cover.every(region => region.blockId === input.id)).toBe(true);
+    expect(new Set(cover.map(region => region.surface))).toEqual(new Set(['sidewalk', 'curb', 'gutter', 'roadway']));
+    expect(cover.reduce((sum, region) => sum + signedArea(region.polygon), 0))
+      .toBeCloseTo(signedArea(block.outer) - signedArea(block.interior), 6);
+    expect(cover.length).toBeLessThan(60);
+    expect(ModuleGround.cover(construction)).toEqual(cover);
   });
 });

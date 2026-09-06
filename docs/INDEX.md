@@ -2,7 +2,7 @@
 
 - src/streets/layout: rectangular street grid sized in complete panel groups, with direct graph connections and sparse parking locations. Input/output: `src/streets/layout/schema.ts`. src/streets/layout/CONTRACT.md. Depends on street construction dimensions, street modules and Atlas seed streams.
 
-- src/streets/construction/modules: dimensioned panels, curbs, gutters, corners, parking cuts and guardrails. Input/output: `src/streets/construction/modules/schema.ts`. src/streets/construction/modules/CONTRACT.md. Depends on Atlas coordinates and errors; construction and renderers consume its repeated placements.
+- src/streets/construction/modules: dimensioned panels, curbs, gutters, corners, parking cuts, guardrails and compact planning covers. Input/output: `src/streets/construction/modules/schema.ts`. src/streets/construction/modules/CONTRACT.md. Depends on Atlas coordinates, errors and geometry; construction and renderers consume its repeated placements.
 
 - src/cities: backend blueprint jobs with stage progress and worker cancellation, persistent city catalog and workspace form documents. Input/output: `src/cities/schema.ts`, forms: `src/cities/forms/schema.ts`. src/cities/CONTRACT.md. Depends on the root generator; the preview server mounts its HTTP handler.
 

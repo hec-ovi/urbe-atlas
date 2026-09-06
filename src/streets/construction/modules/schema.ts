@@ -17,6 +17,15 @@ export interface ModuleDefinition {
   parts: ModulePrism[];
 }
 
+/** Planning cover. Physical joints and lip heights remain in the module prisms. */
+export interface ModuleGroundRegion {
+  blockId: string;
+  surface: 'roadway' | 'sidewalk' | 'curb' | 'gutter';
+  polygon: Polygon;
+  bottom: number;
+  top: number;
+}
+
 export interface ModulePlacement {
   moduleId: string;
   blockId: string;
