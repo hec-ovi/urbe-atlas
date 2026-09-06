@@ -40,6 +40,18 @@ it('combines independently encoded prepared masks with numeric and affine claims
   expect(empty.pieces.map(piece => piece.ownerId)).toEqual(['outside']);
 });
 
+it('preserves exact ray winding at concave vertices and shared horizontal boundaries', () => {
+  const comb: Polygon = [[0, 0], [64, 0], [64, 10]];
+  for (let right = 64; right >= 4; right -= 2) comb.push([right - 1, 10], [right - 1, 5], [right - 2, 5], [right - 2, 10]);
+  comb.push([0, 10]);
+  const masks = [comb.map(([x, y]): [number, number] => [x + .001, y + .003]).reverse()];
+  const preparedMasks = prepareMasks({ masks });
+  const source = rectangle(2.001, 5.003, 4.001, 10.003);
+  expect(divide(source, { id: 'inside', masks: [], preparedMasks })).toEqual(divide(source, { id: 'inside', masks }));
+  const broad = rectangle(-1, 4, 66, 11);
+  expect(divide(broad, { id: 'inside', masks: [], preparedMasks })).toEqual(divide(broad, { id: 'inside', masks }));
+});
+
 it('validates prepared geometry immediately and rejects unknown handles', () => {
   expect(() => prepareMasks({ masks: [rectangle(0, 0, 1.0001, 1)], encoding: 'authored-1mm' }))
     .toThrow(expect.objectContaining({ code: 'E_INVARIANT' }));

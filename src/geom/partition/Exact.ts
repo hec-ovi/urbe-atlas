@@ -142,16 +142,20 @@ export function leftProbe(a: Point, b: Point, pool: PointPool): Probe {
 export function winding(rings: Region, probe: Probe): number {
   let count = 0;
   for (const ring of rings) for (let index = 0; index < ring.length; index++) {
-    const a = ring[index], b = ring[(index + 1) % ring.length];
-    const ay = compareY(a, probe.base) || -sign(probe.direction.y);
-    const by = compareY(b, probe.base) || -sign(probe.direction.y);
-    if ((ay <= 0 && by > 0) || (by <= 0 && ay > 0)) {
-      const side = sign(orient(a, b, probe.base)) || sign(cross(vector(a, b), probe.direction));
-      if (ay <= 0 && by > 0 && side > 0) count++;
-      if (by <= 0 && ay > 0 && side < 0) count--;
-    }
+    count += edgeWinding(ring[index], ring[(index + 1) % ring.length], probe);
   }
   return count;
+}
+
+export function edgeWinding(a: Point, b: Point, probe: Probe): number {
+  const ay = compareY(a, probe.base) || -sign(probe.direction.y);
+  const by = compareY(b, probe.base) || -sign(probe.direction.y);
+  if ((ay <= 0 && by > 0) || (by <= 0 && ay > 0)) {
+    const side = sign(orient(a, b, probe.base)) || sign(cross(vector(a, b), probe.direction));
+    if (ay <= 0 && by > 0 && side > 0) return 1;
+    if (by <= 0 && ay > 0 && side < 0) return -1;
+  }
+  return 0;
 }
 
 export function ringSign(ring: Ring): number {
