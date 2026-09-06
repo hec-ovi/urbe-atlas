@@ -1,6 +1,6 @@
 import { invariantFailure } from '../../errors';
 import { overlay } from './Arrangement';
-import { extent, overlaps } from './BoxIndex';
+import { extent, overlaps, type Box } from './BoxIndex';
 import { PointPool, type Point, type Region, type Ring } from './Exact';
 import { readEdgeMask } from './EdgeMasks';
 import { CoordinateEnclosures } from './CoordinateEnclosures';
@@ -15,7 +15,9 @@ interface Owner {
   id: string;
   read: () => Region;
   children?: string[];
+  field?: WindingField;
   fixed?: Ring;
+  fixedBox?: Box;
   reservations: string[];
   components?: PartitionComponent[];
 }
@@ -51,6 +53,7 @@ export class SourcePartition {
     const ids = [...input.claims.map(claim => claim.id), input.remainderId];
     ids.forEach((id, index) => this.add(id, () => read(index)));
     owner.children = [...owner.reservations, ...ids];
+    owner.field = undefined;
   }
 
   loops(ownerId: string): Polygon[] { return this.remaining(this.readable(ownerId)).map(ring => ring.map(point => [...point.value])); }
@@ -73,16 +76,17 @@ export class SourcePartition {
       return { id: ids[index], boundaries: simple(region, this.pool).map(ring => ring.map(point => [...point.value])) };
     });
     owner.children = [...owner.reservations, ...ids];
+    owner.field = undefined;
     return structuredClone(owner.components);
   }
 
   covers(ownerId: string, polygon: Polygon, input: PartitionCoordinates = {}): boolean {
-    const owner = this.readable(ownerId), ring = readRing(polygon, this.pool.reader(input.encoding)), region = owner.read();
-    if (overlay([ring], [region], this.pool)[1].length) return false;
+    const owner = this.readable(ownerId), ring = readRing(polygon, this.pool.reader(input.encoding));
+    if (overlay([ring], [owner.field ??= new WindingField(owner.read())], this.pool)[1].length) return false;
     const box = extent([ring]);
     for (const id of owner.reservations) {
-      const fixed = this.owner(id).fixed!;
-      if (overlaps(box, extent([fixed])) && overlay([ring], [[fixed]], this.pool)[0].length) return false;
+      const fixed = this.owner(id);
+      if (overlaps(box, fixed.fixedBox!) && overlay([ring], [[fixed.fixed!]], this.pool)[0].length) return false;
     }
     return true;
   }
@@ -96,7 +100,7 @@ export class SourcePartition {
     if (ring.length !== normalized.length || ring.some((point, index) => point.key !== normalized[index].key)) {
       throw invariantFailure('partition reservation must be an unclosed CCW canonical ring', { id: input.id });
     }
-    const fixed = this.add(input.id, () => [ring]); fixed.fixed = ring;
+    const fixed = this.add(input.id, () => [ring]); fixed.fixed = ring; fixed.fixedBox = extent([ring]);
     owner.reservations.push(input.id);
   }
 
