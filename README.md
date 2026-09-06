@@ -14,7 +14,7 @@ npm run generate -- --seed urbe --out city.json
 
 `npm run build:cli` prepares `dist/cli.mjs` for subprocess callers. `npm run generate` writes to the requested output path. `npm run build:cities` prepares the background generation worker. Preview startup builds both Node entries. The browser build lives under `dist/preview/`.
 
-The preview is two workspaces, Create and View. Create shows the parameter form and saved cities. View shows the map. Forms load from the catalog (`GET /api/forms/creation` and `GET /api/forms/visualization`). Maps remain usable during generation. `ATLAS_CITY_DATA_DIR` selects persistent storage, default `.atlas-cities`. Parameter files and saved blueprints can be imported and exported. Cities can be deleted. Generate exteriors starts a separate Engine job for the displayed blueprint. Left-click selects a parcel; Open becomes available after its exterior is verified.
+The preview opens creation with a fresh seed and a template dropdown. Generate city shows completed server stages in a blocking dialog; Cancel terminates the worker and removes the partial city. Saved cities open at `?city=id`; the Atlas logo returns to creation. Forms load from `/api/forms/creation` and `/api/forms/visualization`. `ATLAS_CITY_DATA_DIR` selects persistent storage, default `.atlas-cities`. Saved blueprints can be opened and downloaded. Generate exteriors starts a separate Engine job for the displayed blueprint; building previews open after verification.
 
 Generator flags: `--size N`, `--irregularity X`, `--max-floors N`, `--no-highways`, `--no-trains`, `--no-subways`, `--no-alleys`. Only `--seed` is required; everything else has a documented default in `schema/params.ts`.
 

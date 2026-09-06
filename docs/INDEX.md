@@ -2,9 +2,9 @@
 
 - src/cities: backend blueprint jobs with stage progress and worker cancellation, persistent city catalog and workspace form documents. Input/output: `src/cities/schema.ts`, forms: `src/cities/forms/schema.ts`. src/cities/CONTRACT.md. Depends on the root generator; the preview server mounts its HTTP handler.
 
-- src/streets/crossings/intervals: safe full-footprint station ranges, complete coordinate coverage and shared source-edge subdivisions. src/streets/crossings/intervals/CONTRACT.md. Depends on geometry, exact source partition and street construction.
+- src/streets/crossings/intervals: safe full-footprint station ranges with prepared exact fields, complete coverage and shared source-edge subdivisions. src/streets/crossings/intervals/CONTRACT.md. Depends on geometry, exact source partition and street construction.
 
-- src/streets/crossings: pre-ground source contacts, external fields and proved walking terminals. src/streets/crossings/CONTRACT.md. Depends on Atlas graph, street reservations and geometry; final placement also takes ground, and intervals/ solves full-footprint station ranges.
+- src/streets/crossings: pre-ground source contacts, prepared city ground fields and proved walking terminals. src/streets/crossings/CONTRACT.md. Depends on Atlas graph, street reservations and geometry; final placement also takes ground, and intervals/ solves full-footprint station ranges.
 
 - src/streets/construction/corridors: exact edge-local roadway, sidewalk and walking query data for consumer conformance. src/streets/construction/corridors/CONTRACT.md. Depends on street construction and geometry; final ground owns rendering and collision.
 
