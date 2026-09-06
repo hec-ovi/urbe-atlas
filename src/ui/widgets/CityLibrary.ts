@@ -26,13 +26,15 @@ export class CityLibrary {
   private saved = false;
   private saving = false;
   private busy = false;
+  private confirmId: string | null = null;
   private timer: ReturnType<typeof setTimeout> | undefined;
 
   constructor(private readonly events: LibraryEvents) {
     this.refreshButton.addEventListener('click', () => void this.refresh());
     this.save.addEventListener('click', () => void this.saveCurrent());
     this.root = el('section', { class: 'city-library', 'aria-label': 'City library' }, [
-      el('h2', { text: 'Saved cities' }),
+      el('h2', { text: 'Cities' }),
+      el('p', { class: 'section-note', text: 'Open a ready city to inspect it. Delete removes it from this server.' }),
       el('div', { class: 'button-row' }, [this.refreshButton, this.save]),
       this.status, this.list,
     ]);
@@ -139,6 +141,25 @@ export class CityLibrary {
     }
   }
 
+  private async remove(record: CityRecord): Promise<void> {
+    if (this.confirmId !== record.id) {
+      this.confirmId = record.id;
+      this.render();
+      return;
+    }
+    this.confirmId = null;
+    try {
+      await this.api.remove(record.id);
+      this.records.delete(record.id);
+      this.waiters.delete(record.id);
+      this.status.textContent = this.records.size ? 'Cities are stored on this server.' : 'No saved cities yet. Generate a city or open a blueprint and save it.';
+      this.render();
+      this.events.onInfo(`City ${String(record.seed)} deleted.`);
+    } catch (error) {
+      this.events.onError(`Delete city: ${message(error)}`);
+    }
+  }
+
   private updateSave(): void {
     this.save.disabled = !this.blueprint || this.saved || this.saving;
     this.save.textContent = this.saving ? 'Saving city…' : this.saved ? 'Current city saved' : 'Save current city';
@@ -153,6 +174,12 @@ export class CityLibrary {
         if (record.status === 'ready') this.events.onOpen(record);
         else if (record.status === 'failed') this.events.onRetry(record.params);
       });
+      const remove = el('button', {
+        type: 'button', class: this.confirmId === record.id ? 'danger-button' : '',
+        text: this.confirmId === record.id ? 'Confirm delete' : 'Delete',
+        'aria-label': `${this.confirmId === record.id ? 'Confirm delete' : 'Delete'} city ${String(record.seed)}`,
+      });
+      remove.addEventListener('click', () => void this.remove(record));
       return el('li', { class: 'city-row', 'data-city-id': record.id, 'data-status': record.status }, [
         el('div', { class: 'city-details' }, [
           el('strong', { text: String(record.seed) }),
@@ -160,7 +187,8 @@ export class CityLibrary {
           el('span', { class: 'city-meta', text: `${record.params.size ? `${record.params.size.width} × ${record.params.size.depth} m` : 'Size unspecified'} · ${record.source === 'generated' ? 'Generated' : 'Imported'}` }),
           el('time', { dateTime: record.createdAt, text: new Date(record.createdAt).toLocaleString() }),
           ...(record.error ? [el('span', { class: 'city-error', text: `${record.error.code}: ${record.error.message}` })] : []),
-        ]), action,
+        ]),
+        el('div', { class: 'city-actions' }, [action, remove]),
       ]);
     });
     this.list.replaceChildren(...rows);

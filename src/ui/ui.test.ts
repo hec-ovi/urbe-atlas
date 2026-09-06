@@ -12,6 +12,7 @@ import { LayerToggles } from './widgets/LayerToggles';
 import { ParamsPanel } from './widgets/ParamsPanel';
 import { MapView, DEFAULT_LAYERS } from './views/MapView';
 import { PreviewApp, type ManifestFetcher } from './views/PreviewApp';
+import { stubWorkspaceFetch } from './test/forms';
 import { Map3DView } from './views/Map3DView';
 import { streetSurfaceRegions } from './views/StreetSurfaceRegions';
 import { difference, intersection, offset } from '../geom/clip';
@@ -22,7 +23,7 @@ const CANVAS = 600;
 
 beforeEach(() => {
   document.body.replaceChildren();
-  vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, json: async () => ({ contractVersion: '1.0', available: false, reason: 'Test service unavailable' }) })));
+  stubWorkspaceFetch();
 });
 
 /** Clicks a grid over the map until `hit` reports the pick landed. */
@@ -35,9 +36,10 @@ async function inspectUntil(canvas: HTMLElement, hit: () => boolean): Promise<vo
   }
 }
 
-function mount(fetchManifest: ManifestFetcher = async () => ({ ok: false, json: async () => ({}) })): PreviewApp {
+async function mount(fetchManifest: ManifestFetcher = async () => ({ ok: false, json: async () => ({}) })): Promise<PreviewApp> {
   const app = new PreviewApp(fetchManifest);
   document.body.append(app.root);
+  await app.ready;
   const wrap = app.root.querySelector('.map-wrap') as HTMLElement;
   Object.defineProperty(wrap, 'clientWidth', { value: CANVAS });
   Object.defineProperty(wrap, 'clientHeight', { value: CANVAS });
@@ -233,11 +235,11 @@ describe('ParamsPanel', () => {
   it('shows generation status and disables only submission while busy', async () => {
     const panel = new ParamsPanel(events());
     document.body.append(panel.root);
-    const form = panel.root.querySelector('.params-form') as HTMLFieldSetElement;
+    const seed = getByLabelText(panel.root, 'Seed') as HTMLInputElement;
     const submit = getByRole(panel.root, 'button', { name: 'Generate city' }) as HTMLButtonElement;
     panel.setBusy(true);
-    expect(form.disabled).toBe(false);
-    await userEvent.type(getByLabelText(panel.root, 'Seed'), '-next');
+    expect(seed.disabled).toBe(false);
+    await userEvent.type(seed, '-next');
     expect(submit.disabled).toBe(true);
     panel.setBusy(false);
     expect(submit.disabled).toBe(false);
@@ -321,7 +323,7 @@ describe('3D street surfaces', () => {
 describe('PreviewApp', () => {
   it('defers 3D geometry until that view is selected', async () => {
     const built3d = vi.spyOn(Map3DView.prototype, 'setBlueprint');
-    const app = mount();
+    const app = await mount();
     await app.loadBlueprint(generateCity(SMALL));
     expect(built3d).not.toHaveBeenCalled();
     app.setMode('3d');
@@ -457,14 +459,14 @@ describe('PreviewApp', () => {
   });
 
   it('surfaces parameter validation failure before contacting the service', async () => {
-    const app = mount();
+    const app = await mount();
     await app.generate({ seed: 'invalid', size: { width: -1, depth: 100 } });
     expect(getByRole(app.root, 'log').textContent).toContain('E_INVALID_PARAMS');
     expect(fetch).not.toHaveBeenCalled();
   });
 
   it('imports a parameter file into the form and refuses a broken one', async () => {
-    const app = mount();
+    const app = await mount();
     const input = getByLabelText(app.root, 'Parameter file');
     const streetDesign: AtlasParams['streetDesign'] = {
       profiles: [{ id: 'wide', classes: ['street'],
@@ -560,7 +562,7 @@ describe('PreviewApp', () => {
     }));
     const mapIds = vi.spyOn(MapView.prototype, 'setInteriorParcels');
     const map3dIds = vi.spyOn(Map3DView.prototype, 'setInteriorParcels');
-    const app = mount(fetchManifest);
+    const app = await mount(fetchManifest);
     await userEvent.type(getByLabelText(app.root, 'URL template'), 'http://localhost:5306/?out=/out/preview');
     await app.loadBlueprint(fixture);
     await waitFor(() => expect(getByText(app.root, '1 building has interiors')).toBeTruthy());
@@ -572,7 +574,7 @@ describe('PreviewApp', () => {
   });
 
   it('fails closed when the assembled manifest is invalid', async () => {
-    const app = mount(async () => ({
+    const app = await mount(async () => ({
       ok: true,
       json: async () => ({ contractVersion: '1.0.0', interiors: ['p0'] }),
     }));
@@ -583,10 +585,10 @@ describe('PreviewApp', () => {
   });
 
   it('uses the dark workspace and exposes generated geometry diagnostics', async () => {
-    const app = mount();
+    const app = await mount();
     expect(app.root.dataset.theme).toBe('dark');
     await app.loadBlueprint(generateCity({ seed: 'diagnostics', size: { width: 1000, depth: 1000 } }));
-    await userEvent.click(getByRole(app.root, 'button', { name: 'Visualization' }));
+    await userEvent.click(getByRole(app.root, 'button', { name: 'View' }));
     expect(getByText(app.root, 'Blueprint summary')).toBeTruthy();
     expect(getByText(app.root, /runs · \d+ ramps · \d+ supports/)).toBeTruthy();
     expect(getByLabelText(app.root, 'highway centerlines')).toBeTruthy();
@@ -597,7 +599,7 @@ describe('PreviewApp', () => {
     const createUrl = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:atlas');
     const revokeUrl = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => undefined);
     const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined);
-    const app = mount();
+    const app = await mount();
     const download = getByRole(app.root, 'button', { name: 'Download blueprint' }) as HTMLButtonElement;
     expect(download.disabled).toBe(true);
     await app.loadBlueprint(generateCity(SMALL));
@@ -612,20 +614,22 @@ describe('PreviewApp', () => {
   });
 });
 
-describe('sidebar tabs and view mode', () => {
-  it('opens Visualization in 3D and keeps the flat map selectable', async () => {
-    const { PreviewApp } = await import('./views/PreviewApp');
-    const app = new PreviewApp();
-    document.body.append(app.root);
-    const creation = getByRole(app.root, 'button', { name: 'Creation' });
-    const visualization = getByRole(app.root, 'button', { name: 'Visualization' });
+describe('workspace views and view mode', () => {
+  it('keeps Create and View as separate workspaces and selects 3D from the view form', async () => {
+    const app = await mount();
+    const creation = getByRole(app.root, 'button', { name: 'Create' });
+    const view = getByRole(app.root, 'button', { name: 'View' });
     expect(creation.getAttribute('aria-pressed')).toBe('true');
-    expect(getByLabelText(app.root, 'City in 3D').closest<HTMLElement>('.tab-pane')?.hidden).toBe(true);
+    expect(app.root.querySelector<HTMLElement>('.workspace-visualization')?.hidden).toBe(true);
 
-    await userEvent.click(visualization);
-    expect(visualization.getAttribute('aria-pressed')).toBe('true');
+    await userEvent.click(view);
+    expect(view.getAttribute('aria-pressed')).toBe('true');
     expect(creation.getAttribute('aria-pressed')).toBe('false');
+    expect(app.root.querySelector<HTMLElement>('.workspace-creation')?.hidden).toBe(true);
+    expect(app.viewMode).toBe('2d');
+
     const threeD = getByLabelText(app.root, 'City in 3D');
+    await userEvent.click(threeD);
     expect(app.viewMode).toBe('3d');
     expect((threeD as HTMLInputElement).checked).toBe(true);
     expect(app.root.querySelector<HTMLElement>('.map-view-3d')?.hidden).toBe(false);
@@ -637,11 +641,9 @@ describe('sidebar tabs and view mode', () => {
     expect(app.root.querySelector<HTMLElement>('.map-view')?.hidden).toBe(false);
 
     await userEvent.click(creation);
-    await userEvent.click(visualization);
-    expect(visualization.getAttribute('aria-pressed')).toBe('true');
-    expect(app.viewMode).toBe('3d');
-    expect((threeD as HTMLInputElement).checked).toBe(true);
-    expect(threeD.closest<HTMLElement>('.tab-pane')?.hidden).toBe(false);
-    app.root.remove();
+    expect(app.root.querySelector<HTMLElement>('.workspace-creation')?.hidden).toBe(false);
+    await userEvent.click(view);
+    expect(view.getAttribute('aria-pressed')).toBe('true');
+    expect(app.viewMode).toBe('2d');
   });
 });

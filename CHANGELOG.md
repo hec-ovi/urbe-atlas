@@ -1,6 +1,6 @@
 # Changelog
 
-Unreleased: the preview submits blueprint generation to a server worker, lists persistent cities and keeps viewing available during generation. Generate exteriors is visible for the displayed city.
+Unreleased: Create and View are separate workspaces. Creation is a 70/30 form and city list rendered from `GET /api/forms/creation`. View loads `GET /api/forms/visualization`. Cities can be deleted. Generate exteriors stays on the View rail.
 
 0.4.0: blueprint 0.17.0 publishes continuous 7, 14 and 21 m street profiles, exact lanes and independent pedestrian bands reserved before parcels. Grade rail and complete outboard subway entrance bays reserve land from the zoning forecast; water contacts include actual asymmetric corridors. Shared grid-cell normalization preserves simple ground rings. The preview exposes rectangular footprint selection and parameter-file preservation.
 

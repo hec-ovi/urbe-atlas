@@ -7,6 +7,7 @@ import { parseParams } from './components/paramsFile';
 import { DEFAULT_PAVING } from './data/defaultPaving';
 import { ParamsPanel } from './widgets/ParamsPanel';
 import { PreviewApp } from './views/PreviewApp';
+import { stubWorkspaceFetch } from './test/forms';
 
 beforeEach(() => document.body.replaceChildren());
 afterEach(() => { document.body.replaceChildren(); vi.restoreAllMocks(); });
@@ -60,8 +61,10 @@ it.each([
   ['custom', customPaving()],
   ['omitted', undefined],
 ] as const)('preserves %s paving through real parameter-file import, editing and export', async (_name, pavingDesign) => {
+  stubWorkspaceFetch();
   const app = new PreviewApp();
   document.body.append(app.root);
+  await app.ready;
   const user = userEvent.setup();
   const createUrl = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:parameter-file');
   vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => undefined);

@@ -1,17 +1,35 @@
 /** Every visualization switch, grouped, each group with its own all-on/all-off row. */
+import type { LayerGroup } from '../../cities/forms/schema';
 import { FILTER_GROUPS, defaultFilters, filterLabel, type FilterKey, type Filters } from '../views/filters';
 import { DIAGNOSTIC_COLORS, DISTRICT_OUTLINE, FURNITURE_COLORS, GROUND_COLORS, HYDROLOGY_COLORS, TRANSIT_COLORS, parcelColor, streetColor } from '../components/colors';
 import { el } from '../components/dom';
 
+interface GroupView {
+  id: string;
+  title: string;
+  description: string;
+  open?: boolean;
+  keys: FilterKey[];
+  label: (key: FilterKey) => string;
+  color: (key: FilterKey) => string;
+}
+
 export class LayerToggles {
   readonly root: HTMLElement;
-  private readonly filters: Filters = defaultFilters();
+  private readonly filters: Filters;
+  private readonly groups: GroupView[];
   private readonly inputs = new Map<FilterKey, HTMLInputElement>();
   private readonly masters = new Map<string, HTMLInputElement>();
   private readonly interiorsOnly: HTMLInputElement;
   private readonly interiorStatus: HTMLElement;
 
-  constructor(onChange: (filters: Filters) => void) {
+  constructor(
+    onChange: (filters: Filters) => void,
+    schemaGroups?: LayerGroup[],
+    constraint?: { path: string; label: string },
+  ) {
+    this.groups = schemaGroups?.map(schemaGroup) ?? FILTER_GROUPS.map(legacyGroup);
+    this.filters = schemaGroups ? schemaFilters(schemaGroups) : defaultFilters();
     this.root = el('div', { class: 'layer-toggles' });
     const notify = () => { this.syncMasters(); onChange({ ...this.filters }); };
     const resetConstraint = () => {
@@ -21,10 +39,15 @@ export class LayerToggles {
     const actions = el('div', { class: 'layer-actions' }, [
       action('Show all', () => { for (const key of this.inputs.keys()) this.setKey(key, true); resetConstraint(); notify(); }),
       action('Hide all', () => { for (const key of this.inputs.keys()) this.setKey(key, false); resetConstraint(); notify(); }),
-      action('Defaults', () => { const defaults = defaultFilters(); for (const key of this.inputs.keys()) this.setKey(key, defaults[key]); resetConstraint(); notify(); }),
+      action('Defaults', () => {
+        const defaults = schemaGroups ? schemaFilters(schemaGroups) : defaultFilters();
+        for (const key of this.inputs.keys()) this.setKey(key, defaults[key]);
+        resetConstraint();
+        notify();
+      }),
     ]);
     this.interiorsOnly = el('input', { type: 'checkbox', id: 'layer-interiors-only' });
-    this.interiorsOnly.setAttribute('aria-label', 'Only buildings with interiors');
+    this.interiorsOnly.setAttribute('aria-label', constraint?.label ?? 'Only buildings with interiors');
     this.interiorsOnly.checked = false;
     this.interiorsOnly.addEventListener('change', () => {
       this.filters.interiorsOnly = this.interiorsOnly.checked;
@@ -34,11 +57,11 @@ export class LayerToggles {
     const interiorFilter = el('section', { class: 'layer-constraint' }, [
       el('label', { for: 'layer-interiors-only' }, [
         this.interiorsOnly,
-        el('span', {}, [el('strong', { text: 'Only buildings with interiors' }), this.interiorStatus]),
+        el('span', {}, [el('strong', { text: constraint?.label ?? 'Only buildings with interiors' }), this.interiorStatus]),
       ]),
     ]);
     this.root.append(actions, interiorFilter);
-    for (const group of FILTER_GROUPS) {
+    for (const group of this.groups) {
       const master = el('input', { type: 'checkbox', id: `layer-group-${group.id}`, 'aria-label': group.title });
       master.checked = group.keys.every((k) => this.filters[k]);
       master.addEventListener('change', () => {
@@ -49,14 +72,14 @@ export class LayerToggles {
       const rows = el('div', { class: 'layer-group-rows' });
       for (const key of group.keys) {
         const input = el('input', { type: 'checkbox', id: `layer-${key}` });
-        input.setAttribute('aria-label', filterLabel(key));
+        input.setAttribute('aria-label', group.label(key));
         input.checked = this.filters[key];
         input.addEventListener('change', () => {
           this.filters[key] = input.checked;
           notify();
         });
         this.inputs.set(key, input);
-        const isolate = action(`Only ${filterLabel(key)}`, () => {
+        const isolate = action(`Only ${group.label(key)}`, () => {
           for (const candidate of this.inputs.keys()) this.setKey(candidate, candidate === key);
           resetConstraint();
           notify();
@@ -65,8 +88,8 @@ export class LayerToggles {
         rows.append(el('div', { class: 'layer-row' }, [
           el('label', { for: `layer-${key}` }, [
             input,
-            el('span', { class: 'layer-swatch', style: `background:${filterColor(key)}`, 'aria-hidden': 'true' }),
-            el('span', { text: filterLabel(key) }),
+            el('span', { class: 'layer-swatch', style: `background:${group.color(key)}`, 'aria-hidden': 'true' }),
+            el('span', { text: group.label(key) }),
           ]),
           isolate,
         ]));
@@ -116,12 +139,34 @@ export class LayerToggles {
   }
 
   private syncMasters(): void {
-    for (const group of FILTER_GROUPS) {
+    for (const group of this.groups) {
       const master = this.masters.get(group.id)!;
       master.checked = group.keys.every((key) => this.filters[key]);
       master.indeterminate = !master.checked && group.keys.some((key) => this.filters[key]);
     }
   }
+}
+
+function schemaGroup(group: LayerGroup): GroupView {
+  const labels = new Map(group.items.map((item) => [item.key, item.label]));
+  const colors = new Map(group.items.map((item) => [item.key, item.swatch]));
+  return {
+    id: group.id, title: group.title, description: group.description, open: group.open,
+    keys: group.items.map((item) => item.key as FilterKey),
+    label: (key) => labels.get(key) ?? filterLabel(key),
+    color: (key) => colors.get(key) ?? filterColor(key),
+  };
+}
+
+function legacyGroup(group: (typeof FILTER_GROUPS)[number]): GroupView {
+  return { ...group, label: filterLabel, color: filterColor };
+}
+
+function schemaFilters(groups: LayerGroup[]): Filters {
+  const out = {} as Filters;
+  for (const group of groups) for (const item of group.items) out[item.key as FilterKey] = item.default;
+  out.interiorsOnly = false;
+  return out;
 }
 
 function action(label: string, handler: () => void): HTMLButtonElement {

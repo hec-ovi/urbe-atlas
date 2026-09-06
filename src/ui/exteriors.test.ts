@@ -5,6 +5,7 @@ import { getByRole, waitFor } from '@testing-library/dom';
 import userEvent from '@testing-library/user-event';
 import { PreviewApp } from './views/PreviewApp';
 import { selectionBlueprint } from './fixtures/selectionBlueprint';
+import { formPayload } from './test/forms';
 
 afterEach(() => { document.body.replaceChildren(); vi.unstubAllGlobals(); vi.restoreAllMocks(); });
 const blueprint = selectionBlueprint();
@@ -19,22 +20,29 @@ function job(state = 'succeeded') {
     manifest: state === 'succeeded' ? manifest : null, error: null };
 }
 const json = (value: unknown) => ({ ok: true, json: async () => value });
+function api(handler: (url: string, init?: RequestInit) => ReturnType<typeof json> | Promise<ReturnType<typeof json>>) {
+  return vi.fn(async (url: string, init?: RequestInit) => {
+    const form = formPayload(url);
+    if (form) return json(form);
+    return handler(url, init);
+  });
+}
 
 async function mount() {
   const app = new PreviewApp();
   document.body.append(app.root);
+  await app.ready;
   Object.defineProperties(app.root.querySelector('.map-wrap'), { clientWidth: { value: 600 }, clientHeight: { value: 600 } });
   await app.loadBlueprint(blueprint);
   app.resize();
-  expect(getByRole(app.root, 'button', { name: 'Generate exteriors' }).closest('.tab-pane')).toBeNull();
-  expect(getByRole(app.root, 'button', { name: 'Creation' }).getAttribute('aria-pressed')).toBe('true');
+  expect(getByRole(app.root, 'button', { name: 'Generate exteriors' }).closest('.workspace-creation')).toBeNull();
+  expect(getByRole(app.root, 'button', { name: 'View' }).getAttribute('aria-pressed')).toBe('true');
   await userEvent.pointer({ target: app.root.querySelector('canvas')!, coords: { clientX: 300, clientY: 300 }, keys: '[MouseLeft]' });
-  await userEvent.click(getByRole(app.root, 'button', { name: 'Visualization' }));
   return app;
 }
 
 it('submits the displayed city only after a click and enables preview after exact completed job verification', async () => {
-  const fetcher = vi.fn(async (url: string, init?: RequestInit) => {
+  const fetcher = api(async (url: string, init?: RequestInit) => {
     if (init?.method === 'POST') return json(job('queued'));
     if (url.endsWith('/job-1')) return json(job());
     return json({ contractVersion: '1.0', available: true, reason: null });
@@ -62,18 +70,19 @@ it('submits the displayed city only after a click and enables preview after exac
 });
 
 it('keeps generation unavailable when the server lacks its runtime', async () => {
-  const fetcher = vi.fn(async () => json({ contractVersion: '1.0', available: false, reason: 'Connections runtime missing' }));
+  const fetcher = api(async () => json({ contractVersion: '1.0', available: false, reason: 'Connections runtime missing' }));
   vi.stubGlobal('fetch', fetcher);
   const app = await mount();
   const button = getByRole(app.root, 'button', { name: 'Generate exteriors' }) as HTMLButtonElement;
   expect(button.disabled).toBe(true);
   expect(app.root.textContent).toContain('Connections runtime missing');
+  const calls = fetcher.mock.calls.length;
   await userEvent.click(button);
-  expect(fetcher).toHaveBeenCalledTimes(1);
+  expect(fetcher).toHaveBeenCalledTimes(calls);
 });
 
 it('rejects a successful job for another blueprint and keeps preview disabled', async () => {
-  vi.stubGlobal('fetch', vi.fn(async (_url: string, init?: RequestInit) => json(init?.method === 'POST'
+  vi.stubGlobal('fetch', api(async (_url: string, init?: RequestInit) => json(init?.method === 'POST'
     ? { ...job(), blueprintHash: '0'.repeat(64) } : { contractVersion: '1.0', available: true, reason: null })));
   const app = await mount();
   await userEvent.click(getByRole(app.root, 'button', { name: 'Generate exteriors' }));
@@ -85,7 +94,7 @@ it.each([
   { ...job(), completed: 0, completedParcels: [] },
   { ...job(), manifest: { ...manifest, seed: 'another-city' } },
 ])('rejects incomplete or mismatched exterior completion', async (response) => {
-  vi.stubGlobal('fetch', vi.fn(async (_url: string, init?: RequestInit) => json(init?.method === 'POST'
+  vi.stubGlobal('fetch', api(async (_url: string, init?: RequestInit) => json(init?.method === 'POST'
     ? response : { contractVersion: '1.0', available: true, reason: null })));
   const app = await mount();
   await userEvent.click(getByRole(app.root, 'button', { name: 'Generate exteriors' }));
@@ -95,7 +104,7 @@ it.each([
 
 it('ignores a job response after a different blueprint is loaded', async () => {
   let complete!: (response: ReturnType<typeof json>) => void;
-  const fetcher = vi.fn(async (_url: string, init?: RequestInit) => init?.method === 'POST'
+  const fetcher = api(async (_url: string, init?: RequestInit) => init?.method === 'POST'
     ? new Promise<ReturnType<typeof json>>((resolve) => { complete = resolve; })
     : json({ contractVersion: '1.0', available: true, reason: null }));
   vi.stubGlobal('fetch', fetcher);

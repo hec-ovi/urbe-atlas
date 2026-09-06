@@ -7,15 +7,17 @@ import { PreviewApp } from './views/PreviewApp';
 import { Map3DView } from './views/Map3DView';
 import { Notifications } from './widgets/Notifications';
 import { selectionBlueprint } from './fixtures/selectionBlueprint';
+import { stubWorkspaceFetch } from './test/forms';
 
 const blueprint = selectionBlueprint();
 const parcel = blueprint.parcels[0];
-beforeEach(() => vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, json: async () => ({ contractVersion: '1.0', available: false, reason: 'Test service unavailable' }) }))));
+beforeEach(() => stubWorkspaceFetch());
 afterEach(() => { document.body.replaceChildren(); vi.restoreAllMocks(); vi.unstubAllGlobals(); vi.useRealTimers(); });
 
 it('left click selects a persistent closable popup; right click and drags never open it or navigate', async () => {
   const app = new PreviewApp();
   document.body.append(app.root);
+  await app.ready;
   const wrap = app.root.querySelector('.map-wrap')!;
   Object.defineProperties(wrap, { clientWidth: { value: 600 }, clientHeight: { value: 600 } });
   await app.loadBlueprint(blueprint);

@@ -1,6 +1,6 @@
 # Box map
 
-- src/cities: backend blueprint jobs and persistent saved-city catalog. src/cities/CONTRACT.md. Depends on the root generator; the preview server mounts its HTTP handler.
+- src/cities: backend blueprint jobs, persistent saved-city catalog, city delete, and workspace form documents. src/cities/CONTRACT.md. Depends on the root generator; the preview server mounts its HTTP handler.
 
 - src/streets/crossings/intervals: safe full-footprint station ranges, complete coordinate coverage and shared source-edge subdivisions. src/streets/crossings/intervals/CONTRACT.md. Depends on geometry, exact source partition and street construction.
 
@@ -28,7 +28,7 @@
 - atlas (root): city blueprint, exact world-axis regular streets, checked street capabilities and retained source-owned ground. CONTRACT.md, schemas in schema/, generator in src/, reusable CLI at dist/cli.mjs. Depends on street domain, geometry, grade datum, exact source partition and Highway envelopes; mirrors the Interior core-feasibility and Exterior floor-constant contracts.
   - `JunctionGround`: shared beveled gutter, curb and paved returns plus original-arm fitting fields and corner transition supports; uses original contacts, Datum roles and run stations through the retained ground partition. Root CONTRACT and `schema/junction-ground.ts`.
 - src/hydro: deterministic water, shoreline bands, land exclusions and exact bridge/tunnel contact reservations. src/hydro/CONTRACT.md. Depends on the root blueprint, geometry, errors and street construction corridors.
-- src/ui: saved-city workspace, fitted paving creation defaults, 2D/3D inspection and explicit exterior builds. src/ui/CONTRACT.md. Depends on the city catalog, root blueprint, fitted paving and Engine exterior/manifest contracts.
+- src/ui: separate Create and View workspaces rendered from catalog form documents, city list with delete, 2D/3D inspection and explicit exterior builds. src/ui/CONTRACT.md. Depends on the city catalog, root blueprint, fitted paving and Engine exterior/manifest contracts.
 - src/zoning: district population forecasts, use eligibility and complete rectangular or lot-following footprints on the published building grid. src/zoning/CONTRACT.md. Depends on Atlas geometry and mirrored Interior core feasibility; Buildability consumes its hosting policy.
 - src/transit: bus service and early rail plans with full sidewalk-connected subway bays. src/transit/CONTRACT.md. Depends on street construction and zoning capacity; reservations/ owns entrance land geometry.
 - src/streets/construction: road profiles and normalized per-side curb, gutter and paved dimensions before parcels. src/streets/construction/CONTRACT.md. Depends on the Atlas graph, geometry and district contracts; corridor format support governs production reservations.

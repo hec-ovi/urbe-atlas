@@ -4,6 +4,7 @@ import { getAllByRole, getByLabelText, getByRole, waitFor, within } from '@testi
 import userEvent from '@testing-library/user-event';
 import type { CityRecord } from '../cities/schema';
 import { selectionBlueprint } from './fixtures/selectionBlueprint';
+import { formPayload } from './test/forms';
 import { PreviewApp } from './views/PreviewApp';
 import { MapView } from './views/MapView';
 import { Map3DView } from './views/Map3DView';
@@ -25,14 +26,19 @@ function blueprint(seed = 'urbe') {
   return value;
 }
 function service(handler: (url: string, init?: RequestInit) => ReturnType<typeof json> | Promise<ReturnType<typeof json>>) {
-  const fetcher = vi.fn(async (url: string, init?: RequestInit) => url.startsWith('/api/cities')
-    ? handler(url, init) : json({ contractVersion: '1.0', available: false, reason: 'Exterior runtime unavailable' }));
+  const fetcher = vi.fn(async (url: string, init?: RequestInit) => {
+    const form = formPayload(url);
+    if (form) return json(form);
+    if (url.startsWith('/api/cities')) return handler(url, init);
+    return json({ contractVersion: '1.0', available: false, reason: 'Exterior runtime unavailable' });
+  });
   vi.stubGlobal('fetch', fetcher);
   return fetcher;
 }
-function mount() {
+async function mount() {
   const app = new PreviewApp();
   document.body.append(app.root);
+  await app.ready;
   return app;
 }
 function button(app: PreviewApp, name: string): HTMLButtonElement { return getByRole(app.root, 'button', { name }) as HTMLButtonElement; }
@@ -49,19 +55,20 @@ it('restores all saved cities after reload and opens a chosen blueprint without 
   const newer = { ...record('same-seed', 'city-newer'), source: 'imported' as const, params: { seed: 'same-seed', size: { width: 800, depth: 500 } } };
   const value = blueprint('same-seed');
   const fetcher = service((url) => json(url.endsWith('/blueprint') ? value : { cities: [newer, older] }));
-  let app = mount();
+  let app = await mount();
   await startPreview(app, '');
   expect(getAllByRole(app.root, 'button', { name: 'Open city same-seed' })).toHaveLength(2);
   expect(app.root.textContent).toContain('800 × 500 m · Imported');
   expect(app.root.textContent).toContain('600 × 600 m · Generated');
   app.root.remove();
-  app = mount();
+  app = await mount();
   await startPreview(app, '');
   const row = app.root.querySelector('[data-city-id="city-older"]')!;
   await userEvent.click(within(row as HTMLElement).getByRole('button', { name: 'Open city same-seed' }));
   await waitFor(() => expect(MapView.prototype.setBlueprint).toHaveBeenCalledWith(value));
   expect(fetcher.mock.calls.some(([url]) => url === '/api/cities/city-older/blueprint')).toBe(true);
   expect(fetcher.mock.calls.every(([, init]) => init?.method !== 'POST')).toBe(true);
+  await userEvent.click(button(app, 'Create'));
   expect(button(app, 'Current city saved').disabled).toBe(true);
 });
 
@@ -73,10 +80,11 @@ it('submits parameters and polls server generation while the map, parameters and
     if (url === '/api/cities/city-1') return json(job = record('urbe', 'city-1', 'running'));
     return json({ cities: [job] });
   });
-  const app = mount();
+  const app = await mount();
   await app.loadBlueprint(blueprint('previous'));
   const generate = vi.spyOn(app, 'generate');
   const user = userEvent.setup();
+  await user.click(button(app, 'Create'));
   await user.click(button(app, 'Generate city'));
   let finished = false;
   void generate.mock.results[0].value.then(() => { finished = true; });
@@ -84,11 +92,12 @@ it('submits parameters and polls server generation while the map, parameters and
   expect((getByLabelText(app.root, 'Seed') as HTMLInputElement).disabled).toBe(false);
   await user.type(getByLabelText(app.root, 'Seed'), '-next');
   expect(button(app, 'Generate city').disabled).toBe(true);
+  await user.click(button(app, 'View'));
   expect(button(app, 'Download blueprint').disabled).toBe(false);
-  expect(button(app, 'Generate exteriors').closest('.tab-pane')).toBeNull();
-  await user.click(button(app, 'Visualization'));
+  expect(button(app, 'Generate exteriors').closest('.workspace-creation')).toBeNull();
+  await user.click(getByLabelText(app.root, 'City in 3D'));
   expect(app.viewMode).toBe('3d');
-  await user.click(button(app, 'Creation'));
+  await user.click(button(app, 'Create'));
   await waitFor(() => expect(app.root.textContent).toContain('Building blueprint on server'), { timeout: 2500 });
   expect(finished).toBe(false);
   const post = fetcher.mock.calls.find(([, init]) => init?.method === 'POST')!;
@@ -99,6 +108,7 @@ it('submits parameters and polls server generation while the map, parameters and
   await generate.mock.results[0].value;
   expect(finished).toBe(true);
   expect(MapView.prototype.setBlueprint).toHaveBeenLastCalledWith(blueprint());
+  await user.click(button(app, 'Create'));
   expect(button(app, 'Generate city').disabled).toBe(false);
   expect((getByLabelText(app.root, 'Seed') as HTMLInputElement).value).toBe('urbe-next');
 });
@@ -111,13 +121,14 @@ it('keeps a city opened during generation on screen when the pending city comple
     if (url === '/api/cities/city-saved/blueprint') return json(blueprint('saved'));
     return json({ cities: [pending, saved] });
   });
-  const app = mount();
+  const app = await mount();
   await startPreview(app, '');
   const generate = vi.spyOn(app, 'generate');
   await userEvent.click(button(app, 'Generate city'));
   await userEvent.click(button(app, 'Open city saved'));
   await waitFor(() => expect(MapView.prototype.setBlueprint).toHaveBeenCalledWith(blueprint('saved')));
   pending = record('urbe', 'city-pending');
+  await userEvent.click(button(app, 'Create'));
   await userEvent.click(button(app, 'Refresh cities'));
   await generate.mock.results[0].value;
   expect(MapView.prototype.setBlueprint).toHaveBeenCalledTimes(1);
@@ -128,7 +139,7 @@ it('keeps a city opened during generation on screen when the pending city comple
 it('resumes observing unfinished saved jobs after reload', async () => {
   const fetcher = service((url) => json(url === '/api/cities' ? { cities: [record('restored', 'city-restored', 'running')] }
     : record('restored', 'city-restored')));
-  const app = mount();
+  const app = await mount();
   await startPreview(app, '');
   expect(button(app, 'Open city restored').disabled).toBe(true);
   await waitFor(() => expect(button(app, 'Open city restored').disabled).toBe(false), { timeout: 2500 });
@@ -144,13 +155,17 @@ it('retains failed jobs and retries their recorded parameters as a new job', asy
     if (url.endsWith('/blueprint')) return json(blueprint());
     return json({ cities: accepted ? [record('urbe', 'city-retry'), failed] : [failed] });
   });
-  const app = mount();
+  const app = await mount();
   await startPreview(app, '');
   expect(app.root.textContent).toContain('E_UNSATISFIABLE: City does not fit these parameters');
+  const generate = vi.spyOn(app, 'generate');
   await userEvent.click(button(app, 'Retry city urbe'));
+  await userEvent.click(button(app, 'Create'));
   expect(button(app, 'Generate city').disabled).toBe(true);
   await userEvent.click(button(app, 'Refresh cities'));
-  await waitFor(() => expect(button(app, 'Generate city').disabled).toBe(false));
+  await generate.mock.results[0].value;
+  await userEvent.click(button(app, 'Create'));
+  expect(button(app, 'Generate city').disabled).toBe(false);
   const post = fetcher.mock.calls.find(([, init]) => init?.method === 'POST')!;
   expect(JSON.parse(String(post[1]!.body))).toMatchObject(failed.params);
   expect(app.root.querySelectorAll('.city-row')).toHaveLength(2);
@@ -161,7 +176,7 @@ it.each([
   ['invalid response', json({ id: 'bad-response' }, 202), 'Invalid city record response'],
 ])('reports a %s and restores city submission', async (_name, response, expected) => {
   service(() => response);
-  const app = mount();
+  const app = await mount();
   await userEvent.click(button(app, 'Generate city'));
   await waitFor(() => expect(getByRole(app.root, 'log').textContent).toContain(expected));
   expect(button(app, 'Generate city').disabled).toBe(false);
@@ -170,7 +185,7 @@ it.each([
 it('reports a worker failure and releases its pending generation promise', async () => {
   const failed = record('urbe', 'city-1', 'failed');
   service((_url, init) => json(init?.method === 'POST' ? record('urbe', 'city-1', 'queued') : { cities: [failed] }));
-  const app = mount();
+  const app = await mount();
   const generate = vi.spyOn(app, 'generate');
   await userEvent.click(button(app, 'Generate city'));
   await userEvent.click(button(app, 'Refresh cities'));
@@ -183,8 +198,11 @@ it('reports a worker failure and releases its pending generation promise', async
 it('keeps local file opening read-only until Save current city persists the exact blueprint', async () => {
   const value = { ...blueprint('imported'), extra: { retained: true } };
   const fetcher = service(() => json({ ...record('imported', 'city-imported'), source: 'imported' }, 201));
-  const app = mount();
+  const app = await mount();
+  await userEvent.click(button(app, 'View'));
   await userEvent.upload(getByLabelText(app.root, 'Open saved blueprint'), new File([JSON.stringify(value)], 'city.json', { type: 'application/json' }));
+  await waitFor(() => expect(MapView.prototype.setBlueprint).toHaveBeenCalled());
+  await userEvent.click(button(app, 'Create'));
   await waitFor(() => expect(button(app, 'Save current city').disabled).toBe(false));
   expect(fetcher.mock.calls.every(([, init]) => init?.method !== 'POST')).toBe(true);
   await userEvent.click(button(app, 'Save current city'));
@@ -198,7 +216,7 @@ it('keeps local file opening read-only until Save current city persists the exac
 it('reports a catalog outage and reloads the list when Refresh cities is clicked', async () => {
   let available = false;
   service(() => available ? json({ cities: [record()] }) : Promise.reject(new Error('Connection refused')));
-  const app = mount();
+  const app = await mount();
   await startPreview(app, '');
   expect(app.root.textContent).toContain('City list unavailable: Connection refused');
   available = true;
@@ -214,16 +232,34 @@ it('preserves the displayed city when a catalog blueprint cannot open or the cur
     if (init?.method === 'POST') return json({ error: { code: 'E_STORAGE', message: 'Storage unavailable' } }, 500);
     return json({ cities: [record()] });
   });
-  const app = mount();
+  const app = await mount();
   await app.loadBlueprint(value);
   await app.refreshCities();
+  await userEvent.click(button(app, 'Create'));
   await userEvent.click(button(app, 'Open city urbe'));
   await waitFor(() => expect(getByRole(app.root, 'log').textContent).toContain('E_NOT_FOUND'));
+  await userEvent.click(button(app, 'Create'));
   await userEvent.click(button(app, 'Save current city'));
   await waitFor(() => expect(getByRole(app.root, 'log').textContent).toContain('E_STORAGE'));
   expect(MapView.prototype.setBlueprint).toHaveBeenCalledTimes(1);
+  await userEvent.click(button(app, 'View'));
   expect(button(app, 'Download blueprint').disabled).toBe(false);
+  await userEvent.click(button(app, 'Create'));
   expect(button(app, 'Save current city').disabled).toBe(false);
+});
+
+it('deletes a saved city after confirmation', async () => {
+  const fetcher = service((_url, init) => {
+    if (init?.method === 'DELETE') return { ok: true, status: 204, json: async () => ({}) };
+    return json({ cities: [record()] });
+  });
+  const app = await mount();
+  await startPreview(app, '');
+  expect(button(app, 'Open city urbe').disabled).toBe(false);
+  await userEvent.click(button(app, 'Delete city urbe'));
+  await userEvent.click(button(app, 'Confirm delete city urbe'));
+  await waitFor(() => expect(fetcher.mock.calls.some(([url, init]) => url === '/api/cities/city-1' && init?.method === 'DELETE')).toBe(true));
+  expect(app.root.querySelector('[data-city-id="city-1"]')).toBeNull();
 });
 
 it('rejects a status for another city and reconnects through a catalog refresh', async () => {
@@ -234,7 +270,7 @@ it('rejects a status for another city and reconnects through a catalog refresh',
     if (url.endsWith('/blueprint')) return json(blueprint());
     return json({ cities: [record('urbe', 'city-1', ready ? 'ready' : 'queued')] });
   });
-  const app = mount();
+  const app = await mount();
   const generate = vi.spyOn(app, 'generate');
   await userEvent.click(button(app, 'Generate city'));
   await waitFor(() => expect(app.root.textContent).toContain('City status belongs to another city'), { timeout: 2500 });
@@ -243,5 +279,6 @@ it('rejects a status for another city and reconnects through a catalog refresh',
   await userEvent.click(button(app, 'Refresh cities'));
   await generate.mock.results[0].value;
   expect(MapView.prototype.setBlueprint).toHaveBeenCalledWith(blueprint());
+  await userEvent.click(button(app, 'Create'));
   expect(button(app, 'Generate city').disabled).toBe(false);
 });

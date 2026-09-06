@@ -1,6 +1,6 @@
 import type { AtlasParams } from '../../../schema/params';
 import type { CityBlueprint } from '../../../schema/blueprint';
-import type { CityRecord } from '../../cities/schema';
+import type { CityRecord, WorkspaceForm } from '../../cities/schema';
 
 const API = '/api/cities';
 
@@ -10,6 +10,14 @@ export class CityApi {
     const value = await this.request(API);
     if (!object(value) || !Array.isArray(value.cities)) throw new Error('Invalid city list response');
     return value.cities.map(readRecord);
+  }
+
+  async form(name: string): Promise<WorkspaceForm> {
+    const value = await this.request(`/api/forms/${encodeURIComponent(name)}`);
+    if (!object(value) || (value.id !== 'creation' && value.id !== 'visualization') || !Array.isArray(value.form)) {
+      throw new Error('Invalid workspace form response');
+    }
+    return value as unknown as WorkspaceForm;
   }
 
   async create(params: AtlasParams): Promise<CityRecord> {
@@ -32,6 +40,17 @@ export class CityApi {
 
   blueprint(id: string): Promise<unknown> {
     return this.request(`${API}/${encodeURIComponent(id)}/blueprint`);
+  }
+
+  async remove(id: string): Promise<void> {
+    const response = await fetch(`${API}/${encodeURIComponent(id)}`, {
+      method: 'DELETE', mode: 'same-origin', redirect: 'error', cache: 'no-store',
+    });
+    if (response.status === 204) return;
+    const value: unknown = await response.json().catch(() => null);
+    const error = object(value) && object(value.error) ? value.error : null;
+    throw new Error(error && typeof error.message === 'string'
+      ? `${String(error.code)}: ${error.message}` : `City request failed (${response.status})`);
   }
 
   private post(url: string, value: unknown): Promise<unknown> {
