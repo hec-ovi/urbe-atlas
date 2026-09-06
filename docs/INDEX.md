@@ -1,5 +1,7 @@
 # Box map
 
+- src/streets/construction/modules/diagonal: local 30/45 degree block-cut templates with complete panels and rounded junction returns. Input/output: `src/streets/construction/modules/diagonal/schema.ts`. src/streets/construction/modules/diagonal/CONTRACT.md. Depends on street modules and geometry.
+
 - src/streets/layout: rectangular street grid sized in complete panel groups, with direct graph connections, outer sidewalks, sparse parking and short guardrail groups. Input/output: `src/streets/layout/schema.ts`. src/streets/layout/CONTRACT.md. Depends on street construction dimensions, street modules and Atlas seed streams.
 
 - src/streets/construction/modules: dimensioned panels, curbs, gutters, corners, parking cuts, guardrails and compact planning covers. Input/output: `src/streets/construction/modules/schema.ts`. src/streets/construction/modules/CONTRACT.md. Depends on Atlas coordinates, errors and geometry; construction and renderers consume its repeated placements.
