@@ -78,7 +78,8 @@ export interface BlockModuleInput {
   finish: string;
   /** 4/6 m walks can carry one 2 x 2 m middle panel in each 2 m group. */
   centerDouble?: boolean;
-  guardrails?: boolean;
+  /** Short groups of 2 m rails at complete panel stations. */
+  guardrails?: { side: QuarterTurn; start: number; segments: 1 | 2 | 3 }[];
   /** Distance intervals along each side's counterclockwise straight run. */
   reserved?: [Vec2[], Vec2[], Vec2[], Vec2[]];
   /** Whole 4 m slots, with a 2 m transition at each end; wide sidewalks only. */

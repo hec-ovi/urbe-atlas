@@ -81,12 +81,12 @@ export class StreetModuleKit {
       }
       use(straightDefinition, transform([station, 0], origin, turn), turn, (length - station) / 2);
       use(this.definitions.get(cornerId) ?? corner(preceding, sidewalk), cornerOrigin, turn);
-      if (input.guardrails) {
-        for (let station = 6; station + 2 <= length - 6; station += 8) {
-          if (input.reserved?.[side].some(([a, b]) => a < station + 2 && b > station)) continue;
-          if (bays.some(bay => bay.start < station + 2 && bay.start + 4 + bay.slots * 4 > station)) continue;
-          use(this.definitions.get('guardrail:2') ?? guardrail(), transform([station, 0], origin, turn), turn);
-        }
+      for (const rail of input.guardrails ?? []) {
+        if (rail.side !== side) continue;
+        const end = rail.start + rail.segments * 2;
+        if (input.reserved?.[side].some(([a, b]) => a < end && b > rail.start)) continue;
+        if (bays.some(bay => bay.start < end && bay.start + 4 + bay.slots * 4 > rail.start)) continue;
+        use(this.definitions.get('guardrail:2') ?? guardrail(), transform([rail.start, 0], origin, turn), turn, rail.segments);
       }
     }
     this.blockIds.add(input.id);
@@ -113,13 +113,21 @@ export class StreetModuleKit {
       || !Array.isArray(input.origin) || input.origin.length !== 2 || !input.origin.every(Number.isFinite)
       || !Array.isArray(input.panels) || input.panels.length !== 2 || !input.panels.every(n => Number.isSafeInteger(n) && n > 0 && n % 2 === 0)
       || !Array.isArray(input.sidewalks) || input.sidewalks.length !== 4 || !input.sidewalks.every(n => [2, 4, 6].includes(n))
-      || (input.centerDouble !== undefined && typeof input.centerDouble !== 'boolean')
-      || (input.guardrails !== undefined && typeof input.guardrails !== 'boolean')) fail();
+      || (input.centerDouble !== undefined && typeof input.centerDouble !== 'boolean')) fail();
     if (input.panels[0] <= input.sidewalks[1] + input.sidewalks[3]
       || input.panels[1] <= input.sidewalks[0] + input.sidewalks[2]) fail();
     if (input.reserved !== undefined && (!Array.isArray(input.reserved) || input.reserved.length !== 4
       || input.reserved.some(side => !Array.isArray(side) || side.some(span => !Array.isArray(span)
         || span.length !== 2 || !span.every(Number.isFinite) || span[0] < 0 || span[1] <= span[0])))) fail();
+    if (input.guardrails !== undefined) {
+      if (!Array.isArray(input.guardrails)) fail();
+      for (const rail of input.guardrails) {
+        if (!rail || ![0, 1, 2, 3].includes(rail.side) || ![1, 2, 3].includes(rail.segments)
+          || !Number.isSafeInteger(rail.start) || rail.start < 6 || rail.start % 2 !== 0) fail();
+        const length = input.panels[rail.side % 2] - input.sidewalks[(rail.side + 1) % 4] - input.sidewalks[(rail.side + 3) % 4];
+        if (rail.start + rail.segments * 2 > length - 6) fail();
+      }
+    }
     if (input.parking !== undefined) {
       if (!Array.isArray(input.parking)) fail();
       for (const bay of input.parking) {

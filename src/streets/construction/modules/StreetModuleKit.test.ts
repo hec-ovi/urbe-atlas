@@ -5,7 +5,7 @@ import type { BlockModuleInput, ModuleConstruction } from './schema';
 import type { Polygon, Vec2 } from '../../../../schema/blueprint';
 
 const input: BlockModuleInput = {
-  id: 'b0', origin: [10, 20], panels: [40, 32], sidewalks: [2, 4, 6, 4], finish: 'maintained', guardrails: true,
+  id: 'b0', origin: [10, 20], panels: [40, 32], sidewalks: [2, 4, 6, 4], finish: 'maintained', guardrails: [{ side: 0, start: 6, segments: 2 }, { side: 1, start: 6, segments: 1 }],
 };
 const signedArea = (polygon: Polygon) => polygon.reduce((sum, p, i) => {
   const q = polygon[(i + 1) % polygon.length];
@@ -98,7 +98,7 @@ describe('StreetModuleKit public construction', () => {
     expect(middle).toHaveLength(1);
     expect(box(middle[0].polygon)).toEqual({ min: [0.006, 2.006], max: [1.994, 3.994] });
     const rails = construction.placements.filter(placement => placement.moduleId === 'guardrail:2');
-    expect(rails.length).toBeGreaterThan(0);
+    expect(rails.map(rail => [rail.turn, rail.count])).toEqual([[1, 1]]);
     expect(rails.some(placement => placement.turn === 0 && placement.origin[0] === 20)).toBe(false);
     for (const part of construction.definitions.find(definition => definition.id === 'guardrail:2')!.parts) {
       expect(part.bottom).toBeGreaterThanOrEqual(0.2);
@@ -112,6 +112,8 @@ describe('StreetModuleKit public construction', () => {
     expect(() => kit.block({ ...input, panels: [39, 32] })).toThrow(/whole even panel/);
     expect(() => kit.block({ ...input, origin: [NaN, 0] })).toThrow(/finite coordinates/);
     expect(() => kit.block({ ...input, reserved: [[[8, 6] as Vec2], [], [], []] })).toThrow(/finite coordinates/);
+    expect(() => kit.block({ ...input, guardrails: [{ side: 0, start: 6, segments: 4 as 3 }] })).toThrow(/finite coordinates/);
+    expect(() => kit.block({ ...input, guardrails: [{ side: 0, start: 28, segments: 1 }] })).toThrow(/finite coordinates/);
     expect(kit.construction()).toEqual({ version: '1.0.0', definitions: [], placements: [] });
   });
 
