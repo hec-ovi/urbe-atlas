@@ -1,6 +1,6 @@
 import { FootprintIndex } from './Footprints';
 import { Traffic } from './Traffic';
-import type { CrossingInput } from './schema';
+import type { CrossingInput, CrossingSourceInput } from './schema';
 
 /** One planning or validation call owns these reusable geometry inputs. */
 export class CrossingFields {
@@ -14,11 +14,13 @@ export class CrossingFields {
   private readonly foreign = new Map<string, FootprintIndex>();
   private readonly terminals = new Map<string, FootprintIndex>();
 
-  constructor(input: CrossingInput) {
-    this.roadway = new FootprintIndex(input.ground.filter(g => g.surface === 'roadway').map(g => g.polygon));
-    this.pavement = new FootprintIndex(input.ground.filter(g => g.surface === 'curb' || g.surface === 'sidewalk').map(g => g.polygon));
-    this.crossingGround = new FootprintIndex(input.ground.filter(g => ['roadway', 'curb', 'sidewalk'].includes(g.surface)).map(g => g.polygon));
-    this.obstacles = new FootprintIndex(input.obstacles ?? []);
+  constructor(input: CrossingSourceInput | CrossingInput) {
+    const final = 'ground' in input ? input : undefined;
+    const ground = final?.ground ?? [];
+    this.roadway = new FootprintIndex(ground.filter(g => g.surface === 'roadway').map(g => g.polygon));
+    this.pavement = new FootprintIndex(ground.filter(g => g.surface === 'curb' || g.surface === 'sidewalk').map(g => g.polygon));
+    this.crossingGround = new FootprintIndex(ground.filter(g => ['roadway', 'curb', 'sidewalk'].includes(g.surface)).map(g => g.polygon));
+    this.obstacles = new FootprintIndex(final?.obstacles ?? []);
     this.reservations = new Map(input.reservations.edges.map(edge => [edge.edgeId, edge]));
     this.traffic = new Traffic(input).byEdge;
   }
@@ -29,7 +31,9 @@ export class CrossingFields {
     return field;
   }
 
-  foreignRoads(edgeId: string): FootprintIndex {
+  foreignRoads(edgeId: string, contactEdgeIds?: readonly string[]): FootprintIndex {
+    if (contactEdgeIds) return new FootprintIndex([...new Set(contactEdgeIds)].filter(id => id !== edgeId)
+      .flatMap(id => this.traffic.get(id) ?? []));
     let field = this.foreign.get(edgeId);
     if (!field) {
       field = new FootprintIndex([...this.traffic].filter(([id]) => id !== edgeId).flatMap(([, polygons]) => polygons));
