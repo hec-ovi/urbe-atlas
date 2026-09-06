@@ -6,14 +6,14 @@
  */
 import type { ParcelType, StreetClass } from '../../../schema/blueprint';
 
-export const GROUND_KEYS = ['roadway', 'curb', 'sidewalk', 'block', 'open'] as const;
+export const GROUND_KEYS = ['roadway', 'curb', 'gutter', 'sidewalk', 'block', 'open'] as const;
 export const ZONE_KEYS: ParcelType[] = [
   'residential', 'hotel', 'offices', 'corpo', 'hospital', 'clinic', 'police', 'military',
   'factory', 'commerce', 'mall', 'restaurant', 'coffee_shop',
 ];
 export const STREET_KEYS: StreetClass[] = ['street', 'road', 'highway', 'alley'];
 export const TRANSIT_KEYS = ['bus', 'train', 'subway'] as const;
-export const FURNITURE_KEYS = ['signal', 'tree', 'pole', 'bin'] as const;
+export const FURNITURE_KEYS = ['signal', 'tree', 'pole', 'bin', 'guardrail'] as const;
 export const HYDROLOGY_KEYS = ['water', 'shoreline'] as const;
 export const DIAGNOSTIC_KEYS = ['highwayCenterlines', 'highwaySupports', 'stationAccess'] as const;
 
@@ -39,13 +39,13 @@ export interface FilterGroup {
 }
 
 export const FILTER_GROUPS: FilterGroup[] = [
-  { id: 'ground', title: 'Ground surfaces', description: 'Roadway, curb, sidewalk and open space', keys: GROUND_KEYS.map((k) => `ground.${k}` as FilterKey), open: true },
+  { id: 'ground', title: 'Ground surfaces', description: 'Roadway, curb, gutter, sidewalk and open space', keys: GROUND_KEYS.map((k) => `ground.${k}` as FilterKey), open: true },
   { id: 'zones', title: 'Building zones', description: 'Parcel use types', keys: ZONE_KEYS.map((k) => `zone.${k}` as FilterKey), open: true },
   { id: 'streets', title: 'Street network', description: 'Street, avenue, highway and pedestrian alley', keys: STREET_KEYS.map((k) => `street.${k}` as FilterKey), open: true },
   { id: 'hydrology', title: 'Waterfront', description: 'Water surfaces and exact shoreline bands', keys: HYDROLOGY_KEYS.map((k) => `hydrology.${k}` as FilterKey), open: true },
   { id: 'diagnostics', title: 'Geometry diagnostics', description: 'Bright overlays for structure inspection', keys: DIAGNOSTIC_KEYS.map((k) => `diagnostic.${k}` as FilterKey), open: true },
   { id: 'transit', title: 'Public transit', description: 'Bus, train and underground subway', keys: TRANSIT_KEYS.map((k) => `transit.${k}` as FilterKey), open: true },
-  { id: 'furniture', title: 'Street furniture', description: 'Signals, trees, lights and bins', keys: FURNITURE_KEYS.map((k) => `furniture.${k}` as FilterKey) },
+  { id: 'furniture', title: 'Street furniture', description: 'Signals, trees, lights, bins and guardrails', keys: FURNITURE_KEYS.map((k) => `furniture.${k}` as FilterKey) },
   { id: 'districts', title: 'District boundaries', description: 'Planning area outlines', keys: ['districts'] },
 ];
 
@@ -53,7 +53,7 @@ export function defaultFilters(): Filters {
   const out = {} as Filters;
   for (const group of FILTER_GROUPS) {
     for (const key of group.keys) {
-      out[key] = key !== 'districts' && !key.startsWith('diagnostic.') && !key.startsWith('furniture.');
+      out[key] = key === 'furniture.guardrail' || (key !== 'districts' && !key.startsWith('diagnostic.') && !key.startsWith('furniture.'));
     }
   }
   out.interiorsOnly = false;

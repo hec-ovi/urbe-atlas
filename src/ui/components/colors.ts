@@ -52,6 +52,7 @@ export function streetColor(cls: StreetClass): string {
 export const GROUND_COLORS = {
   roadway: '#1e2935',
   curb: '#c6d3de',
+  gutter: '#74818c',
   sidewalk: '#5c6e80',
   block: '#14202b',
   open: '#245044',
@@ -62,6 +63,7 @@ export const FURNITURE_COLORS = {
   tree: '#51d68a',
   pole: '#e6edf3',
   bin: '#9aa8b7',
+  guardrail: '#597e7b',
 } as const;
 
 export const TRANSIT_COLORS = {

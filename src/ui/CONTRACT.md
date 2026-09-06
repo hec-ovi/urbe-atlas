@@ -30,6 +30,7 @@ Purpose: presents city creation, saved blueprint inspection and server job progr
 - `components/Form`: form document iteration. `ui/Slider`: range and synchronized exact numeric input. `widgets/ParamsPanel`: creation parameters and submission.
 - `widgets/CityLibrary`: catalog display and saved-job polling. `components/CityApi`: same-origin HTTP and response validation. `components/CityGeneration`: active job observation and confirmed cancellation. `widgets/GenerationDialog`: modal stage progress and cancellation action.
 - `views/MapView`: 2D polygons. `views/Map3DView`: WebGL2 geometry. Both accept blueprints, filters and interior parcel IDs, and expose resize, resetView and render. `views/StreetSurfaceRegions`: disjoint roadway-clipped street materials.
+- `views/ModuleMeshes`: repeated physical street prisms, grouped by template and role into instanced meshes.
 - `widgets/LayerToggles`: item and group filters, isolation and defaults. `widgets/InspectorPanel`: persistent closable selection details. `widgets/MapToolbar`: blueprint identity and file actions. `widgets/BlueprintOverview` and `widgets/LegendWidget`: totals and color key.
 - `widgets/ParcelLink`: explicit assembled-output template, empty by default. `widgets/ExteriorPreview`: capability-gated exterior generation, job progress and verified viewer links.
 
@@ -48,10 +49,11 @@ No failure escapes a `PreviewApp` event handler.
 - A generation request blocks all workspace interaction until completion, failure or confirmed cancellation. Cancel works during submission, worker execution and blueprint loading. Late responses cannot replace a more recently selected city.
 - Exterior and interior work require separate explicit actions. 3D geometry is deferred until the first 3D selection. Both renderers use the same filters and exact interior subset.
 - Renderers use published polygons and elevations. Water and shoreline filters stay independent. Street and avenue surfaces are disjoint and remain inside roadway ground. Highway deck, underside and barriers share mitered cross-sections; ramp tips omit zero-area faces. Station-access diagnostics remain visible through station structures.
+- Optional [street modules](../streets/construction/modules/schema.ts) render their exact prism heights, metre UVs, quarter turns and repeated stations in 3D. Geometry is shared per definition and role. Matching `moduleBlockId` planning covers stay in the 2D map. Gutters and guardrails have separate filters; saved blueprints without modules retain polygon rendering. Replacing a city disposes geometry and instance buffers.
 - A left click selects without navigation. Movement beyond four screen pixels, pointer cancellation or release outside the canvas prevents selection. Right clicks never select or navigate. Selection persists until Close, another selection or a new blueprint.
 - Exterior jobs must match the SHA-256 of recursively key-sorted displayed JSON. Opening a building requires successful complete shell pairs, a matching manifest and the selected parcel in the completed set. Viewer URLs preserve the output and force the selected parcel and building mode.
 - Manifest contract 1.0.0 must match the displayed seed, Atlas version, complete parcel set, interior subset and floor tags. Optional manifests never widen the interior filter.
-- New forms and templates choose owned copies of the form's paving default: maintained 1 m slab cells, optional 2 m groups, 12 mm joints, 0.15 m curb and 0.35 m border modules. Supplied paving and street profiles survive form edits exactly; omitted paving remains omitted. Fitting belongs to the producer.
+- New forms and templates choose owned copies of the form's paving default: maintained 1 m slab cells, optional 2 m groups, 12 mm joints, 1 m curb stations, 0.2 m curb width and 1 m border panels. Supplied paving and street profiles survive form edits exactly; omitted paving remains omitted. Module geometry belongs to the producer.
 - Blueprint downloads retain all fields. Controls and panels have square corners; slider values align left and use labels without meter suffixes.
 
 ## Depends on
@@ -59,4 +61,5 @@ No failure escapes a `PreviewApp` event handler.
 - [Atlas root](../../CONTRACT.md): parameter validation, blueprint and error schemas.
 - [City catalog](../cities/CONTRACT.md): durable jobs, stage progress, cancellation, catalog and forms.
 - [Fitted paving](../streets/construction/paving/CONTRACT.md): numeric layouts, slab groups and shared stations.
+- [Street modules](../streets/construction/modules/CONTRACT.md): shared physical prism definitions and repeated placements.
 - [Engine assembly](../../../engine/src/assembly/CONTRACT.md) and [Engine server](../../../engine/src/server/CONTRACT.md): optional manifests and exact-city exterior jobs.

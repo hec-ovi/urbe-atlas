@@ -1,13 +1,5 @@
-/**
- * The blueprint in three dimensions: every parcel as one envelope prism with
- * its floor elevations traced on the facade, ground cover as plates, streets as
- * ribbons under the ground plate at grade (they show when the ground is
- * hidden) and as decks with piers where a highway runs above it, rail as
- * tracks at grade and tunnels under it, stations as platforms with entrance
- * posts at the surface. Geometry merges per colour, so the city is a few
- * dozen draw calls. Drag orbits, wheel zooms, and click inspects a
- * building.
- */
+/** Published city geometry with instanced street modules, merged building
+ * envelopes and transit structures. Drag orbits, wheel zooms and click inspects a parcel. */
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
@@ -16,6 +8,7 @@ import { DIAGNOSTIC_COLORS, FURNITURE_COLORS, GROUND_COLORS, HYDROLOGY_COLORS, T
 import { defaultFilters, type FilterKey, type Filters } from './filters';
 import { streetSurfaceRegions } from './StreetSurfaceRegions';
 import { ClickSelection } from '../components/ClickSelection';
+import { ModuleMeshes } from './ModuleMeshes';
 
 const SKY = 0x0e1117;
 const FLOOR_GAP = 0.08;
@@ -162,7 +155,7 @@ export class Map3DView {
       });
     }
     // the ground goes translucent while the subway shows, so the tunnels read as under it, not floating
-    const seeThrough = this.filters['transit.subway'];
+    const seeThrough = this.filters['transit.subway'] && Boolean(this.blueprint?.transit.subwayLines.length);
     for (const [key, group] of this.layers) {
       if (!key.startsWith('ground.')) continue;
       group.traverse((node) => {
@@ -207,8 +200,11 @@ export class Map3DView {
   }
 
   private buildGround(bp: CityBlueprint): void {
-    const parts: Record<string, THREE.BufferGeometry[]> = { roadway: [], curb: [], sidewalk: [], block: [], open: [] };
+    const modules = bp.streets.construction?.modules;
+    const moduleBlocks = new Set(modules?.placements.map(placement => placement.blockId));
+    const parts: Record<string, THREE.BufferGeometry[]> = { roadway: [], curb: [], gutter: [], sidewalk: [], block: [], open: [] };
     for (const cover of bp.volumetric.ground) {
+      if (cover.moduleBlockId && moduleBlocks.has(cover.moduleBlockId)) continue;
       if (cover.polygon.length < 3) continue;
       parts[cover.surface]!.push(cover.surface === 'curb'
         ? prism(cover.polygon, cover.bottom, cover.top - cover.bottom)
@@ -217,6 +213,7 @@ export class Map3DView {
     for (const surface of Object.keys(parts) as (keyof typeof GROUND_COLORS)[]) {
       this.merged(`ground.${surface}`, parts[surface]!, new THREE.MeshLambertMaterial({ color: GROUND_COLORS[surface] }));
     }
+    if (modules) ModuleMeshes.build(modules, key => this.layer(key));
     const roadwayTop = bp.volumetric.ground.find((surface) => surface.surface === 'roadway')?.top ?? 0;
     this.merged(
       'ground.roadway',
@@ -471,6 +468,7 @@ function disposeGroup(group: THREE.Group): void {
   group.traverse((node) => {
     const mesh = node as THREE.Mesh;
     mesh.geometry?.dispose();
+    if (mesh instanceof THREE.InstancedMesh) mesh.dispose();
     const materials = Array.isArray(mesh.material) ? mesh.material : mesh.material ? [mesh.material] : [];
     materials.forEach((material) => material.dispose());
   });

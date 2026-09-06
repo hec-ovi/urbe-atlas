@@ -7,6 +7,7 @@ import { MapView } from './views/MapView';
 import { Map3DView } from './views/Map3DView';
 import { startPreview } from './startPreview';
 import { formPayload, stubWorkspaceFetch } from './test/forms';
+import { moduleBlueprint } from './fixtures/moduleBlueprint';
 
 const polygon = [[0, 0], [100, 0], [100, 100], [0, 100]];
 function fixture() {
@@ -95,4 +96,24 @@ it('reports unreadable JSON and URL failures without falling back to generation'
   expect(app.root.querySelector('.workspace-message')!.textContent).toContain('404');
   expect(generation).not.toHaveBeenCalled();
   expect(MapView.prototype.setBlueprint).not.toHaveBeenCalled();
+});
+
+it('admits physical modules unchanged and rejects malformed placements before rendering', async () => {
+  const app = await mount();
+  const value = moduleBlueprint();
+  await app.loadBlueprint(value);
+  expect(MapView.prototype.setBlueprint).toHaveBeenCalledWith(value);
+  const variants = [
+    (modules: NonNullable<typeof value.streets.construction>['modules']) => { modules!.placements[0].moduleId = 'missing'; },
+    (modules: NonNullable<typeof value.streets.construction>['modules']) => { modules!.placements[0].count = 1.5; },
+    (modules: NonNullable<typeof value.streets.construction>['modules']) => { modules!.placements[0].turn = 4 as never; },
+    (modules: NonNullable<typeof value.streets.construction>['modules']) => { modules!.definitions[0].parts[0].top = 0; },
+  ];
+  for (const corrupt of variants) {
+    const invalid = structuredClone(value);
+    corrupt(invalid.streets.construction!.modules);
+    await app.loadBlueprint(invalid);
+    expect(app.root.querySelector('.workspace-message')!.textContent).toContain('blueprint.streets.construction.modules.');
+  }
+  expect(MapView.prototype.setBlueprint).toHaveBeenCalledTimes(1);
 });

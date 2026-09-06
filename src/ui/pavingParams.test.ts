@@ -10,7 +10,7 @@ import { ParamsPanel } from './widgets/ParamsPanel';
 beforeEach(() => document.body.replaceChildren());
 afterEach(() => { document.body.replaceChildren(); vi.restoreAllMocks(); });
 
-it('emits fitted metre slabs and whole two-metre groups from every new creation choice', async () => {
+it('emits dimensioned panel defaults from every new creation choice', async () => {
   const onGenerate = vi.fn<(params: AtlasParams) => void>();
   const panel = new ParamsPanel({ onGenerate });
   document.body.append(panel.root);
@@ -25,8 +25,8 @@ it('emits fitted metre slabs and whole two-metre groups from every new creation 
   expect(module(layout.bands.walking.moduleId)).toMatchObject({ pitch: [1, 1], joint: [0.012, 0.012] });
   expect(module(layout.bands.walking.grouping!.moduleId)).toMatchObject({ pitch: [2, 2], joint: [0.012, 0.012], baseCells: [2, 2] });
   expect(layout.bands.walking.grouping).toMatchObject({ period: [4, 2], offset: [0, 0] });
-  expect(module(layout.bands.curb.moduleId)).toMatchObject({ pitch: [1, 0.15], joint: [0.012, 0] });
-  expect(module(layout.bands.border.moduleId)).toMatchObject({ pitch: [1, 0.35], joint: [0.012, 0] });
+  expect(module(layout.bands.curb.moduleId)).toMatchObject({ pitch: [1, 0.2], joint: [0.012, 0] });
+  expect(module(layout.bands.border.moduleId)).toMatchObject({ pitch: [1, 1], joint: [0.012, 0] });
   expect(parseParams(JSON.stringify(initial)).pavingDesign).toEqual(expected);
   expect(initial.streetDesign).toBeUndefined();
 
