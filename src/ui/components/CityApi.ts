@@ -1,5 +1,4 @@
 import type { AtlasParams } from '../../../schema/params';
-import type { CityBlueprint } from '../../../schema/blueprint';
 import type { CityRecord, WorkspaceForm } from '../../cities/schema';
 
 const API = '/api/cities';
@@ -26,27 +25,21 @@ export class CityApi {
     return record;
   }
 
-  async import(blueprint: CityBlueprint): Promise<CityRecord> {
-    const record = readRecord(await this.post(`${API}/import`, blueprint));
-    if (record.status !== 'ready' || record.source !== 'imported' || record.seed !== blueprint.meta.seed) throw new Error('Saved city does not match the displayed blueprint');
-    return record;
-  }
-
-  async status(id: string): Promise<CityRecord> {
-    const record = readRecord(await this.request(`${API}/${encodeURIComponent(id)}`));
+  async status(id: string, signal?: AbortSignal): Promise<CityRecord> {
+    const record = readRecord(await this.request(`${API}/${encodeURIComponent(id)}`, { signal }));
     if (record.id !== id) throw new Error('City status belongs to another city');
     return record;
   }
 
-  blueprint(id: string): Promise<unknown> {
-    return this.request(`${API}/${encodeURIComponent(id)}/blueprint`);
+  blueprint(id: string, signal?: AbortSignal): Promise<unknown> {
+    return this.request(`${API}/${encodeURIComponent(id)}/blueprint`, { signal });
   }
 
   async remove(id: string): Promise<void> {
     const response = await fetch(`${API}/${encodeURIComponent(id)}`, {
       method: 'DELETE', mode: 'same-origin', redirect: 'error', cache: 'no-store',
     });
-    if (response.status === 204) return;
+    if (response.status === 204 || response.status === 404) return;
     const value: unknown = await response.json().catch(() => null);
     const error = object(value) && object(value.error) ? value.error : null;
     throw new Error(error && typeof error.message === 'string'
@@ -86,6 +79,10 @@ function readRecord(value: unknown): CityRecord {
       || typeof value.params.size.depth !== 'number' || !Number.isFinite(value.params.size.depth))
     || typeof value.createdAt !== 'string' || !Number.isFinite(Date.parse(value.createdAt))
     || typeof value.updatedAt !== 'string' || !Number.isFinite(Date.parse(value.updatedAt))
+    || value.progress !== undefined && (!object(value.progress)
+      || !Number.isInteger(value.progress.completed) || !Number.isInteger(value.progress.total)
+      || Number(value.progress.total) < 1 || Number(value.progress.completed) < 0
+      || Number(value.progress.completed) > Number(value.progress.total) || typeof value.progress.phase !== 'string')
     || value.status === 'ready' && value.blueprintUrl !== `${API}/${value.id}/blueprint`
     || value.status === 'failed' && (!object(value.error) || typeof value.error.code !== 'string' || typeof value.error.message !== 'string')) {
     throw new Error('Invalid city record response');

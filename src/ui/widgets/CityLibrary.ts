@@ -1,6 +1,7 @@
 import type { AtlasParams } from '../../../schema/params';
-import type { CityBlueprint } from '../../../schema/blueprint';
 import type { CityRecord } from '../../cities/schema';
+import { CityGeneration } from '../components/CityGeneration';
+import type { GenerationProgress } from '../../../schema/progress';
 import { CityApi } from '../components/CityApi';
 import { el } from '../components/dom';
 
@@ -12,30 +13,26 @@ interface LibraryEvents {
   onError: (message: string) => void;
 }
 
-/** Saved city controls, server job observation and explicit blueprint persistence. */
+/** Saved city controls and server job observation. */
 export class CityLibrary {
   readonly root: HTMLElement;
   private readonly api = new CityApi();
   private readonly list = el('ul', { class: 'city-list', 'aria-label': 'Saved cities' });
   private readonly status = el('p', { class: 'hint', role: 'status', text: 'Refresh to load saved cities.' });
-  private readonly save = el('button', { type: 'button', text: 'Save current city', disabled: '' });
   private readonly refreshButton = el('button', { type: 'button', text: 'Refresh cities' });
+  private readonly removed = new Set<string>();
   private readonly records = new Map<string, CityRecord>();
-  private readonly waiters = new Map<string, (record: CityRecord) => void>();
-  private blueprint: CityBlueprint | null = null;
-  private saved = false;
-  private saving = false;
+  private generation?: CityGeneration;
   private busy = false;
   private confirmId: string | null = null;
   private timer: ReturnType<typeof setTimeout> | undefined;
 
   constructor(private readonly events: LibraryEvents) {
     this.refreshButton.addEventListener('click', () => void this.refresh());
-    this.save.addEventListener('click', () => void this.saveCurrent());
     this.root = el('section', { class: 'city-library', 'aria-label': 'City library' }, [
       el('h2', { text: 'Cities' }),
       el('p', { class: 'section-note', text: 'Open a ready city to inspect it. Delete removes it from this server.' }),
-      el('div', { class: 'button-row' }, [this.refreshButton, this.save]),
+      this.refreshButton,
       this.status, this.list,
     ]);
   }
@@ -44,7 +41,7 @@ export class CityLibrary {
     this.refreshButton.disabled = true;
     try {
       for (const record of await this.api.list()) this.accept(record);
-      this.status.textContent = this.records.size ? 'Cities are stored on this server.' : 'No saved cities yet. Generate a city or open a blueprint and save it.';
+      this.status.textContent = this.records.size ? 'Cities are stored on this server.' : 'No saved cities yet. Generate a city to get started.';
       this.render();
     } catch (error) {
       this.status.textContent = `City list unavailable: ${message(error)}. Refresh to reconnect.`;
@@ -54,29 +51,23 @@ export class CityLibrary {
     }
   }
 
-  async generate(params: AtlasParams): Promise<CityRecord> {
-    this.events.onStatus(`Submitting blueprint for ${String(params.seed)}…`);
-    let record = await this.api.create(params);
-    this.accept(record);
-    this.render();
-    if (pending(record)) {
+  async generate(params: AtlasParams, onProgress: (progress: GenerationProgress) => void, connection: (message: string) => void): Promise<CityRecord> {
+    this.generation = new CityGeneration(this.api);
+    return this.generation.run(params, record => {
+      this.accept(record);
+      this.render();
       this.events.onStatus(describe(record));
-      const completion = new Promise<CityRecord>((resolve) => this.waiters.set(record.id, resolve));
-      this.schedulePoll();
-      record = await completion;
-    }
-    if (record.status === 'failed') throw new Error(`${record.error!.code}: ${record.error!.message}`);
-    return record;
+      onProgress(record.progress ?? { completed: 0, total: 13, phase: describe(record) });
+    }, connection);
   }
 
-  blueprintFor(record: CityRecord): Promise<unknown> {
-    return this.api.blueprint(record.id);
+  async cancelGeneration(): Promise<void> {
+    const id = await this.generation?.cancel();
+    if (id) { this.removed.add(id); this.records.delete(id); this.render(); }
   }
 
-  setBlueprint(blueprint: CityBlueprint, saved: boolean): void {
-    this.blueprint = blueprint;
-    this.saved = saved;
-    this.updateSave();
+  blueprintFor(record: CityRecord, signal?: AbortSignal): Promise<unknown> {
+    return this.api.blueprint(record.id, signal);
   }
 
   setBusy(busy: boolean): void {
@@ -85,17 +76,10 @@ export class CityLibrary {
   }
 
   private accept(record: CityRecord): void {
+    if (this.removed.has(record.id)) return;
     const previous = this.records.get(record.id);
     if (previous && (previous.updatedAt > record.updatedAt || !pending(previous) && pending(record))) return;
     this.records.set(record.id, record);
-    const resolve = this.waiters.get(record.id);
-    if (resolve) {
-      this.events.onStatus(describe(record));
-      if (!pending(record)) {
-        this.waiters.delete(record.id);
-        resolve(record);
-      }
-    }
   }
 
   private schedulePoll(): void {
@@ -121,26 +105,6 @@ export class CityLibrary {
     this.schedulePoll();
   }
 
-  private async saveCurrent(): Promise<void> {
-    const blueprint = this.blueprint;
-    if (!blueprint || this.saved || this.saving) return;
-    this.saving = true;
-    this.updateSave();
-    try {
-      const record = await this.api.import(blueprint);
-      this.accept(record);
-      if (this.blueprint === blueprint) this.saved = true;
-      this.status.textContent = 'Cities are stored on this server.';
-      this.render();
-      this.events.onInfo(`City ${String(record.seed)} saved.`);
-    } catch (error) {
-      this.events.onError(`Save city: ${message(error)}`);
-    } finally {
-      this.saving = false;
-      this.updateSave();
-    }
-  }
-
   private async remove(record: CityRecord): Promise<void> {
     if (this.confirmId !== record.id) {
       this.confirmId = record.id;
@@ -150,19 +114,14 @@ export class CityLibrary {
     this.confirmId = null;
     try {
       await this.api.remove(record.id);
+      this.removed.add(record.id);
       this.records.delete(record.id);
-      this.waiters.delete(record.id);
-      this.status.textContent = this.records.size ? 'Cities are stored on this server.' : 'No saved cities yet. Generate a city or open a blueprint and save it.';
+      this.status.textContent = this.records.size ? 'Cities are stored on this server.' : 'No saved cities yet. Generate a city to get started.';
       this.render();
       this.events.onInfo(`City ${String(record.seed)} deleted.`);
     } catch (error) {
       this.events.onError(`Delete city: ${message(error)}`);
     }
-  }
-
-  private updateSave(): void {
-    this.save.disabled = !this.blueprint || this.saved || this.saving;
-    this.save.textContent = this.saving ? 'Saving city…' : this.saved ? 'Current city saved' : 'Save current city';
   }
 
   private render(): void {

@@ -5,10 +5,10 @@ import type { CityRecord, WorkspaceForm } from '../../cities/schema';
 import { AtlasError } from '../../errors';
 import { MapView } from './MapView';
 import { Map3DView } from './Map3DView';
-import { WorkspaceNav, type WorkspaceName } from './WorkspaceNav';
+import { WorkspaceHeader } from './WorkspaceHeader';
+import { GenerationDialog } from '../widgets/GenerationDialog';
 import type { ViewMode } from '../widgets/ViewModeSwitch';
 import { LegendWidget } from '../widgets/LegendWidget';
-import { Notifications } from '../widgets/Notifications';
 import { ParamsPanel } from '../widgets/ParamsPanel';
 import { ParcelLink } from '../widgets/ParcelLink';
 import { CityLibrary } from '../widgets/CityLibrary';
@@ -16,12 +16,13 @@ import { BlueprintOverview } from '../widgets/BlueprintOverview';
 import { InspectorPanel } from '../widgets/InspectorPanel';
 import { MapToolbar } from '../widgets/MapToolbar';
 import { ExteriorPreview } from '../widgets/ExteriorPreview';
+import { abortable } from '../components/abortable';
 import { CityApi } from '../components/CityApi';
 import { Form } from '../components/Form';
 import { downloadBlueprint } from '../components/blueprintFile';
 import { readBlueprint } from '../components/blueprintInput';
 import { isWorldManifest } from '../components/worldManifest';
-import { downloadParams, paramsFileName, parseParams } from '../components/paramsFile';
+import { parseParams } from '../components/paramsFile';
 import { el } from '../components/dom';
 import type { Filters } from './filters';
 
@@ -32,12 +33,12 @@ export class PreviewApp {
   private readonly exteriors: ExteriorPreview;
   private readonly map: MapView;
   private readonly map3d: Map3DView;
-  private readonly nav: WorkspaceNav;
+  private readonly header: WorkspaceHeader;
+  private readonly progress: GenerationDialog;
   private mode: ViewMode = '2d';
   private panel: ParamsPanel | null = null;
   private visualizationForm: Form | null = null;
   private readonly parcelLink: ParcelLink;
-  private readonly notifications = new Notifications();
   private readonly cities: CityLibrary;
   private readonly overview = new BlueprintOverview();
   private readonly toolbar: MapToolbar;
@@ -48,6 +49,9 @@ export class PreviewApp {
   private blueprint: CityBlueprint | null = null;
   private pending3d: CityBlueprint | null = null;
   private generating = false;
+  private cancellation: Promise<void> | null = null;
+  private generationCancelled = false;
+  private generationAbort?: AbortController;
   private displayRequest = 0;
   private manifestRequest = 0;
   private manifestTimer: ReturnType<typeof setTimeout> | null = null;
@@ -58,21 +62,22 @@ export class PreviewApp {
       (parcel) => this.exteriors.destinationFor(parcel),
       () => this.map.clearSelection(),
     );
-    this.exteriors = new ExteriorPreview(() => this.inspector.refresh(), (message) => this.notifications.error(message));
+    this.exteriors = new ExteriorPreview(() => this.inspector.refresh(), (message) => this.report(message));
     this.map = new MapView((hit) => { this.inspector.select(hit); });
     this.map3d = new Map3DView((parcel) => { this.inspector.select({ kind: 'parcel', parcel }); });
     this.cities = new CityLibrary({
       onOpen: (record) => void this.openCity(record),
       onRetry: (params) => void this.generate(params),
       onStatus: (message) => this.panel?.setStatus(message),
-      onInfo: (message) => this.notifications.info(message),
-      onError: (message) => this.notifications.error(message),
+      onInfo: (message) => this.report(message),
+      onError: (message) => this.report(message),
     });
     this.parcelLink.onChange(() => {
       this.inspector.refresh();
       this.scheduleManifestLoad();
     });
-    this.nav = new WorkspaceNav((name) => this.showWorkspace(name));
+    this.header = new WorkspaceHeader(() => this.showCreation());
+    this.progress = new GenerationDialog(() => void this.cancelGeneration());
     this.creationPane = el('div', { class: 'workspace workspace-creation' });
     this.visualizationPane = el('div', { class: 'workspace workspace-visualization' });
     this.visualizationPane.hidden = true;
@@ -84,7 +89,7 @@ export class PreviewApp {
     this.map3d.canvas.hidden = true;
     this.mapWrap.append(this.map.canvas, this.map3d.canvas, this.toolbar.root, this.inspector.root);
     this.root = el('div', { class: 'preview', 'data-theme': 'dark' });
-    this.root.append(this.nav.root, this.creationPane, this.visualizationPane, this.notifications.root);
+    this.root.append(this.header.root, this.creationPane, this.visualizationPane, this.progress.root);
     this.ready = this.bootstrap();
   }
 
@@ -106,8 +111,6 @@ export class PreviewApp {
   private mountCreation(schema: WorkspaceForm): void {
     this.panel = new ParamsPanel({
       onGenerate: (params) => void this.generate(params),
-      onExport: (params) => this.exportParams(params),
-      onImport: (file) => void this.importParams(file),
     }, schema);
     const form = el('div', { class: 'workspace-form' }, [this.panel.root]);
     const cities = el('div', { class: 'workspace-cities' }, [this.cities.root]);
@@ -142,41 +145,99 @@ export class PreviewApp {
     }
   }
 
-  private showWorkspace(name: WorkspaceName): void {
+  private showWorkspace(name: 'creation' | 'visualization'): void {
     this.creationPane.hidden = name !== 'creation';
     this.visualizationPane.hidden = name !== 'visualization';
     if (name === 'visualization') requestAnimationFrame(() => this.resize());
   }
 
-  /** Waits for server generation while the current map and controls remain usable. */
+  showCreation(updateUrl = true): void {
+    if (this.generating) return;
+    ++this.displayRequest;
+    this.panel?.newSeed();
+    this.header.message.textContent = '';
+    this.showWorkspace('creation');
+    if (updateUrl) history.pushState(null, '', window.location.pathname);
+  }
+
+  private report(message: string): void { this.header.message.textContent = message; }
+
+  /** Keeps the workspace locked until the server finishes or confirms worker cancellation. */
   async generate(params: AtlasParams): Promise<void> {
     await this.ready;
     if (this.generating) return;
+    let validated: AtlasParams;
+    try { validated = parseParams(JSON.stringify(params)); }
+    catch (error) { this.report(error instanceof Error ? error.message : String(error)); return; }
     this.generating = true;
-    const displayRequest = this.displayRequest;
+    this.generationCancelled = false;
+    this.generationAbort = new AbortController();
+    this.header.message.textContent = '';
     this.panel?.setBusy(true);
     this.cities.setBusy(true);
+    this.setWorkspaceInert(true);
+    this.progress.show();
     try {
-      const record = await this.cities.generate(parseParams(JSON.stringify(params)));
-      this.panel?.setStatus(`City ${String(record.seed)}: blueprint ready.`);
-      if (displayRequest === this.displayRequest) {
-        await this.openCity(record);
-      } else this.notifications.info(`City ${String(record.seed)} is ready. Open it from Saved cities.`);
-    } catch (e) {
-      this.panel?.setStatus('Blueprint generation failed. Check Saved cities or try again.');
-      this.notifications.error(e instanceof AtlasError ? `${e.code}: ${e.message}` : String(e));
+      const record = await this.cities.generate(validated,
+        progress => this.progress.update(progress), message => this.progress.report(message));
+      await this.cancellation;
+      if (!this.generationCancelled) await this.openCity(record, true, this.generationAbort.signal);
+    } catch (error) {
+      const cancelled = error instanceof DOMException && error.name === 'AbortError';
+      const message = cancelled ? 'Generation cancelled.'
+        : error instanceof AtlasError ? `${error.code}: ${error.message}`
+        : error instanceof Error ? error.message : String(error);
+      this.panel?.setStatus(message);
+      this.report(message);
     } finally {
+      await this.cancellation;
       this.panel?.setBusy(false);
       this.cities.setBusy(false);
       this.generating = false;
+      this.setWorkspaceInert(false);
+      this.progress.close();
     }
+  }
+
+  private setWorkspaceInert(value: boolean): void {
+    for (const pane of [this.header.root, this.creationPane, this.visualizationPane]) pane.inert = value;
+  }
+
+  private async cancelGeneration(): Promise<void> {
+    if (this.cancellation) return;
+    this.progress.setCancelling(true);
+    this.generationCancelled = true;
+    ++this.displayRequest;
+    this.cancellation = this.cities.cancelGeneration().then(() => {
+      this.generationAbort?.abort();
+      this.panel?.setStatus('Generation cancelled.');
+      this.report('Generation cancelled.');
+    }).catch(error => {
+      this.generationCancelled = false;
+      this.progress.report(`Could not stop the server job. Retry Cancel. ${error instanceof Error ? error.message : String(error)}`);
+      this.progress.setCancelling(false);
+    });
+    await this.cancellation;
+    this.cancellation = null;
   }
 
   refreshCities(): Promise<void> { return this.cities.refresh(); }
 
-  private openCity(record: CityRecord): Promise<void> {
-    this.nav.show('visualization');
-    return this.loadSaved(() => this.cities.blueprintFor(record), `City ${String(record.seed)}`, true);
+  async openCityId(id: string): Promise<void> {
+    try {
+      const record = await this.api.status(id);
+      if (record.status !== 'ready') throw new Error(record.error?.message ?? 'This city is still being generated.');
+      await this.openCity(record, false);
+    } catch (error) { this.report(error instanceof Error ? error.message : String(error)); }
+  }
+
+  private async openCity(record: CityRecord, updateUrl = true, signal?: AbortSignal): Promise<void> {
+    const loaded = await this.loadSaved(() => this.cities.blueprintFor(record, signal), `City ${String(record.seed)}`, signal);
+    if (loaded && updateUrl) {
+      const query = new URLSearchParams({ city: record.id });
+      if (this.mode === '3d') query.set('view', '3d');
+      history.pushState(null, '', `${window.location.pathname}?${query}`);
+    }
   }
 
   /** Inspect a saved object without generating or certifying its geometry. */
@@ -198,23 +259,24 @@ export class PreviewApp {
     }, 'Saved blueprint');
   }
 
-  private async loadSaved(source: () => Promise<unknown>, label: string, saved = false): Promise<void> {
+  private async loadSaved(source: () => Promise<unknown>, label: string, signal?: AbortSignal): Promise<boolean> {
     const request = ++this.displayRequest;
     this.panel?.setStatus(`Loading ${label}…`);
     try {
-      const blueprint = readBlueprint(await source());
-      await nextFrame();
-      if (request !== this.displayRequest) return;
-      this.installBlueprint(blueprint, saved);
+      const blueprint = readBlueprint(await abortable(source(), signal));
+      await abortable(nextFrame(), signal);
+      if (request !== this.displayRequest) return false;
+      this.installBlueprint(blueprint);
       this.panel?.setStatus(`${blueprint.parcels.length} parcels loaded.`);
-      this.notifications.info(`${label} loaded.`);
+      return true;
     } catch (error) {
-      if (request === this.displayRequest) this.notifications.error(`${label}: ${error instanceof Error ? error.message : String(error)}`);
+      if (request === this.displayRequest) this.report(`${label}: ${error instanceof Error ? error.message : String(error)}`);
+      return false;
     }
   }
 
-  private installBlueprint(blueprint: CityBlueprint, saved: boolean): void {
-    this.nav.show('visualization');
+  private installBlueprint(blueprint: CityBlueprint): void {
+    this.showWorkspace('visualization');
     this.inspector.close();
     this.map.setBlueprint(blueprint);
     if (this.mode === '3d') {
@@ -222,7 +284,6 @@ export class PreviewApp {
       this.pending3d = null;
     } else this.pending3d = blueprint;
     this.blueprint = blueprint;
-    this.cities.setBlueprint(blueprint, saved);
     this.exteriors.setBlueprint(blueprint);
     this.overview.setBlueprint(blueprint);
     this.toolbar.setBlueprint(blueprint);
@@ -272,23 +333,7 @@ export class PreviewApp {
 
   private exportBlueprint(): void {
     if (!this.blueprint) return;
-    const filename = downloadBlueprint(this.blueprint);
-    this.notifications.info(`blueprint written to ${filename}`);
-  }
-
-  private exportParams(params: AtlasParams): void {
-    const name = paramsFileName(params.seed);
-    downloadParams(params, name);
-    this.notifications.info(`parameters written to ${name}`);
-  }
-
-  private async importParams(file: File): Promise<void> {
-    try {
-      this.panel?.setParams(parseParams(await file.text()));
-      this.notifications.info(`${file.name} loaded into the form, press Generate`);
-    } catch (e) {
-      this.notifications.error(`${file.name}: ${e instanceof Error ? e.message : String(e)}`);
-    }
+    downloadBlueprint(this.blueprint);
   }
 
   private scheduleManifestLoad(): void {

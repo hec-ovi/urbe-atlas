@@ -10,3 +10,5 @@ window.addEventListener('resize', () => app.resize());
 app.resize();
 
 void startPreview(app, window.location.search);
+
+window.addEventListener('popstate', () => void startPreview(app, window.location.search));

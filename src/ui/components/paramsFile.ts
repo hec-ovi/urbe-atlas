@@ -1,4 +1,4 @@
-/** Parameter files: the full AtlasParams set as JSON, in and out of the browser. */
+/** Complete parameter validation before submitting a city. */
 import type { AtlasParams } from '../../../schema/params';
 import { resolveParams } from '../../params/defaults';
 
@@ -38,19 +38,4 @@ export function parseParams(text: string): AtlasParams {
     if (source[field] !== undefined) params[field] = source[field];
   }
   return resolveParams(params as unknown as AtlasParams);
-}
-
-/** File name a parameter set is saved under. */
-export function paramsFileName(seed: AtlasParams['seed']): string {
-  return `atlas-params-${String(seed).replace(/[^a-z0-9_-]+/gi, '-')}.json`;
-}
-
-/** Hands the parameter set to the browser as a download. */
-export function downloadParams(params: AtlasParams, filename: string): void {
-  const url = URL.createObjectURL(new Blob([JSON.stringify(params, null, 2)], { type: 'application/json' }));
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = filename;
-  link.click();
-  URL.revokeObjectURL(url);
 }

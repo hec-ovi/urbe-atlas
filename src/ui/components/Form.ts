@@ -98,17 +98,17 @@ export class Form {
         return el('div', { class: 'seed-row' }, items);
       }
       case 'presets': {
-        const row = el('div', { class: 'preset-row', role: 'group', 'aria-label': 'City presets' });
-        for (const preset of widget.items as FormPreset[] ?? []) {
-          const button = el('button', {
-            type: 'button', class: preset.id === 'reset' ? 'preset-button reset-button' : 'preset-button',
-            text: preset.label,
-          });
-          button.addEventListener('click', () => this.applyPreset(preset));
-          row.append(button);
-        }
-        return row;
+        const select = el('select', { id: widget.id ?? 'template', 'aria-label': widget.label ?? 'Template' });
+        const presets = widget.items as FormPreset[] ?? [];
+        select.append(el('option', { value: '', text: 'Choose a template' }));
+        for (const preset of presets) select.append(el('option', { value: preset.id, text: preset.label }));
+        select.addEventListener('change', () => {
+          const preset = presets.find(item => item.id === select.value);
+          if (preset) this.applyPreset(preset);
+        });
+        return el('label', { class: 'select-field', for: select.id }, [el('span', { text: widget.label ?? 'Template' }), select]);
       }
+
       case 'text': {
         const input = el('input', {
           type: 'text', value: String(getPath(this.values, widget.path!) ?? ''),
@@ -137,7 +137,7 @@ export class Form {
         select.value = this.selectValue(widget);
         select.addEventListener('change', () => { this.writeSelect(widget, select.value); this.changed(); });
         this.selects.set(widget.path!, select);
-        return el('label', { for: select.id }, [el('span', { text: widget.label ?? '' }), select]);
+        return el('label', { class: 'select-field', for: select.id }, [el('span', { text: widget.label ?? '' }), select]);
       }
       case 'choice': {
         const group = el('div', { class: 'view-mode', role: 'group', 'aria-label': widget.label ?? '' });

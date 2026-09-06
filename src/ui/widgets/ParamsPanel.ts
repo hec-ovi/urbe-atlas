@@ -6,8 +6,6 @@ import { Form } from '../components/Form';
 
 export interface ParamsPanelEvents {
   onGenerate: (params: AtlasParams) => void;
-  onExport: (params: AtlasParams) => void;
-  onImport: (file: File) => void;
 }
 
 export class ParamsPanel {
@@ -21,18 +19,15 @@ export class ParamsPanel {
           this.form.set('seed', makeSeed());
           return;
         }
-        if (id === 'import-params') {
-          this.form.openFile('import-params');
-          return;
-        }
         const params = values as unknown as AtlasParams;
         if (id === 'generate') events.onGenerate(params);
-        if (id === 'export-params') events.onExport(params);
       },
-      onFile: (_id, file) => events.onImport(file),
     });
     this.root = this.form.root;
+    this.newSeed();
   }
+
+  newSeed(): void { this.form.set('seed', makeSeed()); }
 
   read(): AtlasParams {
     return this.form.read() as unknown as AtlasParams;

@@ -5,8 +5,9 @@ export async function startPreview(app: PreviewApp, search: string): Promise<voi
   await app.ready;
   const query = new URLSearchParams(search);
   if (query.get('view') === '3d') app.setMode('3d');
+  if (!query.has('city') && !query.has('blueprint')) app.showCreation(false);
   await Promise.all([
     app.refreshCities(),
-    query.has('blueprint') ? app.loadBlueprintUrl(query.get('blueprint')!) : Promise.resolve(),
+    query.has('city') ? app.openCityId(query.get('city')!) : query.has('blueprint') ? app.loadBlueprintUrl(query.get('blueprint')!) : Promise.resolve(),
   ]);
 }
