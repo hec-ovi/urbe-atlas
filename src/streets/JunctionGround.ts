@@ -5,9 +5,12 @@ import { GroundCover } from './GroundCover';
 import { GroundSources, groundRoleSurface } from './GroundSources';
 import { JunctionSource } from './JunctionSource';
 import { JunctionReturns } from './JunctionReturns';
+import { JunctionFitting } from './JunctionFitting';
 
 /** Source-owned straight arms and physical returns share one retained partition. */
 export class JunctionGround {
+  static fitting(input: JunctionGroundInput) { return new JunctionFitting(new JunctionSource(input)).build(); }
+
   static build(input: JunctionGroundInput) { return GroundCover.snapshot(this.plan(input)); }
 
   static plan(input: JunctionGroundInput) {

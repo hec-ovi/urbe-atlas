@@ -9,6 +9,9 @@ import { CrossingPlanner } from '../src/streets/crossings/CrossingPlanner';
 import { GroundCover } from '../src/streets/GroundCover';
 import { JunctionGround } from '../src/streets/JunctionGround';
 import { verifyPublishedCover } from '../src/geom/partition/published/verifyPublishedCover';
+import { SourcePartition } from '../src/geom/partition/SourcePartition';
+import { edgeMaskView } from '../src/geom/partition/EdgeMasks';
+import { verifyPartition } from '../src/geom/partition/verifyPartition';
 
 const box = (x0: number, y0: number, x1: number, y1: number): Polygon => [[x0, y0], [x1, y0], [x1, y1], [x0, y1]];
 function fixture(paved = 4, transform: (point: Vec2) => Vec2 = point => point): JunctionGroundInput {
@@ -129,4 +132,64 @@ it('validates geometry-free junction provenance at the public ground snapshot bo
   if (source.kind !== 'junction') throw Error('Missing junction source');
   source.contributors[0].spanIds = [];
   expect(() => GroundCover.snapshot(plan)).toThrowError(expect.objectContaining({ code: 'E_INVARIANT' }));
+});
+
+it('hands every exact return role to disjoint original-arm fitting fields with shared transition supports', () => {
+  for (const paved of [2, 4, 6]) {
+    const input = fixture(paved), before = JSON.stringify(input);
+    const fitting = JunctionGround.fitting(input), plan = JunctionGround.plan(input);
+    expect(JSON.stringify(input)).toBe(before);
+    expect(fitting.fields).toHaveLength(6);
+    expect(new Set(fitting.fields.map(field => field.id)).size).toBe(6);
+    expect(fitting.transitions).toHaveLength(2);
+    for (const [index, field] of fitting.fields.entries()) {
+      const polygon = edgeMaskView({ mask: field.mask, encoding: fitting.encoding });
+      for (const other of fitting.fields.slice(index + 1)) {
+        const partition = SourcePartition.create({ id: 'field', source: polygon, coordinateScale: 1000 });
+        partition.divide('field', { claims: [{ id: 'overlap', masks: [], edgeMasks: [other.mask], encoding: fitting.encoding }], remainderId: 'rest' });
+        expect(partition.boundaries('overlap')).toEqual([]);
+      }
+      const source = plan.sources.find(source => source.kind === 'junction' && source.role === 'curb')!;
+      expect(source.kind).toBe('junction');
+      if (source.kind !== 'junction') throw Error('Missing return source');
+      const contributor = source.contributors.find(row => row.edgeId === field.edgeId)!;
+      expect(field.handoff).toEqual({ distance: contributor.distance, runStation: contributor.runStation });
+      expect(field.sourceIds.every(id => plan.sources.some(source => source.id === id && source.kind === 'junction'))).toBe(true);
+      const edge = input.edges.find(edge => edge.id === field.edgeId)!;
+      const distance = Math.hypot(edge.path[1][0] - edge.path[0][0], edge.path[1][1] - edge.path[0][1]);
+      for (const axis of [0, 1]) expect(field.frame.origin[axis] + field.frame.u[axis] * field.handoff.runStation)
+        .toBeCloseTo(edge.path[0][axis] + (edge.path[1][axis] - edge.path[0][axis]) * field.handoff.distance / distance, 10);
+    }
+    for (const transition of fitting.transitions) {
+      expect(transition.fieldIds.every(id => fitting.fields.find(field => field.id === id)!.transitionIds.includes(transition.id))).toBe(true);
+      for (const id of transition.fieldIds) {
+        const field = fitting.fields.find(field => field.id === id)!;
+        const polygon = edgeMaskView({ mask: field.mask, encoding: fitting.encoding });
+        expect(polygon).toContainEqual(transition.from);
+        expect(polygon).toContainEqual(transition.to);
+      }
+    }
+    for (const owner of plan.owners.filter(owner => fitting.fields[0].sourceIds.includes(owner.sourceId))) {
+      const remainderId = `${owner.ownerId}:unfitted`;
+      plan.partition.divide(owner.ownerId, { claims: fitting.fields.map(field => ({
+        id: `${owner.ownerId}:${field.id}`, masks: [], edgeMasks: [field.mask], encoding: fitting.encoding,
+      })), remainderId });
+      expect(plan.partition.boundaries(remainderId)).toEqual([]);
+    }
+    expect(() => verifyPartition({ source: plan.boundary, coordinateScale: 1000, partition: plan.partition.finish() })).not.toThrow();
+    input.edges.reverse(); input.runs.reverse(); input.contact.arms.reverse();
+    expect(JunctionGround.fitting(input)).toEqual(fitting);
+  }
+});
+
+it('keeps fitting masks and corner transitions on shared authored axes after a quarter turn', () => {
+  const transform = ([x, z]: Vec2): Vec2 => [120 - z + 0.123, x + 0.321];
+  const fitting = JunctionGround.fitting(fixture(4, transform));
+  for (const field of fitting.fields) {
+    expect(Math.abs(field.frame.u[0]) + Math.abs(field.frame.u[1])).toBe(1);
+    for (const vertex of field.mask) for (const coordinate of vertex.from) expect(coordinate).toBe(Math.round(coordinate * 1000) / 1000);
+  }
+  const input = fixture();
+  input.runs.find(run => run.edges.length === 2)!.edges[0].forward = !input.runs.find(run => run.edges.length === 2)!.edges[0].forward;
+  expect(() => JunctionGround.fitting(input)).toThrowError(expect.objectContaining({ code: 'E_INVARIANT' }));
 });
