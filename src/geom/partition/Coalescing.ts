@@ -8,8 +8,8 @@ interface Group { id: number; parent: Group; edges: Map<string, Edge>; numeric: 
 const key = (a: Point, b: Point) => compare(a, b) < 0 ? `${a.key}|${b.key}` : `${b.key}|${a.key}`;
 
 function root(group: Group): Group {
-  if (group.parent !== group) group.parent = root(group.parent);
-  return group.parent;
+  while (group.parent !== group) { group.parent = group.parent.parent; group = group.parent; }
+  return group;
 }
 
 function loop(edges: Map<string, Edge>): Ring | undefined {

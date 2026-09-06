@@ -9,7 +9,7 @@ const fields = new WeakMap<PreparedPartitionMasks, WindingField>();
 /** Validates a mask snapshot once; its handle retains no query results. */
 export function prepareMasks(input: PartitionMaskInput): PreparedPartitionMasks {
   const pool = new PointPool().reader(input.encoding);
-  const field = new WindingField(input.masks.map(mask => readRing(mask, pool)), true);
+  const field = new WindingField(input.masks.map(mask => readRing(mask, pool)));
   const handle = Object.freeze({}) as PreparedPartitionMasks;
   fields.set(handle, field);
   return handle;
