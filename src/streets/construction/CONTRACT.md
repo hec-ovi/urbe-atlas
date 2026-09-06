@@ -24,7 +24,7 @@ Purpose: assigns continuous street cross sections and reserves each side's space
 
 - Units are metres. Left/right refer to the directed edge path. Positive lane offset is left. Legacy side bands run from road to building: curb, border, furnishing, walking, frontage. Explicit geometry publishes gutter-lip and gutter intervals before those bands.
 - New generation assigns 1 or 2 lanes to `street`, and exactly 4 lanes to `road` (avenue). Directions are explicit. A through-run preserves lane order, widths and travel direction when source edges reverse. Highway edges omit cross sections and keep the Atlas highway structure contract. Alleys have no lanes or curb and retain 3 to 5 m of pedestrian space.
-- Default profiles are a 2-lane, 7 m street and a 4-lane, 14 m avenue. Sidewalk totals default to 3, 4.5, 6.5 and 8.5 m. These are game-design dimensions. The curb remains the shared 0.15 m construction width.
+- Default profiles are a one-way 4 m street, a 2-lane 7 m street and a 4-lane 14 m avenue. Default paved sidewalks are 2, 4 and 6 m wide, with a 0.20 m curb width/rise, 0.30 m gutter and 0.02 m road-facing lip width/height. Total side reservations are 2.5, 4.5 and 6.5 m.
 - A carriageway equals its lane widths plus shoulders. Legacy side width equals its band widths. Explicit side width equals `geometry.totalWidth`, including gutter and curb outside the paved span. The per-edge scalar fields repeat these totals.
 - Identical graph and settings produce identical output. Width hierarchy is assigned to complete through-runs, independent of graph-edge fragmentation.
 - Corridors reserve the full left and right pedestrian widths before parcel generation. Roadway ownership takes precedence where corridors meet at a junction.
@@ -32,7 +32,7 @@ Purpose: assigns continuous street cross sections and reserves each side's space
 - `crossings.pedestrianClearance` resolves to 2.5 m when omitted. It is the positive vertical space requested from the grade datum's obstacle query, independent of crossing marking width.
 - Saved blueprints retain their authored lane counts. `validateStreetSections` checks their dimensions and run continuity without applying new-generation profile eligibility. Loading a saved blueprint never changes it.
 - Explicit side intervals run through gutter lip, gutter bed, curb, border, furnishing, walking and frontage. The lip is inside the gutter width, narrower than its gutter and no taller than the curb rise. Bed top is zero; curb and paved tops equal the curb rise. All dimensions are finite metres. Zero-width paved bands retain explicit empty intervals.
-- Paved width excludes curb and gutter. Total side reservation adds both to the paved width; carriageway lanes retain their dimensions. Example authored settings are curb width/rise 0.20 m, gutter width 0.30 m, and road-facing lip width/height 0.02 m. A 2/4/6 m paved span then reserves 2.5/4.5/6.5 m per side. Existing production defaults remain unchanged.
+- Paved width excludes curb and gutter. Total side reservation adds both to the paved width; carriageway lanes retain their dimensions.
 - Omitted profile edge geometry retains legacy output shape and curb dimensions. Explicit profiles use the same run and district assignment implementation. Corridor production requires the supported format declared by its consumer contract.
 
 ## Errors

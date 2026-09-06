@@ -6,17 +6,24 @@ import type { StreetConstruction, SectionedStreetEdge } from './schema/sections'
 import type { LaneDesign } from './schema/design';
 
 describe('street and avenue lane classes', () => {
-  it('generates two-lane streets and four-lane avenues from the default profiles', () => {
+  it('generates one- and two-lane streets and four-lane avenues from the default profiles', () => {
     const design = resolveStreetDesign();
-    expect(design.profiles.map((profile) => [profile.classes, profile.lanes.length])).toEqual([[['street'], 2], [['road'], 4]]);
-    for (const kind of ['street', 'road'] as const) {
+    expect(design.profiles.map((profile) => [profile.classes, profile.lanes.length])).toEqual([
+      [['street'], 1], [['street'], 2], [['road'], 4],
+    ]);
+    for (const [index, profile] of design.profiles.entries()) {
+      const kind = profile.classes[0];
+      const selected = resolveStreetDesign({ ...design,
+        profiles: design.profiles.filter((candidate) => candidate === profile || !candidate.classes.includes(kind)),
+      });
       const plan = StreetSections.plan([
         { id: 'e', class: kind, from: 'a', to: 'b', path: [[0, 0], [100, 0]] },
       ], [
         { id: 'a', position: [0, 0], edgeIds: ['e'] }, { id: 'b', position: [100, 0], edgeIds: ['e'] },
-      ], design, () => 'residential');
-      expect(plan.edges[0].crossSection!.lanes).toHaveLength(kind === 'street' ? 2 : 4);
-      expect(plan.edges[0].width).toBe(kind === 'street' ? 7 : 14);
+      ], selected, () => 'residential');
+      expect(plan.edges[0].crossSection!.lanes).toHaveLength([1, 2, 4][index]);
+      expect(plan.edges[0].width).toBe([4, 7, 14][index]);
+      expect(plan.edges[0].crossSection!.lanes.map((lane) => lane.direction)).toEqual(profile.lanes.map((lane) => lane.direction));
     }
   });
 

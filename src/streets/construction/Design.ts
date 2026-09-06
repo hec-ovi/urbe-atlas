@@ -18,14 +18,14 @@ export function roadwayTotal(profile: RoadProfile): number {
 export function resolveStreetDesign(input?: StreetDesign): StreetDesign {
   const defaults: StreetDesign = {
     profiles: [
+      { id: 'one-way', classes: ['street'], lanes: [{ direction: 'forward', width: 4 }], shoulders: { left: 0, right: 0 } },
       { id: 'local', classes: ['street'], lanes: lanes(2), shoulders: { left: 0, right: 0 } },
       { id: 'avenue', classes: ['road'], lanes: lanes(4), shoulders: { left: 0, right: 0 } },
     ],
     sidewalkProfiles: [
-      { id: 'compact', curb: CURB_WIDTH, border: 0.35, furnishing: 0.5, walking: 1.5, frontage: 0.5 },
-      { id: 'standard', curb: CURB_WIDTH, border: 0.35, furnishing: 1, walking: 2.5, frontage: 0.5 },
-      { id: 'broad', curb: CURB_WIDTH, border: 0.35, furnishing: 1.5, walking: 3.5, frontage: 1 },
-      { id: 'promenade', curb: CURB_WIDTH, border: 0.35, furnishing: 2, walking: 4.5, frontage: 1.5 },
+      { id: 'compact', curb: 0.2, border: 0, furnishing: 0, walking: 2, frontage: 0, edge: moduleEdge() },
+      { id: 'standard', curb: 0.2, border: 1, furnishing: 1, walking: 2, frontage: 0, edge: moduleEdge() },
+      { id: 'broad', curb: 0.2, border: 1, furnishing: 1, walking: 3, frontage: 1, edge: moduleEdge() },
     ],
   };
   const value = input === undefined ? defaults : input;
@@ -99,6 +99,10 @@ export function resolveStreetDesign(input?: StreetDesign): StreetDesign {
     ...(value.sidewalkAssignments === undefined ? {} : { sidewalkAssignments: value.sidewalkAssignments.map((assignment) => ({ ...assignment })) }),
     crossings: { pedestrianClearance: crossings.pedestrianClearance },
   };
+}
+
+function moduleEdge(): SidewalkEdgeGeometry {
+  return { curbRise: 0.2, gutter: { width: 0.3, lip: { width: 0.02, height: 0.02, side: 'road' } } };
 }
 
 function record(value: unknown): value is Record<string, any> {

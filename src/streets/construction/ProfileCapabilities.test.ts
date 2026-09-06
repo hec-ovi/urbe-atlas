@@ -10,10 +10,19 @@ const edges = fixture.edges as BuiltEdge[];
 const nodes = fixture.nodes as BuiltNode[];
 
 describe('explicit street profiles', () => {
+  it('defaults to whole paved widths with dimensioned curbs and gutters', () => {
+    const profiles = resolveStreetDesign().sidewalkProfiles;
+    expect(profiles.map(({ border, furnishing, walking, frontage }) => border + furnishing + walking + frontage)).toEqual([2, 4, 6]);
+    for (const profile of profiles) {
+      expect(profile.curb).toBe(0.2);
+      expect(profile.edge).toEqual({ curbRise: 0.2, gutter: { width: 0.3, lip: { width: 0.02, height: 0.02, side: 'road' } } });
+    }
+  });
+
   it('preserves a one-way run across reversed edges and reserves each assigned sidewalk independently', () => {
     const input = resolveStreetDesign();
     input.profiles = [fixture.profile as StreetDesign['profiles'][number], ...input.profiles.filter((profile) => profile.classes.includes('road'))];
-    input.sidewalkAssignments = [{ district: 'residential', street: 'standard' }, { district: 'commercial', street: 'promenade' }];
+    input.sidewalkAssignments = [{ district: 'residential', street: 'standard' }, { district: 'commercial', street: 'broad' }];
     const design = resolveStreetDesign(input);
     const plan = StreetSections.plan(edges, nodes, design, ([, z]) => z > 0 ? 'residential' : 'commercial');
     expect(plan.edges.map((edge) => edge.width)).toEqual([3.5, 3.5]);
@@ -21,7 +30,7 @@ describe('explicit street profiles', () => {
       [{ direction: 'forward', width: 3.5, offset: 0 }],
       [{ direction: 'backward', width: 3.5, offset: 0 }],
     ]);
-    expect(plan.edges.map((edge) => edge.sidewalk)).toEqual([{ left: 4.5, right: 8.5 }, { left: 8.5, right: 4.5 }]);
+    expect(plan.edges.map((edge) => edge.sidewalk)).toEqual([{ left: 4.5, right: 6.5 }, { left: 6.5, right: 4.5 }]);
     const city = { streets: { edges: plan.edges, construction: { version: '1.0.0' as const, runs: plan.runs } } };
     expect(() => validateStreetSections(city)).not.toThrow();
     plan.edges[1].crossSection!.lanes[0].direction = 'forward';

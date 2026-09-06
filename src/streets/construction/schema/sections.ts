@@ -1,6 +1,9 @@
 import type { Polyline, StreetEdge } from '../../../../schema/blueprint';
 import type { LaneDesign, SidewalkBands, SidewalkEdgeGeometry } from './design';
 import type { StreetPlanningReservations } from '../corridors/schema';
+import type { PavingConstruction } from '../paving/schema';
+import type { CrossingJunction } from '../../crossings/schema';
+import type { ModuleConstruction } from '../modules/schema';
 
 export interface StreetCrossSection {
   runId: string;
@@ -45,8 +48,14 @@ export interface StreetRun {
 export interface StreetConstruction {
   version: '1.0.0';
   runs: StreetRun[];
-  /** Exact edge-local planning queries. Final GroundSurface polygons own physical ground. */
+  /** Shared physical panel, curb, gutter, corner and furniture pieces. */
+  modules?: ModuleConstruction;
+  /** Exact edge-local planning queries. Modules or final ground own physical geometry. */
   planningReservations?: StreetPlanningReservations;
+  /** Whole-cell construction over sole GroundSurface owner polygons. */
+  paving?: PavingConstruction;
+  /** Physical contact domains and exact external crossing approaches. */
+  junctions?: CrossingJunction[];
 }
 
 /** The construction consumer subset also accepts pre-construction Atlas artifacts. */
