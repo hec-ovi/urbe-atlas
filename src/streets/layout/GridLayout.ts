@@ -64,7 +64,7 @@ export class GridLayout {
 
     const kit = new StreetModuleKit();
     const blocks: GridLayoutPlan['blocks'] = [];
-    const rng = Rng.from(input.seed, 'street-details');
+    const details = Rng.from(input.seed, 'street-details');
     for (let row = 0; row < z.panels.length; row++) {
       for (let column = 0; column < x.panels.length; column++) {
         const frontages = [horizontal[row][column], vertical[column + 1][row], horizontal[row + 1][column], vertical[column][row]];
@@ -72,6 +72,7 @@ export class GridLayout {
         const origin: Vec2 = [x.roads[column].position + x.roads[column].width / 2 + 0.5, z.roads[row].position + z.roads[row].width / 2 + 0.5];
         const panels: [number, number] = [x.panels[column], z.panels[row]];
         const finish = input.sideAt([origin[0] + panels[0] / 2, origin[1] + panels[1] / 2], 'street').finish;
+        const rng = details.fork(`parking:${row}:${column}`);
         const parking: BlockModuleInput['parking'] = [];
         const eligible = sidewalks.map((width, side) => ({ width, side: side as QuarterTurn,
           length: panels[side % 2] - sidewalks[(side + 1) % 4] - sidewalks[(side + 3) % 4] }))
@@ -81,8 +82,17 @@ export class GridLayout {
           const slots = selected.length >= 36 && rng.chance(0.25) ? 3 : 2;
           parking.push({ side: selected.side, start: rng.int(3, Math.floor((selected.length - 6 - 4 - slots * 4) / 2)) * 2, slots });
         }
+        const guardrails: BlockModuleInput['guardrails'] = [];
+        for (let side = 0; side < 4 && guardrails.length < 2; side++) {
+          const railRng = details.fork(`rails:${row}:${column}:${side}`);
+          const length = panels[side % 2] - sidewalks[(side + 1) % 4] - sidewalks[(side + 3) % 4];
+          if (length < 24 || !railRng.chance(0.18)) continue;
+          const segments = railRng.int(1, 3) as 1 | 2 | 3;
+          const start = railRng.int(3, Math.floor((length - 6 - segments * 2) / 2)) * 2;
+          guardrails.push({ side: side as QuarterTurn, start, segments });
+        }
         const block = kit.block({ id: `b${blocks.length}`, origin, panels, sidewalks,
-          finish, centerDouble: true, guardrails: rng.chance(0.35), parking });
+          finish, centerDouble: true, guardrails, parking });
         blocks.push({ id: block.id, outer: block.outer, interior: block.interior,
           edgeIds: frontages.map(value => value.id) as [string, string, string, string] });
       }

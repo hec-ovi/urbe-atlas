@@ -76,6 +76,12 @@ describe('GridLayout public plan', () => {
       expect(bay.start).toBeGreaterThanOrEqual(6);
       expect(bay.slots.map(area)).toEqual(Array(bay.slotCount).fill(8));
     }
+    const rails = plan.modules.placements.filter(placement => placement.moduleId === 'guardrail:2');
+    const railBlocks = new Set(rails.map(rail => rail.blockId));
+    expect(railBlocks.size).toBeGreaterThan(1);
+    expect(rails.length).toBeLessThan(plan.blocks.length);
+    expect(rails.every(rail => rail.count >= 1 && rail.count <= 3)).toBe(true);
+    for (const blockId of railBlocks) expect(rails.filter(rail => rail.blockId === blockId).length).toBeLessThanOrEqual(2);
     const definitions = new Set(plan.modules.definitions.map(definition => definition.id));
     expect(plan.modules.placements.every(placement => definitions.has(placement.moduleId))).toBe(true);
     expect(plan.modules.placements.reduce((sum, placement) => sum + placement.count, 0)).toBeGreaterThan(definitions.size * 100);
