@@ -155,4 +155,21 @@ describe('StreetModuleKit public construction', () => {
     expect(cover.length).toBeLessThan(60);
     expect(ModuleGround.cover(construction)).toEqual(cover);
   });
+
+  it('constructs complete outer sidewalks with whole panels, fixed half-panel corner cuts and one-metre terminal groups', () => {
+    const kit = new StreetModuleKit();
+    const frontage = kit.perimeter({ id: 'fringe', bounds: { min: [10, 20], max: [111, 103] }, width: 4, finish: 'maintained' });
+    const construction = kit.construction();
+    const cover = ModuleGround.cover(construction);
+    expect(construction.frontages).toEqual([frontage]);
+    expect(cover.reduce((sum, region) => sum + signedArea(region.polygon), 0))
+      .toBeCloseTo(110 * 92 - 101 * 83, 7);
+    expect(cover.every(region => region.blockId === 'fringe')).toBe(true);
+    for (const definition of construction.definitions) for (const part of definition.parts) {
+      expect(signedArea(part.polygon)).toBeGreaterThan(0);
+      expect(part.bottom).toBeLessThan(part.top);
+    }
+    expect(construction.placements.filter(placement => placement.moduleId.endsWith(':1'))).toHaveLength(4);
+    expect(() => kit.perimeter({ id: 'bad', bounds: { min: [0, 0], max: [10.5, 20] }, width: 4, finish: 'maintained' })).toThrow(/whole metre/);
+  });
 });

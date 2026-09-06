@@ -16,6 +16,8 @@ Block output supplies the buildable rectangle and complete outer bounds, includi
 
 Optional parking replaces complete straight groups on 4/6 m sidewalks. Each bay has 1 to 3 slots of 4 by 2 m, plus a fixed 2 m return at each end. Starts are even panel stations, at least 6 m from either corner reservation. Curbs, gutter beds and lips follow the same rectangular cut; at least 2 m of paved walking width remains. Published parking records contain the station range, slot count and footprints. Bays cannot overlap each other or caller reservations, and they suppress guardrails. The caller controls their frequency.
 
+`StreetModuleKit.perimeter(input)` takes [PerimeterModuleInput](schema.ts) and returns a frontage owner. It surrounds a rectangular roadway with complete 2/4/6 m sidewalks. Road spans are whole metres; two-metre straight groups finish with a one-metre group when needed. The four shared outer corner pieces use full panels, fixed half-panel terminals and formed curb caps. Frontage placements reference their frontage ID through `blockId`; `frontages` supplies its enclosing boundary.
+
 ## Dependencies
 
 - [Atlas](../../../../CONTRACT.md): coordinates in metres and error vocabulary.

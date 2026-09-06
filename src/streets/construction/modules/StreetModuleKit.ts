@@ -1,15 +1,47 @@
 import { invalidParams } from '../../../errors';
 import { corner } from './Corner';
 import { rectangle, transform } from './Geometry';
-import type { BlockModuleInput, ModuleBlock, ModuleConstruction, ModuleDefinition, ModuleParking, ModulePlacement, QuarterTurn } from './schema';
+import type { BlockModuleInput, ModuleBlock, ModuleConstruction, ModuleDefinition, ModuleFrontage, ModuleParking, ModulePlacement, PerimeterModuleInput, QuarterTurn } from './schema';
 import { guardrail, straight } from './Straight';
 import { parking } from './Parking';
+import { perimeterCorner } from './Perimeter';
 
 export class StreetModuleKit {
   private readonly definitions = new Map<string, ModuleDefinition>();
   private readonly placements: ModulePlacement[] = [];
   private readonly blockIds = new Set<string>();
   private readonly parking: ModuleParking[] = [];
+  private readonly frontages: ModuleFrontage[] = [];
+
+  perimeter(input: PerimeterModuleInput): ModuleFrontage {
+    const { min, max } = input.bounds;
+    const width = max[0] - min[0], depth = max[1] - min[1];
+    if (!input.id || this.blockIds.has(input.id) || !input.finish || ![2, 4, 6].includes(input.width)
+      || ![...min, ...max].every(Number.isFinite) || ![width, depth].every(value => Number.isSafeInteger(value) && value >= 4)) {
+      throw invalidParams('perimeter requires whole metre roadway spans and 2/4/6 m sidewalks');
+    }
+    const add = (definition: ModuleDefinition, origin: [number, number], turn: QuarterTurn, count = 1) => {
+      if (!this.definitions.has(definition.id)) this.definitions.set(definition.id, definition);
+      this.placements.push({ moduleId: definition.id, blockId: input.id, origin, turn, count, step: 2, finish: input.finish });
+    };
+    const origins: [number, number][] = [[max[0], min[1] - 0.5], [max[0] + 0.5, max[1]],
+      [min[0], max[1] + 0.5], [min[0] - 0.5, min[1]]];
+    const corners: [number, number][] = [[min[0], min[1]], [max[0], min[1]], [max[0], max[1]], [min[0], max[1]]];
+    const straightDefinition = straight(input.width, true);
+    const cornerDefinition = perimeterCorner(input.width);
+    for (let side = 0; side < 4; side++) {
+      const length = side % 2 ? depth : width;
+      const turn = ((side + 2) % 4) as QuarterTurn;
+      add(straightDefinition, origins[side], turn, Math.floor(length / 2));
+      if (length % 2) add(straight(input.width, false, 1), transform([length - 1, 0], origins[side], turn), turn);
+      add(cornerDefinition, corners[side], side as QuarterTurn);
+    }
+    const out = { id: input.id, boundary: rectangle(min[0] - input.width - 0.5, min[1] - input.width - 0.5,
+      width + input.width * 2 + 1, depth + input.width * 2 + 1) };
+    this.blockIds.add(input.id);
+    this.frontages.push(out);
+    return structuredClone(out);
+  }
 
   block(input: BlockModuleInput): ModuleBlock {
     this.validate(input);
@@ -70,6 +102,7 @@ export class StreetModuleKit {
   construction(): ModuleConstruction {
     return structuredClone({ version: '1.0.0', definitions: [...this.definitions.values()], placements: this.placements,
       ...(this.parking.length ? { parking: this.parking } : {}),
+      ...(this.frontages.length ? { frontages: this.frontages } : {}),
     });
   }
 

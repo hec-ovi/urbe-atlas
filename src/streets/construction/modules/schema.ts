@@ -42,6 +42,18 @@ export interface ModuleConstruction {
   definitions: ModuleDefinition[];
   placements: ModulePlacement[];
   parking?: ModuleParking[];
+  /** Paved land owners outside the building blocks. */
+  frontages?: ModuleFrontage[];
+}
+
+export interface ModuleFrontage { id: string; boundary: Polygon }
+
+export interface PerimeterModuleInput {
+  id: string;
+  /** Rectangular outside edges of the roadway. */
+  bounds: { min: Vec2; max: Vec2 };
+  width: SidewalkWidth;
+  finish: string;
 }
 
 export interface ModuleParking {
