@@ -6,7 +6,9 @@ import { readEdgeMask } from './EdgeMasks';
 import { CoordinateEnclosures } from './CoordinateEnclosures';
 import { connected, simple } from './Regions';
 import { readRing } from './RingInput';
+import { readPreparedMasks } from './PreparedMasks';
 import { chain, nodeSegments, segments } from './Segments';
+import { WindingField } from './WindingField';
 import type { Division, PartitionComponent, PartitionCoordinates, PartitionInput, PartitionPointEnclosure, PartitionReservation, Polygon, SharedPartition } from './schema';
 
 interface Owner {
@@ -39,7 +41,10 @@ export class SourcePartition {
     this.available([...input.claims.map(claim => claim.id), input.remainderId]);
     const source = this.remaining(owner), masks = input.claims.map(claim => {
       const reader = this.pool.reader(claim.encoding);
-      return [...claim.masks.map(mask => readRing(mask, reader)), ...(claim.edgeMasks ?? []).map(mask => readEdgeMask(mask, reader))];
+      const rings = [...claim.masks.map(mask => readRing(mask, reader)), ...(claim.edgeMasks ?? []).map(mask => readEdgeMask(mask, reader))];
+      if (!claim.preparedMasks) return rings;
+      const prepared = readPreparedMasks(claim.preparedMasks);
+      return rings.length ? new WindingField([...prepared.rings, ...rings]) : prepared;
     });
     let regions: Region[] | undefined;
     const read = (index: number) => (regions ??= overlay(source, masks, this.pool))[index];

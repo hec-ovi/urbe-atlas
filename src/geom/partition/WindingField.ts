@@ -1,5 +1,7 @@
 import { BoxIndex, extent, overlaps, type Box } from './BoxIndex';
+import { BoundaryIndex } from './BoundaryIndex';
 import { winding, type Probe, type Region, type Ring } from './Exact';
+import { segments, type Segment } from './Segments';
 
 interface Boundary { ring: Ring; box: Box }
 
@@ -7,10 +9,16 @@ interface Boundary { ring: Ring; box: Box }
 export class WindingField {
   readonly box: Box;
   private readonly index?: BoxIndex<Boundary>;
+  private readonly boundary?: BoundaryIndex;
 
-  constructor(private readonly rings: Region) {
+  constructor(readonly rings: Region, retainBoundaryIndex = false) {
     this.box = extent(rings);
     if (rings.length > 8) this.index = new BoxIndex(rings.map(ring => ({ ring, box: extent([ring]) })));
+    if (retainBoundaryIndex) this.boundary = new BoundaryIndex(rings);
+  }
+
+  segments(box: Box): Segment[] {
+    return this.boundary ? this.boundary.segments(box) : segments(this.rings).filter(edge => overlaps(box, edge.box));
   }
 
   winding(probe: Probe, box = extent([[probe.base]])): number {

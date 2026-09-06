@@ -4,11 +4,14 @@ export interface PartitionInput { id: string; source: Polygon; coordinateScale?:
 export interface PartitionVerificationInput { source: Polygon; partition: SharedPartition; coordinateScale?: 1000 }
 export type PartitionEncoding = 'authored-1mm' | 'binary';
 export interface PartitionCoordinates { encoding?: PartitionEncoding }
+declare const preparedMasks: unique symbol;
+export interface PreparedPartitionMasks { readonly [preparedMasks]: true }
+export interface PartitionMaskInput extends PartitionCoordinates { masks: readonly Polygon[] }
 export interface PartitionEdgePosition { from: Vec2; to: Vec2; t: number }
 export interface PartitionEdgePositionInput extends PartitionCoordinates { position: PartitionEdgePosition }
 export type PartitionEdgeMask = PartitionEdgePosition[];
 export interface PartitionEdgeMaskInput extends PartitionCoordinates { mask: PartitionEdgeMask }
-export interface PartitionClaim extends PartitionCoordinates { id: string; masks: Polygon[]; edgeMasks?: PartitionEdgeMask[] }
+export interface PartitionClaim extends PartitionCoordinates { id: string; masks: Polygon[]; edgeMasks?: PartitionEdgeMask[]; preparedMasks?: PreparedPartitionMasks }
 export interface PartitionReservation extends PartitionCoordinates { id: string; polygon: Polygon }
 export interface Division { claims: PartitionClaim[]; remainderId: string }
 export interface PartitionPiece { ownerId: string; vertices: number[]; fixed: boolean }

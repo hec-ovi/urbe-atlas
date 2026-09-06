@@ -1,5 +1,5 @@
 import { invariantFailure } from '../../errors';
-import { extent, overlaps } from './BoxIndex';
+import { extent } from './BoxIndex';
 import { compare, cross, leftProbe, ringSign, sign, vector, type Point, type PointPool, type Region, type Ring } from './Exact';
 import { chain, nodeSegments, segments } from './Segments';
 import { WindingField } from './WindingField';
@@ -20,11 +20,12 @@ function simpleCycles(walk: Ring): Region {
 }
 
 /** One indexed arrangement assigns every face by source winding and mask priority. */
-export function overlay(source: Region, masks: Region[], pool: PointPool): Region[] {
+export function overlay(source: Region, masks: (Region | WindingField)[], pool: PointPool): Region[] {
   const result: Region[] = Array.from({ length: masks.length + 1 }, () => []);
   if (!source.length) return result;
-  const sourceField = new WindingField(source), sourceBox = sourceField.box, fields = masks.map(rings => new WindingField(rings));
-  const edges = segments([...source, ...masks.flat()]).filter(edge => overlaps(sourceBox, edge.box));
+  const sourceField = new WindingField(source), sourceBox = sourceField.box;
+  const fields = masks.map(mask => mask instanceof WindingField ? mask : new WindingField(mask));
+  const edges = [...segments(source), ...fields.flatMap(field => field.segments(sourceBox))];
   edges.forEach((edge, index) => { edge.id = index; });
   nodeSegments(edges, pool);
   const atoms = new Map<string, [Point, Point]>();
