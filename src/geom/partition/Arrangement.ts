@@ -1,10 +1,10 @@
 import { invariantFailure } from '../../errors';
-import { extent, overlaps, type Box } from './BoxIndex';
-import { compare, cross, leftProbe, ringSign, sign, vector, winding, type Point, type PointPool, type Region, type Ring } from './Exact';
+import { extent, overlaps } from './BoxIndex';
+import { compare, cross, leftProbe, ringSign, sign, vector, type Point, type PointPool, type Region, type Ring } from './Exact';
 import { chain, nodeSegments, segments } from './Segments';
+import { WindingField } from './WindingField';
 
 interface HalfEdge { id: number; a: Point; b: Point; twin: HalfEdge; next: HalfEdge; owner: number; visited: boolean }
-interface Field { rings: Region; box: Box }
 
 function simpleCycles(walk: Ring): Region {
   const result: Region = [], stack: Point[] = [], positions = new Map<string, number>();
@@ -23,7 +23,7 @@ function simpleCycles(walk: Ring): Region {
 export function overlay(source: Region, masks: Region[], pool: PointPool): Region[] {
   const result: Region[] = Array.from({ length: masks.length + 1 }, () => []);
   if (!source.length) return result;
-  const sourceBox = extent(source), fields: Field[] = masks.map(rings => ({ rings, box: extent(rings) }));
+  const sourceField = new WindingField(source), sourceBox = sourceField.box, fields = masks.map(rings => new WindingField(rings));
   const edges = segments([...source, ...masks.flat()]).filter(edge => overlaps(sourceBox, edge.box));
   edges.forEach((edge, index) => { edge.id = index; });
   nodeSegments(edges, pool);
@@ -66,8 +66,8 @@ export function overlay(source: Region, masks: Region[], pool: PointPool): Regio
     if (start.owner !== -2) continue;
     const probe = leftProbe(start.a, start.b, pool), pointBox = extent([[probe.base]]);
     let owner = -1;
-    if (winding(source, probe)) {
-      owner = fields.findIndex(field => overlaps(field.box, pointBox) && winding(field.rings, probe) !== 0);
+    if (sourceField.winding(probe, pointBox)) {
+      owner = fields.findIndex(field => field.winding(probe, pointBox) !== 0);
       if (owner === -1) owner = masks.length;
     }
     let edge = start;

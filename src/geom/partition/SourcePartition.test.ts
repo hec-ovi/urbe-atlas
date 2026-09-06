@@ -106,6 +106,22 @@ describe('source-preserving partition contract', () => {
     verifyPartition({ source, partition: plan.finish() });
   });
 
+  it('retains union priority and signed holes across spatially separated masks', () => {
+    const source = rectangle(0, 0, 80, 40), plan = SourcePartition.create({ id: 'source', source });
+    const islands = Array.from({ length: 12 }, (_, index) => index * 6 + 2).flatMap(left => [
+      rectangle(left, 5, left + 3, 35), rectangle(left + 1, 5, left + 4, 35).reverse(),
+    ]);
+    plan.divide('source', { claims: [{ id: 'islands', masks: islands },
+      { id: 'overlap', masks: [rectangle(3, 10, 5, 30)] }], remainderId: 'surrounding' });
+    expect(plan.loops('overlap')).toEqual([]);
+    expect(plan.loops('islands')).toHaveLength(12);
+    plan.divide('surrounding', { claims: [{ id: 'lower', masks: [rectangle(-1, -1, 81, 20)] }], remainderId: 'upper' });
+    expect(plan.covers('lower', rectangle(6.5, 1, 7.5, 19))).toBe(true);
+    expect(plan.covers('upper', rectangle(6.5, 21, 7.5, 39))).toBe(true);
+    expect(plan.covers('lower', rectangle(3, 10, 5, 15))).toBe(false);
+    verifyPartition({ source, partition: plan.finish() });
+  });
+
   it('publishes the consumer canonical cell unchanged when a solid cut terminates on its edge', () => {
     const source = rectangle(-5, -5, 5, 5), origin = [1.017, -.993], u = [.6, .8], pitch = [2, 2];
     const cell: Polygon = [[0, 0], [1, 0], [1, 1], [0, 1]].map(([column, row]) => {
