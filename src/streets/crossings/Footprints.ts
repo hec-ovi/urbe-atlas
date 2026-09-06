@@ -1,5 +1,5 @@
 import type { Polygon, Vec2 } from '../../../schema/blueprint';
-import { GRID_STEP, hasInteriorBeyondPrecision } from '../../geom/clip';
+import { GRID_STEP } from '../../geom/clip';
 import { edgeMaskView, edgePositionView } from '../../geom/partition/EdgeMasks';
 import type { PartitionEdgeMask, PartitionEdgePosition } from '../../geom/partition/schema';
 import { FootprintRegions } from './intervals/FootprintRegions';
@@ -67,10 +67,10 @@ export class FootprintIndex {
     return this.regions.covers(polygon);
   }
   intersects(polygon: Polygon): boolean {
-    return hasInteriorBeyondPrecision(FootprintRegions.inside(polygon, this.near(polygon)));
+    return new FootprintRegions(this.near(polygon)).intersects(polygon);
   }
   overlapsArea(polygon: Polygon): boolean {
-    return FootprintRegions.inside(polygon, this.near(polygon)).length > 0;
+    return new FootprintRegions(this.near(polygon)).overlapsArea(polygon);
   }
 }
 

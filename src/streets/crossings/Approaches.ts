@@ -1,6 +1,7 @@
 import type { StreetEdge } from '../../../schema/blueprint';
 import { CROSSING_DIMENSIONS, CrossingFrame, FootprintIndex } from './Footprints';
 import { CrossingIntervals } from './intervals/CrossingIntervals';
+import { FootprintRegions } from './intervals/FootprintRegions';
 import type { StationInterval } from './intervals/schema';
 import { invariantFailure } from '../../errors';
 import { approachBands, approachGeometry, type ApproachCandidate } from './ApproachGeometry';
@@ -13,19 +14,25 @@ export class Approaches {
   constructor(private readonly fields: CrossingFields) {}
 
   ends(edge: StreetEdge): { first: ApproachCandidate | null; last: ApproachCandidate | null } {
-    const { roadway, pavement, crossingGround, obstacles } = this.fields;
-    const otherRoads = this.fields.foreignRoads(edge.id);
+    const { roadway, pavement, crossingGround } = this.fields;
     const bands = approachBands(edge);
+    const segments = edge.path.slice(1).map((b, index) => {
+      const frame = new CrossingFrame(edge.path[index], b);
+      return { frame, whole: frame.length >= CROSSING_DIMENSIONS.width
+        ? frame.rectangle(frame.length / 2, bands.whole, frame.length) : null };
+    });
+    const near = (index: FootprintIndex) => [...new Set(segments.flatMap(({ whole }) => whole ? index.near(whole) : []))];
+    const foreign = near(this.fields.foreignRoads(edge.id)), physical = near(this.fields.obstacles);
+    const otherRoads = new FootprintRegions(foreign), obstacles = new FootprintRegions(physical);
+    const forbidden = new FootprintRegions([...foreign, ...physical]);
     const ownRoad = this.fields.ownRoad(edge.id);
     let first: ApproachCandidate | null = null, last: ApproachCandidate | null = null, offset = 0;
-    for (let i = 1; i < edge.path.length; i++) {
-      const frame = new CrossingFrame(edge.path[i - 1], edge.path[i]);
-      if (frame.length < CROSSING_DIMENSIONS.width) { offset += frame.length; continue; }
-      const whole = frame.rectangle(frame.length / 2, bands.whole, frame.length);
-      const forbidden = [...otherRoads.near(whole), ...obstacles.near(whole)];
+    for (let i = 0; i < segments.length; i++) {
+      const { frame, whole } = segments[i];
+      if (!whole) { offset += frame.length; continue; }
       const ranges = [
         { lateral: bands.whole, allowed: crossingGround.regions, forbidden },
-        { lateral: bands.field, allowed: roadway.regions, excluded: otherRoads.near(whole) },
+        { lateral: bands.field, allowed: roadway.regions, excluded: otherRoads },
         { lateral: bands.field, allowed: ownRoad.regions },
         { lateral: bands.leftTerminal, allowed: this.fields.walking(edge.id, 'left').regions },
         { lateral: bands.rightTerminal, allowed: this.fields.walking(edge.id, 'right').regions },
@@ -36,7 +43,7 @@ export class Approaches {
       for (const range of ranges) {
         if (!intervals.length) break;
         intervals = intersectRanges(intervals, CrossingIntervals.find({
-          a: edge.path[i - 1], b: edge.path[i], width: CROSSING_DIMENSIONS.width, sourceOffset: offset,
+          a: edge.path[i], b: edge.path[i + 1], width: CROSSING_DIMENSIONS.width, sourceOffset: offset,
           lateral: range.lateral, allowed: range.allowed, forbidden: range.forbidden, excluded: range.excluded,
         }));
       }

@@ -120,6 +120,7 @@ describe('CrossingPlanner public construction', () => {
 
   it('places complete fields beyond a sharp three-arm contact on long approaches', () => {
     const input = sharpJunction();
+    input.edges.find(edge => edge.id === 'west-road')!.path.splice(1, 0, [-90, 0]);
     const before = JSON.stringify(input);
     const plan = CrossingPlanner.plan(input);
     expect(plan.junctions.flatMap(junction => junction.approaches).map(approach => approach.edgeId).sort())

@@ -15,6 +15,7 @@ export class SourceDomains {
 
   conflict(edge: StreetEdge, contactEdgeIds: readonly string[], fields: 1 | 2 = 2): boolean {
     const foreign = this.fields.foreignRoads(edge.id, contactEdgeIds);
+    const source = this.fields.source(edge.id);
     const bands = approachBands(edge), lateral = bands.whole;
     let first = Infinity, last = -Infinity, offset = 0;
     for (let i = 1; i < edge.path.length; i++) {
@@ -33,8 +34,7 @@ export class SourceDomains {
           intervals = intersectRanges(intervals, CrossingIntervals.find({
             a: edge.path[i - 1], b: edge.path[i], width: CROSSING_DIMENSIONS.width, sourceOffset: offset,
             lateral: sourceBand.lateral, excluded: sourceBand.excluded,
-            allowed: (sourceBand.role === 'roadway' ? this.fields.ownRoad(edge.id)
-              : this.fields.walking(edge.id, sourceBand.role)).regions,
+            allowed: source[sourceBand.role].regions,
           }));
         }
         for (const interval of intervals) {

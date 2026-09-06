@@ -1,6 +1,7 @@
 import { FootprintIndex } from './Footprints';
 import { Traffic } from './Traffic';
 import type { CrossingInput, CrossingSourceInput } from './schema';
+type SourceFields = Record<'roadway' | 'left' | 'right', FootprintIndex>;
 
 /** One planning or validation call owns these reusable geometry inputs. */
 export class CrossingFields {
@@ -10,9 +11,8 @@ export class CrossingFields {
   readonly obstacles: FootprintIndex;
   readonly reservations: Map<string, CrossingInput['reservations']['edges'][number]>;
   private readonly traffic: Traffic['byEdge'];
-  private readonly own = new Map<string, FootprintIndex>();
+  private readonly sources = new Map<string, SourceFields>();
   private readonly foreign = new Map<string, FootprintIndex>();
-  private readonly terminals = new Map<string, FootprintIndex>();
 
   constructor(input: CrossingSourceInput | CrossingInput) {
     const final = 'ground' in input ? input : undefined;
@@ -25,11 +25,14 @@ export class CrossingFields {
     this.traffic = new Traffic(input).byEdge;
   }
 
-  ownRoad(edgeId: string): FootprintIndex {
-    let field = this.own.get(edgeId);
-    if (!field) { field = new FootprintIndex(this.traffic.get(edgeId) ?? []); this.own.set(edgeId, field); }
-    return field;
+  source(edgeId: string): SourceFields {
+    const sides = this.reservations.get(edgeId)?.sides;
+    return { roadway: new FootprintIndex(this.traffic.get(edgeId) ?? []),
+      left: new FootprintIndex(sides?.left.walking ?? []), right: new FootprintIndex(sides?.right.walking ?? []) };
   }
+
+  ownRoad(edgeId: string): FootprintIndex { return this.retainedSource(edgeId).roadway; }
+  walking(edgeId: string, side: 'left' | 'right'): FootprintIndex { return this.retainedSource(edgeId)[side]; }
 
   foreignRoads(edgeId: string, contactEdgeIds?: readonly string[]): FootprintIndex {
     if (contactEdgeIds) return new FootprintIndex([...new Set(contactEdgeIds)].filter(id => id !== edgeId)
@@ -42,13 +45,9 @@ export class CrossingFields {
     return field;
   }
 
-  walking(edgeId: string, side: 'left' | 'right'): FootprintIndex {
-    const key = `${edgeId}:${side}`;
-    let field = this.terminals.get(key);
-    if (!field) {
-      field = new FootprintIndex(this.reservations.get(edgeId)!.sides[side].walking);
-      this.terminals.set(key, field);
-    }
-    return field;
+  private retainedSource(edgeId: string): SourceFields {
+    let source = this.sources.get(edgeId);
+    if (!source) { source = this.source(edgeId); this.sources.set(edgeId, source); }
+    return source;
   }
 }
