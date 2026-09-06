@@ -31,6 +31,10 @@ export class ModuleGround {
     };
     const surfaceOf = (part: typeof beds[number]): LocalRegion['surface'] => part.role === 'roadway' ? 'roadway'
       : part.bottom === 0 ? 'sidewalk' : part.top === D.bedTop ? 'curb' : 'gutter';
+    if (definition.partitionedBeds) return beds.map(part => {
+      const surface = surfaceOf(part);
+      return { surface, polygon: part.polygon, ...levels[surface] };
+    });
     return (Object.keys(levels) as LocalRegion['surface'][]).flatMap(surface =>
       union(beds.filter(part => surfaceOf(part) === surface).map(part => part.polygon))
         .map(polygon => ({ surface, polygon, ...levels[surface] })));

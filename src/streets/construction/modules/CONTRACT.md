@@ -6,7 +6,7 @@ Builds reusable sidewalk panels, curb groups, gutters, rounded corners and guard
 
 `StreetModuleKit.block(input)` takes [BlockModuleInput](schema.ts) and returns [ModuleBlock](schema.ts). `construction()` returns the shared definitions and placements in [ModuleConstruction](schema.ts).
 
-`ModuleGround.cover(construction)` returns [ModuleGroundRegion](schema.ts) planning outlines by block, surface and level. Each template's supporting beds are joined once on the geometry grid; straight runs retain continuous rectangular covers. These outlines serve land and walking checks. Rendering and collision consume the physical prisms, including recessed joints and raised gutter lips.
+`ModuleGround.cover(construction)` returns [ModuleGroundRegion](schema.ts) planning outlines by block, surface and level. Each template's supporting beds are joined once on the geometry grid; straight runs retain continuous rectangular covers. A definition with `partitionedBeds: true` already supplies disjoint hole-free beds; its cover preserves those physical bed boundaries directly. These outlines serve land and walking checks. Rendering and collision consume the physical prisms, including recessed joints and raised gutter lips.
 
 Block dimensions count whole 1 m panels. South, east, north and west sidewalk widths are 2, 4 or 6 m. Straight construction repeats a 2 m group: two panel stations, one curb and one gutter span. Corners use fixed 2 m radius pieces with panel seams on the same local grid. Only corner pieces have shaped terminals. All placements use quarter turns.
 

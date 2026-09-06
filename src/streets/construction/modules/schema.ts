@@ -14,6 +14,8 @@ export interface ModulePrism {
 
 export interface ModuleDefinition {
   id: string;
+  /** Supporting beds already form disjoint, hole-free planning regions. */
+  partitionedBeds?: true;
   parts: ModulePrism[];
 }
 
