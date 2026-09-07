@@ -7,14 +7,18 @@ export interface GridLayoutInput {
   seed: string;
   size: { width: number; depth: number };
   profiles: RoadProfile[];
+  /** Rare declared-angle cuts in eligible interior blocks. Defaults to true. */
+  diagonals?: boolean;
   sideAt: (point: Vec2, streetClass: 'street' | 'road') => { profile: SidewalkProfile; finish: string };
   /** Complete outer sidewalks with a shared profile and finish. */
   perimeter?: { profile: SidewalkProfile; finish: string };
 }
 
 export interface GridLayoutBlock extends Omit<ModuleBlock, 'placements'> {
-  /** South, east, north, west frontage edges. */
-  edgeIds: [string, string, string, string];
+  /** Surrounding frontage edges and an optional internal diagonal. */
+  edgeIds: string[];
+  /** Separate buildable regions when a declared street cuts this block. */
+  interiors?: Polygon[];
 }
 
 export interface GridLayoutPlan {

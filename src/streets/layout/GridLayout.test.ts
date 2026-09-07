@@ -8,7 +8,7 @@ const area = (ring: Polygon) => ring.reduce((sum, p, i) => {
   return sum + p[0] * q[1] - q[0] * p[1];
 }, 0) / 2;
 const input: GridLayoutInput = {
-  seed: 'modules', size: { width: 1000, depth: 800 },
+  seed: 'modules', diagonals: false, size: { width: 1000, depth: 800 },
   profiles: [1, 2, 4].map(count => ({ id: `lanes:${count}`, classes: [count === 4 ? 'road' : 'street'],
     lanes: Array.from({ length: count }, (_, i) => ({ width: 3.5, direction: i < count / 2 ? 'forward' : 'backward' })),
     shoulders: { left: 0, right: 0 } })),
@@ -37,6 +37,11 @@ describe('GridLayout public plan', () => {
     }
     expect(visited.size).toBe(plan.nodes.length);
     expect(new Set(plan.edges.map(edge => edge.crossSection!.lanes.length))).toEqual(new Set([1, 2, 4]));
+    expect(plan.blocks.some(block => {
+      const width = block.outer[1][0] - block.outer[0][0] - 1;
+      const depth = block.outer[2][1] - block.outer[1][1] - 1;
+      return Math.max(width, depth) / Math.min(width, depth) >= 1.5;
+    })).toBe(true);
     for (const edge of plan.edges) {
       expect(edge.path).toEqual([nodes.get(edge.from)!.position, nodes.get(edge.to)!.position]);
       expect(edge.path[0][0] === edge.path[1][0] || edge.path[0][1] === edge.path[1][1]).toBe(true);

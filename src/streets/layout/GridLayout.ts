@@ -3,8 +3,10 @@ import type { StreetRun } from '../construction/schema/sections';
 import type { BlockModuleInput, QuarterTurn, SidewalkWidth } from '../construction/modules/schema';
 import { StreetModuleKit } from '../construction/modules/StreetModuleKit';
 import { Rng } from '../../core/rng';
+import { invalidParams } from '../../errors';
 import { axis, type GridAxis } from './Axis';
 import { crossSection, sideSection } from './Sections';
+import { DiagonalCuts } from './DiagonalCuts';
 import type { GridLayoutInput, GridLayoutPlan } from './schema';
 
 const rectangle = (x: number, z: number, width: number, depth: number): Vec2[] =>
@@ -12,6 +14,7 @@ const rectangle = (x: number, z: number, width: number, depth: number): Vec2[] =
 
 export class GridLayout {
   static plan(input: GridLayoutInput): GridLayoutPlan {
+    if (input.diagonals !== undefined && typeof input.diagonals !== 'boolean') throw invalidParams('diagonals must be boolean');
     const x = axis(input.size.width, input.profiles, Rng.from(input.seed, 'street-columns'));
     const z = axis(input.size.depth, input.profiles, Rng.from(input.seed, 'street-rows'));
     const nodes: StreetNode[] = [];
@@ -107,6 +110,8 @@ export class GridLayout {
     const bounds = { min: [x.min, z.min] as Vec2, max: [x.max, z.max] as Vec2 };
     if (input.perimeter) kit.perimeter({ id: 'fringe', bounds,
       width: sideSection(input.perimeter.profile).geometry!.pavedWidth as SidewalkWidth, finish: input.perimeter.finish });
-    return { nodes, edges, runs, blocks, modules: kit.construction(), roadway, bounds };
+    const plan = { nodes, edges, runs, blocks, modules: kit.construction(), roadway, bounds };
+    if (input.diagonals !== false) DiagonalCuts.apply(plan, input);
+    return plan;
   }
 }

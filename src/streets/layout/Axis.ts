@@ -43,6 +43,11 @@ export function axis(extent: number, profiles: RoadProfile[], rng: Rng): GridAxi
     panels[i] -= transfer;
     panels[target] += transfer;
   }
+  const short = rng.int(0, count - 1);
+  const long = (short + rng.int(1, count - 1)) % count;
+  const stretch = Math.min(Math.floor(base / 3), (panels[short] - 48) / 2) * 2;
+  panels[short] -= stretch;
+  panels[long] += stretch;
   const span = roadSpace + panels.reduce((sum, value) => sum + value + 1, 0);
   const min = (extent - span) / 2;
   let position = min;
