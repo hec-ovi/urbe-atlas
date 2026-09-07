@@ -7,6 +7,8 @@ export interface GridLayoutInput {
   seed: string;
   size: { width: number; depth: number };
   profiles: RoadProfile[];
+  /** Reserve a seeded interior four-lane through-run before sizing blocks. Default false. */
+  highway?: boolean;
   /** Rare declared-angle cuts in eligible interior blocks. Defaults to true. */
   diagonals?: boolean;
   sideAt: (point: Vec2, streetClass: 'street' | 'road') => { profile: SidewalkProfile; finish: string };
@@ -25,6 +27,8 @@ export interface GridLayoutPlan {
   nodes: StreetNode[];
   edges: StreetEdge[];
   runs: StreetRun[];
+  /** Reserved through-run; the caller assigns its elevated highway class and profile. */
+  highwayRunId?: string;
   blocks: GridLayoutBlock[];
   modules: ModuleConstruction;
   roadway: Polygon[];

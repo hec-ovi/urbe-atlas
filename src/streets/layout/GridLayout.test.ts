@@ -95,8 +95,41 @@ describe('GridLayout public plan', () => {
   it('rejects incompatible profiles and sizes that cannot hold its blocks', () => {
     expect(() => GridLayout.plan({ ...input, size: { width: 100, depth: 800 } })).toThrow(/cannot fit/);
     expect(() => GridLayout.plan({ ...input, profiles: [] })).toThrow(/road profiles/);
+    expect(() => GridLayout.plan({ ...input, highway: 'yes' as unknown as boolean })).toThrow(/highway must be boolean/);
     expect(() => GridLayout.plan({ ...input, sideAt: () => ({ ...input.sideAt([0, 0], 'street'),
       profile: { ...input.sideAt([0, 0], 'street').profile, walking: 3 },
     }) })).toThrow(/2\/4\/6/);
+  });
+
+  it('reserves an interior four-lane through-run with whole blocks on both sides', () => {
+    const orientations = new Set<number>();
+    for (const [size, seed] of [[400, 'modules'], [600, 'highway'], [1000, 'modules']] as const) {
+      const settings = { ...input, seed, highway: true, size: { width: size, depth: size } };
+      const plan = GridLayout.plan(settings);
+      expect(GridLayout.plan(settings)).toEqual(plan);
+      const run = plan.runs.find(value => value.id === plan.highwayRunId)!;
+      expect(run).toBeDefined();
+      const along = run.path[0][0] === run.path.at(-1)![0] ? 1 : 0;
+      orientations.add(along);
+      const across = 1 - along;
+      const position = run.path[0][across];
+      const nodes = plan.nodes.map(node => node.position[along]);
+      expect(run.path.map(point => point[along])).toEqual([Math.min(...nodes), Math.max(...nodes)]);
+      expect(plan.blocks.some(block => block.outer.every(point => point[across] <= position - 7))).toBe(true);
+      expect(plan.blocks.some(block => block.outer.every(point => point[across] >= position + 7))).toBe(true);
+      for (const member of run.edges) {
+        const edge = plan.edges.find(value => value.id === member.edgeId)!;
+        expect(edge.width).toBe(14);
+        expect(edge.crossSection!.lanes).toHaveLength(4);
+      }
+      for (const block of plan.blocks) {
+        expect((block.outer[1][0] - block.outer[0][0] - 1) % 2).toBe(0);
+        expect((block.outer[2][1] - block.outer[1][1] - 1) % 2).toBe(0);
+      }
+    }
+    expect(orientations).toEqual(new Set([0, 1]));
+    const plan = GridLayout.plan(input);
+    expect(plan.highwayRunId).toBeUndefined();
+    expect(GridLayout.plan({ ...input, highway: false })).toEqual(plan);
   });
 });

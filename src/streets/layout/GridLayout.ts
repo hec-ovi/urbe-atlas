@@ -15,8 +15,11 @@ const rectangle = (x: number, z: number, width: number, depth: number): Vec2[] =
 export class GridLayout {
   static plan(input: GridLayoutInput): GridLayoutPlan {
     if (input.diagonals !== undefined && typeof input.diagonals !== 'boolean') throw invalidParams('diagonals must be boolean');
-    const x = axis(input.size.width, input.profiles, Rng.from(input.seed, 'street-columns'));
-    const z = axis(input.size.depth, input.profiles, Rng.from(input.seed, 'street-rows'));
+    if (input.highway !== undefined && typeof input.highway !== 'boolean') throw invalidParams('highway must be boolean');
+    const highwayRng = input.highway ? Rng.from(input.seed, 'highway-route') : undefined;
+    const highwayAxis = highwayRng?.int(0, 1);
+    const x = axis(input.size.width, input.profiles, Rng.from(input.seed, 'street-columns'), highwayAxis === 0 ? highwayRng : undefined);
+    const z = axis(input.size.depth, input.profiles, Rng.from(input.seed, 'street-rows'), highwayAxis === 1 ? highwayRng : undefined);
     const nodes: StreetNode[] = [];
     const edges: StreetEdge[] = [];
     const runs: StreetRun[] = [];
@@ -110,7 +113,10 @@ export class GridLayout {
     const bounds = { min: [x.min, z.min] as Vec2, max: [x.max, z.max] as Vec2 };
     if (input.perimeter) kit.perimeter({ id: 'fringe', bounds,
       width: sideSection(input.perimeter.profile).geometry!.pavedWidth as SidewalkWidth, finish: input.perimeter.finish });
-    const plan = { nodes, edges, runs, blocks, modules: kit.construction(), roadway, bounds };
+    const highwayRunId = x.highwayIndex !== undefined ? runs[z.roads.length + x.highwayIndex].id
+      : z.highwayIndex !== undefined ? runs[z.highwayIndex].id : undefined;
+    const plan: GridLayoutPlan = { nodes, edges, runs, blocks, modules: kit.construction(), roadway, bounds,
+      ...(highwayRunId ? { highwayRunId } : {}) };
     if (input.diagonals !== false) DiagonalCuts.apply(plan, input);
     return plan;
   }
