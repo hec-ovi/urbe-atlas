@@ -7,6 +7,8 @@ import { crossSection, sideSection } from '../src/streets/layout/Sections';
 import { streetNodesWithConnections } from '../src/streets/Connections';
 import { Signals } from '../src/streets/Signals';
 import { difference, intersection } from '../src/geom/clip';
+import { GridLayout } from '../src/streets/layout/GridLayout';
+import { resolveStreetDesign } from '../src/streets/construction/Design';
 
 const rect = (x: number, z: number, w: number, d: number): Polygon => [[x, z], [x + w, z], [x + w, z + d], [x, z + d]];
 
@@ -63,6 +65,39 @@ describe('dimensioned city crossing contract', () => {
       .toThrow('grid crossing lacks complete curb and gutter connectors');
   });
 
+  it('places declared-angle marking fields clear of gutters and rejects missing roadway', () => {
+    const design = resolveStreetDesign();
+    const layout = GridLayout.plan({ seed: 'urbe', size: { width: 1000, depth: 1000 }, profiles: design.profiles,
+      sideAt: () => ({ profile: design.sidewalkProfiles[1], finish: 'plain' }) });
+    const cuts = layout.edges.filter(edge => edge.path[0][0] !== edge.path[1][0] && edge.path[0][1] !== edge.path[1][1]);
+    const nodeIds = new Set(cuts.flatMap(edge => [edge.from, edge.to]));
+    const ground: GroundSurface[] = [...ModuleGround.cover(layout.modules), ...layout.roadway
+      .map(polygon => ({ surface: 'roadway' as const, polygon, top: 0, bottom: -0.2 }))];
+    const input = { nodes: layout.nodes.filter(node => nodeIds.has(node.id)), edges: layout.edges, ground };
+    const plan = CityCrossings.plan(input);
+    const roadway = ground.filter(region => region.surface === 'roadway').map(region => region.polygon);
+    expect(plan.junctions).toHaveLength(4);
+    for (const junction of plan.junctions) for (const approach of junction.approaches) expect(difference([approach.field], roadway)).toEqual([]);
+    for (const crossing of plan.crossings) for (const segment of crossing.segments) {
+      expect(difference(segment.markings, roadway)).toEqual([]);
+      const span = segment.roadway!, edge = layout.edges.find(edge => edge.id === segment.edgeId)!;
+      expect(Math.hypot(span.from[0] - span.to[0], span.from[1] - span.to[1])).toBeCloseTo(edge.width - 0.1, 8);
+    }
+    for (const edge of cuts) {
+      const distance = plan.junctions.flatMap(junction => junction.approaches).find(approach => approach.edgeId === edge.id)!.distance;
+      const [start, end] = edge.path, length = Math.hypot(end[0] - start[0], end[1] - start[1]);
+      const direction = [(end[0] - start[0]) / length, (end[1] - start[1]) / length];
+      const transform = ([station, lateral]: Vec2): Vec2 => [start[0] + station * direction[0] - lateral * direction[1],
+        start[1] + station * direction[1] + lateral * direction[0]];
+      const remove = (mask: Polygon) => ground.flatMap(region => region.surface === 'roadway'
+        ? difference([region.polygon], [mask]).map(polygon => ({ ...region, polygon })) : [region]);
+      const hole = rect(distance - 0.1, -0.1, 0.2, 0.2).map(transform);
+      expect(() => CityCrossings.plan({ ...input, ground: remove(hole) })).toThrow('grid crossing lacks complete roadway');
+      const strip = rect(distance - 2, edge.width / 2 - 1, 4, 1.5).map(transform);
+      expect(() => CityCrossings.plan({ ...input, ground: remove(strip) })).toThrow('grid crossing lacks complete roadway');
+    }
+  }, 20000);
+
   it('rejects physical support or ramp footprints and unconnected grade traffic entering a complete crossing', () => {
     const input = fixture();
     expect(() => CityCrossings.plan({ ...input, obstacles: [rect(10, -1, 2, 2)] })).toThrow('physical obstacle');
@@ -83,6 +118,6 @@ describe('dimensioned city crossing contract', () => {
       edgeIds: node.edgeIds.filter(id => through.some(edge => edge.id === id)) })), through);
     expect(CityCrossings.plan({ ...input, nodes, edges: through }).junctions).toEqual([]);
     const badEdge = { ...input.edges[0], path: [[0, 0], [60, 1]] as Vec2[] };
-    expect(() => CityCrossings.plan({ ...input, edges: [badEdge, ...input.edges.slice(1)] })).toThrow('straight orthogonal');
+    expect(() => CityCrossings.plan({ ...input, edges: [badEdge, ...input.edges.slice(1)] })).toThrow('straight declared-angle');
   });
 });

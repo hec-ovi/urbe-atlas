@@ -44,7 +44,7 @@ import { RAIL, STATION } from './transit/stations';
 import { GradeDatum } from './streets/construction/datum';
 import { planHydrology, withHydrologyStructures } from './hydro/Hydrology';
 
-export const BLUEPRINT_VERSION = '0.18.1';
+export const BLUEPRINT_VERSION = '0.19.0';
 export const HYDROLOGY_BLUEPRINT_VERSION = BLUEPRINT_VERSION;
 
 const SUBDIVISION: Record<DistrictKind, SubdivisionConfig> = {

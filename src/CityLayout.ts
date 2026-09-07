@@ -54,7 +54,7 @@ export class CityLayout {
     const byBlock = new Map<string, ModuleGroundRegion[]>(plan.blocks.map(block => [block.id, []]));
     cover.forEach(region => byBlock.get(region.blockId)?.push(region));
     const blocks = plan.blocks.map(block => ({
-      boundary: block.outer, boundaryRegions: [block.outer], interior: [block.interior], edgeIds: block.edgeIds,
+      boundary: block.outer, boundaryRegions: [block.outer], interior: block.interiors ?? [block.interior], edgeIds: block.edgeIds,
       sidewalk: byBlock.get(block.id)!.filter(region => region.surface === 'sidewalk').map(region => region.polygon),
       curb: byBlock.get(block.id)!.filter(region => region.surface === 'curb').map(region => region.polygon),
       returns: byBlock.get(block.id)!.filter(region => region.surface === 'roadway').map(region => region.polygon),

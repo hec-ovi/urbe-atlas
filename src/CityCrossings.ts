@@ -14,10 +14,11 @@ export interface CityCrossingInput {
 
 const WIDTH = 3;
 const HALF = WIDTH / 2;
+const PAINT_CLEARANCE = 0.05;
 // The fixed 2 m corner ends after the 0.3 m gutter and 0.2 m curb reservation.
 const CORNER_CLEARANCE = 2.5;
 
-/** Direct crossing placement for the dimensioned, orthogonal city grid. */
+/** Direct crossing placement for grid streets and declared-angle block cuts. */
 export class CityCrossings {
   static plan(input: CityCrossingInput): CrossingPlan {
     const edges = new Map(input.edges.map(edge => [edge.id, edge]));
@@ -56,12 +57,17 @@ export class CityCrossings {
         const crossing = { nodeId: node.id, junctionId: junction.id, segments: [] as CrossingSegment[] };
         for (const edge of arms.sort((a, b) => a.id.localeCompare(b.id))) {
           const frame = frames.get(edge.id)!;
-          const perpendicular = node.edgeIds.map(id => edges.get(id)!).filter(other => {
-            if (!other) throw invalidParams('grid crossing node references a missing edge', { nodeId: node.id });
-            const direction = frames.get(other.id)!.direction;
-            return direction[0] * frame.direction[0] + direction[1] * frame.direction[1] === 0;
+          const left = sidewalkBand(edge, 'left', 'walking'), right = sidewalkBand(edge, 'right', 'walking');
+          const lateral = edge.width / 2 + Math.max(left.offset + left.width / 4, right.offset + right.width / 4);
+          const offsets = node.edgeIds.filter(id => id !== edge.id).map(id => {
+            const other = edges.get(id), direction = frames.get(id)?.direction;
+            if (!other || !direction) throw invalidParams('grid crossing node references a missing edge', { nodeId: node.id });
+            const sine = Math.abs(direction[0] * frame.direction[1] - direction[1] * frame.direction[0]);
+            if (sine < 1e-10) return 0;
+            const cosine = Math.abs(direction[0] * frame.direction[0] + direction[1] * frame.direction[1]);
+            return (other.width / 2 + CORNER_CLEARANCE + cosine * lateral) / sine;
           });
-          const offset = Math.max(0, ...perpendicular.map(other => other.width / 2)) + CORNER_CLEARANCE + HALF;
+          const offset = Math.max(0, ...offsets) + HALF;
           const starts = edge.from === node.id;
           const distance = starts ? offset : frame.length - offset;
           const candidate = this.candidate(edge, frame, node.id, groupId, distance);
@@ -80,7 +86,7 @@ export class CityCrossings {
             throw unsatisfiable('grid crossing lacks complete paved walking land', evidence);
           }
           if (!whole.every(polygon => ground.clear(polygon))) throw unsatisfiable('grid crossing intersects a physical obstacle', evidence);
-          // The station excludes orthogonal traffic by construction; source ownership also checks saved source geometry.
+          // Stations clear the other approach widths; source ownership checks the complete saved fields.
           if (!whole.every(polygon => traffic.avoidsOtherRoads(polygon, edge.id))) throw unsatisfiable('grid crossing enters another grade road', evidence);
           occupied.set(edge.id, [...(occupied.get(edge.id) ?? []), approach.station]);
           junction.approaches.push(approach);
@@ -103,10 +109,10 @@ export class CityCrossings {
   }
 
   private static candidate(edge: StreetEdge, frame: StreetFrame, nodeId: string, groupId: string, distance: number) {
-    const half = edge.width / 2;
+    const roadHalf = edge.width / 2, half = roadHalf - PAINT_CLEARANCE;
     const leftBand = sidewalkBand(edge, 'left', 'walking'), rightBand = sidewalkBand(edge, 'right', 'walking');
     if (!(leftBand.width > 0) || !(rightBand.width > 0)) throw invalidParams('grid crossing requires two positive walking bands', { edgeId: edge.id });
-    const left = half + leftBand.offset, right = half + rightBand.offset;
+    const left = roadHalf + leftBand.offset, right = roadHalf + rightBand.offset;
     const field = frame.rectangle(distance, [-half, half]);
     const starts = edge.from === nodeId;
     const approach: JunctionApproach = {
@@ -131,11 +137,16 @@ class StreetFrame {
   constructor(private readonly edge: StreetEdge) {
     const [a, b] = edge.path;
     if (edge.path.length !== 2 || !a || !b || ![...a, ...b].every(Number.isFinite)
-      || (a[0] !== b[0] && a[1] !== b[1]) || (a[0] === b[0] && a[1] === b[1])) {
-      throw invalidParams('grid crossing requires a straight orthogonal source edge', { edgeId: edge.id });
+      || (a[0] === b[0] && a[1] === b[1])) {
+      throw invalidParams('grid crossing requires a straight declared-angle source edge', { edgeId: edge.id });
     }
     this.length = Math.hypot(b[0] - a[0], b[1] - a[1]);
     this.direction = [(b[0] - a[0]) / this.length, (b[1] - a[1]) / this.length];
+    const [dx, dz] = this.direction.map(Math.abs);
+    const ratio = Math.min(dx, dz) / Math.max(dx, dz);
+    if (Math.min(Math.abs(ratio), Math.abs(ratio - 1), Math.abs(ratio - Math.tan(Math.PI / 6))) > 1e-10) {
+      throw invalidParams('grid crossing requires a straight declared-angle source edge', { edgeId: edge.id });
+    }
   }
   point(station: number, lateral: number): Vec2 {
     const [x, z] = this.edge.path[0], [dx, dz] = this.direction;
