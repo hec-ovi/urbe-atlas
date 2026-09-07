@@ -24,7 +24,7 @@ export interface BayPlace {
 export interface EntranceBayInput {
   edges: readonly SectionedStreetEdge[];
   boundary: Polygon;
-  /** Water, grade rail, highway structure clearance and other unavailable land. */
+  /** Water, highway structure clearance and other unavailable land. */
   obstacles: Polygon[];
 }
 
@@ -32,6 +32,6 @@ export interface StationEntranceState {
   meta: Pick<CityBlueprint['meta'], 'boundary'>;
   streets: Pick<CityBlueprint['streets'], 'edges'>;
   parcels: Pick<CityBlueprint['parcels'][number], 'lot'>[];
-  transit: Pick<CityBlueprint['transit'], 'trainStations' | 'subwayStations'>;
+  transit: Pick<CityBlueprint['transit'], 'subwayStations'>;
   volumetric: { ground: GroundSurface[] };
 }

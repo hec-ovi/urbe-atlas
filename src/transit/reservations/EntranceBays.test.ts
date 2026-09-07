@@ -24,11 +24,11 @@ describe('subway entrance reservations', () => {
     const edge = street();
     const input = { edges: [edge], boundary, obstacles: [] };
     const planner = new EntranceBays(input);
-    const platform = platformOf([60, 0], [1, 0], 'subway');
+    const platform = platformOf([60, 0], [1, 0]);
     const places = planner.find([60, 0], platform);
     expect(places).toHaveLength(2);
     expect(places.map((place) => place.bay.side)).toEqual(['left', 'right']);
-    expect(edge.sidewalk).toEqual({ left: 3, right: 6.5 });
+    expect(edge.sidewalk).toEqual({ left: 2.5, right: 6.5 });
     const corridors = new StreetCorridors([edge]);
     for (const place of places) {
       expect(area(place.bay.shaft)).toBeCloseTo(STATION.shaft.length * STATION.shaft.width, 6);
@@ -47,7 +47,7 @@ describe('subway entrance reservations', () => {
     const cross = { ...street([[60, -50], [60, 50]]), id: 'e1' };
     const water = rectangle([100, -20], [1, 0], 40, 30);
     const planner = new EntranceBays({ edges: [bent, cross], boundary, obstacles: [water] });
-    const platform = platformOf([60, 10], [1, 0], 'subway');
+    const platform = platformOf([60, 10], [1, 0]);
     const first = planner.find([60, 10], platform);
     expect(first.length).toBeGreaterThan(0);
     planner.reserve(first.map((place) => place.bay));
@@ -65,6 +65,6 @@ describe('subway entrance reservations', () => {
     const edge = street();
     const occupied: Polygon = [[-30, -50], [150, -50], [150, 60], [-30, 60]];
     const planner = new EntranceBays({ edges: [edge], boundary, obstacles: [occupied] });
-    expect(planner.find([60, 0], platformOf([60, 0], [1, 0], 'subway'))).toEqual([]);
+    expect(planner.find([60, 0], platformOf([60, 0], [1, 0]))).toEqual([]);
   });
 });

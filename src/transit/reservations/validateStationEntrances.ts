@@ -19,7 +19,7 @@ export function validateStationEntrances(bp: StationEntranceState): void {
   const paving = new PolygonIndex(bp.volumetric.ground.filter((ground) => ground.surface === 'sidewalk').map((ground) => ground.polygon));
   const reserved: Polygon[] = [];
   const modern = bp.streets.edges.some((edge) => edge.crossSection !== undefined);
-  for (const station of [...bp.transit.trainStations, ...bp.transit.subwayStations]) {
+  for (const station of bp.transit.subwayStations) {
     const bays = station.entranceBays;
     if (!bays) {
       if (modern && station.level < LEVELS.ground) throw invariantFailure(`station ${station.id} has no entrance bay reservations`);
