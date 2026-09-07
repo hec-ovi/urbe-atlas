@@ -32,7 +32,7 @@ function fixture(width = 600): { planner: TransitPlanner; options: SubwayOptions
 function reservationState(plan: SubwayPlan, edges: CityBlueprint['streets']['edges'], boundary: Polygon): StationEntranceState {
   return {
     meta: { boundary }, streets: { edges }, parcels: [],
-    transit: { ...plan, trainStations: [] },
+    transit: plan,
     volumetric: { ground: plan.subwayStations.flatMap((station) => station.entranceBays!.map((bay) => ({
       polygon: bay.footprint, surface: 'sidewalk', bottom: 0, top: 0.15,
     }))) },
@@ -40,7 +40,7 @@ function reservationState(plan: SubwayPlan, edges: CityBlueprint['streets']['edg
 }
 
 describe('pre-parcel subway service', () => {
-  it('fits full terminal platforms, shares station identities and retains early service when final population changes', () => {
+  it('fits full terminal platforms and shares deterministic station identities', () => {
     const { planner, options, edges } = fixture();
     const early = planner.planSubway(options);
     expect(early.subwayDemand).toEqual({ populationEstimate: 1_000_000, lineTarget: 4 });
@@ -59,10 +59,6 @@ describe('pre-parcel subway service', () => {
     }
     const output = reservationState(early, edges, options.boundary);
     expect(() => validateStationEntrances(output)).not.toThrow();
-    const final = planner.plan({ ...options, population: 12, features: { trains: false, subways: true }, subwayPlan: early });
-    expect(final.subwayStations).toBe(early.subwayStations);
-    expect(final.subwayLines).toBe(early.subwayLines);
-    expect(final.subwayDemand).toBe(early.subwayDemand);
     const repeated = fixture();
     expect(repeated.planner.planSubway(repeated.options)).toEqual(early);
   });
@@ -75,10 +71,7 @@ describe('pre-parcel subway service', () => {
       .toThrowError(expect.objectContaining({ code: 'E_UNSATISFIABLE' }));
     expect(() => city.planner.planSubway({ ...city.options, populationEstimate: NaN }))
       .toThrowError(expect.objectContaining({ code: 'E_INVALID_PARAMS' }));
-    expect(() => city.planner.plan({ ...city.options, population: 12, features: { trains: false, subways: true } }))
-      .toThrowError(expect.objectContaining({ code: 'E_INVALID_PARAMS' }));
-    expect(() => city.planner.plan({ ...city.options, population: 12, features: { trains: true, subways: false } }))
-      .toThrowError(expect.objectContaining({ code: 'E_INVALID_PARAMS' }));
+
   });
 
   it('selects land terminals when a sampled endpoint is on a water crossing', () => {

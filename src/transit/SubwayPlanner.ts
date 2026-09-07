@@ -97,7 +97,7 @@ export class SubwayPlanner {
         point: place.point, direction: place.direction, shaft: place.bay.shaft,
       })), placement.platform, LEVELS.subway);
       all.push({ id, position: placement.position, districtId: `d${options.districtOfNode(node.id)}`,
-        platform: placement.platform, box: boxOf(LEVELS.subway, 'subway'),
+        platform: placement.platform, box: boxOf(LEVELS.subway),
         entrances: placement.places.map((place) => place.point), entranceBays: placement.places.map((place) => place.bay),
         ...access, level: LEVELS.subway });
       bays.reserve(placement.places.map((place) => place.bay));
@@ -116,7 +116,7 @@ export class SubwayPlanner {
       const at = desired + offset;
       if (at < 0 || at > total) continue;
       const position = pointAt(path, at);
-      const platform = platformOf(position, directionAt(path, at), 'subway');
+      const platform = platformOf(position, directionAt(path, at));
       if (terminal && !covers(platform, terminal) || overlaps(platform, exclusions)) continue;
       const existing = all.find((station) => dist(station.position, position) < STATION_MERGE_RADIUS
         && covers(station.platform, position) && (!terminal || covers(station.platform, terminal)));

@@ -12,13 +12,12 @@ import { LEVELS } from '../levels';
 
 /**
  * Station dimensions, meters (docs/RESEARCH.md). A metro box holds a six-car
- * train on an island platform; a regional platform is longer and narrower.
+ * subway on an island platform.
  * The shaft is a stair box in its reserved street-side bay, the passage an egress corridor.
  */
 export const STATION = {
   /** `height` is the clear volume over the platform, the box a tunnel must miss. */
   subway: { platformLength: 140, platformWidth: 8, height: 5 },
-  train: { platformLength: 180, platformWidth: 6, height: 3 },
   /** Full stair box, placed in its own reserved bay beside the sidewalk. */
   shaft: { length: 8, width: 3 },
   /** Half-run of the switchback stair centerline inside the shaft. */
@@ -35,9 +34,7 @@ export const STATION = {
 
 /** Rail corridor dimensions shared by generation, validation and previews. */
 export const RAIL = {
-  trainWidth: 4,
   subwayDiameter: 6,
-  buildingClearance: 1,
 } as const;
 
 /** A street entrance and its already reserved construction footprint. */
@@ -60,18 +57,15 @@ export function rectangle(center: Vec2, direction: Vec2, length: number, width: 
 }
 
 /** The platform footprint of a station on this track direction. */
-export function platformOf(position: Vec2, direction: Vec2, mode: StationMode): Polygon {
-  const { platformLength, platformWidth } = STATION[mode];
+export function platformOf(position: Vec2, direction: Vec2): Polygon {
+  const { platformLength, platformWidth } = STATION.subway;
   return rectangle(position, direction, platformLength, platformWidth);
 }
 
 /** The volume over that footprint: platform floor to ceiling. */
-export function boxOf(level: number, mode: StationMode): { bottom: number; top: number } {
-  return { bottom: level, top: level + STATION[mode].height };
+export function boxOf(level: number): { bottom: number; top: number } {
+  return { bottom: level, top: level + STATION.subway.height };
 }
-
-/** Underground metro or regional rail at grade: the two shapes a station takes. */
-export type StationMode = 'subway' | 'train';
 
 /**
  * Construction volume and explicit traversal share the same anchors. The

@@ -3,29 +3,6 @@ import type { Rng } from '../core/rng';
 import type { PlannedDistrict } from '../districts/DistrictPlanner';
 
 export type SubwayPlan = Pick<Transit, 'subwayStations' | 'subwayLines' | 'subwayDemand'>;
-export type TrainPlan = Pick<Transit, 'trainStations' | 'trainLines'>;
-
-export interface TrainOptions {
-  districtOfNode: (nodeId: string) => number;
-  cityCenter: Vec2;
-  boundary: Polygon;
-  /** Excluded platform-center locations, already expanded for the platform dimensions. */
-  stationExclusion?: Polygon[];
-  rng: Rng;
-}
-
-export interface TransitOptions {
-  districts: PlannedDistrict[];
-  districtOfNode: (nodeId: string) => number;
-  cityCenter: Vec2;
-  boundary: Polygon;
-  population: number;
-  features: { trains: boolean; subways: boolean };
-  trainPlan?: TrainPlan;
-  subwayPlan?: SubwayPlan;
-  rng: Rng;
-}
-
 export interface SubwayOptions {
   districts: PlannedDistrict[];
   districtOfNode: (nodeId: string) => number;
