@@ -21,16 +21,15 @@ export function renderBlueprint(): CityBlueprint {
     deckThickness: 1, ramps: { start: 20, end: 20 }, elevationProfile: [
       { distance: 0, level: 0 }, { distance: 20, level: 8 }, { distance: 80, level: 8 }, { distance: 100, level: 0 },
     ], supports: [{ position: [50, 90], footprint: rectangle(49, 89, 2, 2), bottom: 0, top: 7 }] }];
-  const station = (id: string, x: number, level: number): Station => ({
+  const level = -8;
+  const station = (id: string, x: number): Station => ({
     id, position: [x, 8], districtId: 'd0', platform: rectangle(x - 3, 6, 6, 4), box: { bottom: level, top: level + 3 },
-    entrances: [[x, 12]], level, shafts: level < 0 ? [{ footprint: rectangle(x - 1, 11, 2, 2), top: 0, bottom: level,
-      passage: rectangle(x - 1, 8, 2, 4) }] : [],
-    accessPaths: level < 0 ? [{ entranceIndex: 0, segments: [{ kind: 'stairs', path: [[x, 0, 12], [x, level, 8]] }],
-      platformHandoff: [x, level, 8] }] : [],
+    entrances: [[x, 12]], level, shafts: [{ footprint: rectangle(x - 1, 11, 2, 2), top: 0, bottom: level,
+      passage: rectangle(x - 1, 8, 2, 4) }],
+    accessPaths: [{ entranceIndex: 0, segments: [{ kind: 'stairs', path: [[x, 0, 12], [x, level, 8]] }],
+      platformHandoff: [x, level, 8] }],
   });
-  blueprint.transit.trainStations = [station('ts0', 80, 0)];
-  blueprint.transit.trainLines = [{ id: 'tl0', stationIds: ['ts0'], path: [[72, 8], [98, 8]], underground: false, level: 0, width: 4 }];
-  blueprint.transit.subwayStations = [station('ss0', 35, -8), station('ss1', 65, -8)];
+  blueprint.transit.subwayStations = [station('ss0', 35), station('ss1', 65)];
   blueprint.transit.subwayLines = [{ id: 'sl0', stationIds: ['ss0', 'ss1'], path: [[30, 8], [70, 8]], underground: true, level: -8, width: 5 }];
   blueprint.hydrology = { seedId: 'render-water', type: 'river', structures: [], bodies: [{ id: 'water0', type: 'river',
     surfaces: [rectangle(80, 30, 15, 45)], shorelines: [{ id: 'shore0', path: rectangle(80, 30, 15, 45), closed: true,

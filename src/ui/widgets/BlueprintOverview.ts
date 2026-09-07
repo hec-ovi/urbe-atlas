@@ -30,9 +30,7 @@ export class BlueprintOverview {
       ]),
       el('div', { class: 'network-summary' }, [
         row('Highway', `${highways.length} runs · ${ramps} ramps · ${supports} supports`),
-        row('Train', `${blueprint.transit.trainLines.length} lines · ${blueprint.transit.trainStations.length} stations`),
         row('Subway', `${blueprint.transit.subwayLines.length} lines · ${blueprint.transit.subwayStations.length} stations · ${accessRoutes} access routes`),
-        row('Bus', `${blueprint.transit.busRoutes.length} routes · ${blueprint.transit.busStops.length} stops`),
       ]),
     );
   }

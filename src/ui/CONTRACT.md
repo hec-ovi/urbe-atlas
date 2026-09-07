@@ -15,7 +15,7 @@ Purpose: presents city creation, saved blueprint inspection and server job progr
 
 ## Out and events
 
-- Creation displays the form beside the city catalog in a 70/30 split. The template dropdown applies Compact, City or Metro settings while preserving the seed. Building footprint offers Rectangle and Follow parcel; Waterfront offers None, Lagoon, River and Sea coast. Generate city submits the form.
+- Creation displays the form beside the city catalog in a 70/30 split. The template dropdown applies Compact, City or Metro settings while preserving the seed. Building footprint offers Rectangle and Follow parcel; Waterfront offers None, Lagoon, River and Sea coast. Subway is the public transit option. Generate city submits the form.
 - Opening saved geometry or completing generation displays the map and its control rail. Catalog opens write `?city=id`; the Atlas home link returns to creation. City rows show seed, status, dimensions, source and creation time. Ready records open; failed records show their error and Retry submits their recorded parameters. Delete requires a second click. Pending saved records poll every 1.5 seconds while mounted.
 - Generation covers the workspace with a native modal dialog and makes its background inert. The progress bar, stage count and phase label use completed server stages, not elapsed-time estimates. Cancel deletes the server job; the modal stays locked until deletion is confirmed. A failed Cancel reports an inline reason and enables retry. Successful cancellation prevents pending status or blueprint responses from opening a city.
 - Errors and status appear inline in the header, form, catalog or generation dialog.

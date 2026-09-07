@@ -25,7 +25,7 @@ export interface Layers {
 export type MapHit =
   | { kind: 'parcel'; parcel: Parcel }
   | { kind: 'street'; edge: StreetEdge; structure?: HighwayStructure }
-  | { kind: 'station'; station: Station; mode: 'train' | 'subway' };
+  | { kind: 'station'; station: Station; mode: 'subway' };
 
 export const DEFAULT_LAYERS: Layers = { ground: true, zones: true, streets: true, transit: true, districts: false };
 const HIT_RADIUS_PX = 9;
@@ -200,32 +200,18 @@ export class MapView {
         }
       }
     }
-    this.drawTransit(context, blueprint);
+    this.drawSubways(context, blueprint);
     this.drawFurniture(context, blueprint);
     this.drawDiagnostics(context, blueprint);
     this.drawSelection(context);
   }
 
-  private drawTransit(context: CanvasRenderingContext2D, blueprint: CityBlueprint): void {
-    if (this.filters['transit.bus']) {
-      const edges = new Map(blueprint.streets.edges.map((edge) => [edge.id, edge]));
-      for (const route of blueprint.transit.busRoutes) {
-        for (const edgeId of route.edgeIds) {
-          const edge = edges.get(edgeId);
-          if (edge) this.line(context, edge.path, TRANSIT_COLORS.busRoute, 2.2);
-        }
-      }
-      for (const stop of blueprint.transit.busStops) this.dot(context, stop.position, 3, TRANSIT_COLORS.busStop, '#07110b');
-    }
+  private drawSubways(context: CanvasRenderingContext2D, blueprint: CityBlueprint): void {
     if (this.filters['transit.subway']) {
       context.setLineDash([7, 4]);
       for (const line of blueprint.transit.subwayLines) this.line(context, line.path, TRANSIT_COLORS.subway, 3);
       context.setLineDash([]);
       for (const station of blueprint.transit.subwayStations) this.dot(context, station.position, 5, TRANSIT_COLORS.subwayStation, '#351126');
-    }
-    if (this.filters['transit.train']) {
-      for (const line of blueprint.transit.trainLines) this.line(context, line.path, TRANSIT_COLORS.train, 4);
-      for (const station of blueprint.transit.trainStations) this.square(context, station.position, 5, TRANSIT_COLORS.trainStation, '#082534');
     }
   }
 
@@ -286,11 +272,6 @@ export class MapView {
     if (this.filters['transit.subway']) {
       for (const station of this.blueprint.transit.subwayStations) {
         if (distance(point, station.position) <= tolerance) return { kind: 'station', station, mode: 'subway' };
-      }
-    }
-    if (this.filters['transit.train']) {
-      for (const station of this.blueprint.transit.trainStations) {
-        if (distance(point, station.position) <= tolerance) return { kind: 'station', station, mode: 'train' };
       }
     }
     const orderedEdges = [...this.blueprint.streets.edges].sort((a, b) => Number(b.class === 'highway') - Number(a.class === 'highway'));
@@ -360,11 +341,10 @@ export class MapView {
     if (stroke) { context.strokeStyle = stroke; context.lineWidth = 1; context.stroke(); }
   }
 
-  private square(context: CanvasRenderingContext2D, point: Vec2, radius: number, color: string, stroke?: string): void {
+  private square(context: CanvasRenderingContext2D, point: Vec2, radius: number, color: string): void {
     const [x, z] = this.tx(point);
     context.fillStyle = color;
     context.fillRect(x - radius, z - radius, radius * 2, radius * 2);
-    if (stroke) { context.strokeStyle = stroke; context.lineWidth = 1; context.strokeRect(x - radius, z - radius, radius * 2, radius * 2); }
   }
 }
 

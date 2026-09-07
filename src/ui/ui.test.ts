@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 /** UI box contract: components render and emit the events src/ui/CONTRACT.md lists. */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { getByLabelText, getByRole, getByText, waitFor } from '@testing-library/dom';
+import { getByLabelText, getByRole, getByText, queryByLabelText, waitFor } from '@testing-library/dom';
 import userEvent from '@testing-library/user-event';
 import * as THREE from 'three';
 import { selectionBlueprint } from './fixtures/selectionBlueprint';
@@ -90,8 +90,9 @@ describe('LayerToggles', () => {
     const transit = getByLabelText(toggles.root, 'Public transit').closest<HTMLElement>('.layer-group')!;
     await userEvent.click(getByRole(transit, 'button', { name: 'Only' }));
     const isolated = onChange.mock.lastCall![0];
-    expect(isolated['transit.bus']).toBe(true);
-    expect(isolated['transit.train']).toBe(true);
+    expect(isolated['transit.subway']).toBe(true);
+    expect(queryByLabelText(toggles.root, 'bus')).toBeNull();
+    expect(queryByLabelText(toggles.root, 'train')).toBeNull();
     expect(isolated['street.highway']).toBe(false);
   });
 
@@ -146,7 +147,6 @@ describe('ParamsPanel', () => {
     expect(params.tierWeights).toEqual({ poor: 0.3, mid: 0.45, rich: 0.2, high_rich: 0.05 });
     expect(params.features).toEqual({
       highways: true,
-      trains: true,
       subways: false,
       alleys: true,
       airTunnels: true,
@@ -177,7 +177,7 @@ describe('ParamsPanel', () => {
     expect(params.maxFloorsByDistrict).toEqual({ downtown: 9 });
     expect(params.tierWeights).toEqual({ poor: 1, mid: 0.45, rich: 0.2, high_rich: 0.05 });
     expect(params.features.alleys).toBe(false);
-    expect(params.features.trains).toBe(true);
+    expect(params.features).not.toHaveProperty('trains');
     expect(params.hydrology).toEqual({ type: 'river' });
   });
 
@@ -315,7 +315,6 @@ describe('PreviewApp', () => {
     const error = vi.spyOn(console, 'error').mockImplementation(() => undefined);
     const view = new Map3DView();
     const blueprint = renderBlueprint();
-    expect(blueprint.transit.trainStations.length).toBeGreaterThan(0);
     expect(blueprint.transit.subwayStations.length).toBeGreaterThan(0);
     view.setBlueprint(blueprint);
     const layers = (view as unknown as {
@@ -323,6 +322,9 @@ describe('PreviewApp', () => {
     }).layers;
     expect([...layers.entries()].some(([key, group]) =>
       key.startsWith('zone.') && group.getObjectByName('floor-elevations') !== undefined)).toBe(true);
+    expect(layers.get('street.highway')!.children.length).toBeGreaterThan(0);
+    expect(layers.has('transit.train')).toBe(false);
+    expect(layers.has('transit.bus')).toBe(false);
     expect(layers.has('diagnostic.highwayCenterlines')).toBe(blueprint.streets.highwayStructures.length > 0);
     expect(layers.has('diagnostic.highwaySupports')).toBe(blueprint.streets.highwayStructures.some((item) => item.supports.length > 0));
     expect(layers.has('diagnostic.stationAccess')).toBe(blueprint.transit.subwayStations.some((item) => item.accessPaths.length > 0));

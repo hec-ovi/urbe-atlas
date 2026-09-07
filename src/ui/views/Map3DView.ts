@@ -78,7 +78,7 @@ export class Map3DView {
     this.buildGround(bp);
     this.buildParcels(bp);
     this.buildStreets(bp);
-    this.buildTransit(bp);
+    this.buildSubways(bp);
     this.buildFurniture(bp);
     this.buildDistricts(bp);
     this.buildDiagnostics(bp);
@@ -328,33 +328,8 @@ export class Map3DView {
     this.merged('street.highway', barriers, new THREE.MeshLambertMaterial({ color: 0x737b84 }));
   }
 
-  private buildTransit(bp: CityBlueprint): void {
+  private buildSubways(bp: CityBlueprint): void {
     const t = bp.transit;
-    const under = (level: number) => level < 0;
-    const rail = (key: FilterKey, path: Polyline, level: number, width: number, color: string) => {
-      if (under(level)) {
-        const corridor = new THREE.Mesh(
-          tunnel(path, width / 2, level),
-          new THREE.MeshLambertMaterial({
-            color: TRANSIT_COLORS.subwayTunnel,
-            transparent: true,
-            opacity: 0.28,
-            depthWrite: false,
-            side: THREE.DoubleSide,
-          }),
-        );
-        corridor.name = 'subway-corridor';
-        this.layer(key).add(corridor);
-        const track = new THREE.Mesh(
-          ribbon(path, Math.min(1.6, width / 3), level + 0.08),
-          new THREE.MeshLambertMaterial({ color }),
-        );
-        track.name = 'subway-track';
-        this.layer(key).add(track);
-      } else {
-        this.layer(key).add(new THREE.Mesh(ribbon(path, width, level + 0.06), new THREE.MeshLambertMaterial({ color })));
-      }
-    };
     // the earth the tunnels run through: a dark translucent slab under the whole city
     if (t.subwayLines.length > 0) {
       const b = boundsOf(bp.meta.boundary);
@@ -365,11 +340,28 @@ export class Map3DView {
       earth.position.set((b.min[0] + b.max[0]) / 2, -EARTH_DEPTH / 2, (b.min[1] + b.max[1]) / 2);
       this.layer('transit.subway').add(earth);
     }
-    for (const line of t.trainLines) rail('transit.train', line.path, line.level, line.width, TRANSIT_COLORS.train);
-    for (const line of t.subwayLines) rail('transit.subway', line.path, line.level, line.width, TRANSIT_COLORS.subway);
+    for (const line of t.subwayLines) {
+      const corridor = new THREE.Mesh(
+        tunnel(line.path, line.width / 2, line.level),
+        new THREE.MeshLambertMaterial({
+          color: TRANSIT_COLORS.subwayTunnel,
+          transparent: true,
+          opacity: 0.28,
+          depthWrite: false,
+          side: THREE.DoubleSide,
+        }),
+      );
+      corridor.name = 'subway-corridor';
+      this.layer('transit.subway').add(corridor);
+      const track = new THREE.Mesh(
+        ribbon(line.path, Math.min(1.6, line.width / 3), line.level + 0.08),
+        new THREE.MeshLambertMaterial({ color: TRANSIT_COLORS.subway }),
+      );
+      track.name = 'subway-track';
+      this.layer('transit.subway').add(track);
+    }
 
-    this.merged('transit.train', t.trainStations.flatMap(stationParts), new THREE.MeshLambertMaterial({ color: TRANSIT_COLORS.trainStation }), 'station-assemblies');
-    this.merged('transit.subway', t.subwayStations.flatMap(stationParts), new THREE.MeshLambertMaterial({ color: TRANSIT_COLORS.subwayStation }), 'station-assemblies');
+    this.merged('transit.subway', t.subwayStations.flatMap(subwayStationParts), new THREE.MeshLambertMaterial({ color: TRANSIT_COLORS.subwayStation }), 'station-assemblies');
     const subwayById = new Map(t.subwayStations.map((station) => [station.id, station]));
     const terminals: THREE.BufferGeometry[] = [];
     for (const line of t.subwayLines) {
@@ -387,9 +379,6 @@ export class Map3DView {
       new THREE.MeshLambertMaterial({ color: TRANSIT_COLORS.subwayTerminal }),
       'terminal-gates',
     );
-    const stops: THREE.BufferGeometry[] = [];
-    for (const stop of t.busStops) stops.push(new THREE.BoxGeometry(2, 2.5, 2).translate(stop.position[0], 1.25, stop.position[1]));
-    this.merged('transit.bus', stops, new THREE.MeshLambertMaterial({ color: TRANSIT_COLORS.busStop }));
   }
 
   /** Signals on their masts and the furnishing strip: a tree, a lamp or a bin per point. */
@@ -512,22 +501,13 @@ function plantingParts(kind: PlantingKind, [x, z]: Vec2): THREE.BufferGeometry[]
   return [new THREE.BoxGeometry(BIN.size, BIN.height, BIN.size).translate(x, BIN.height / 2, z)];
 }
 
-/**
- * A station from the street down: a headhouse on the sidewalk over the shaft
- * through the earth, the passage and the platform at the line's level. A
- * station at grade has no shaft, so its entrances are posts on the sidewalk.
- */
-function stationParts(s: Station): THREE.BufferGeometry[] {
+/** Subway platform, underground passages, shafts and street entrance headhouses. */
+function subwayStationParts(s: Station): THREE.BufferGeometry[] {
   const parts = [prism(s.platform, s.level, PLATFORM_THICKNESS)];
   for (const shaft of s.shafts) {
     if (shaft.passage.length >= 3) parts.push(prism(shaft.passage, s.level, PLATFORM_THICKNESS));
     parts.push(prism(shaft.footprint, shaft.bottom, shaft.top - shaft.bottom));
     parts.push(prism(shaft.footprint, shaft.top, HEADHOUSE_HEIGHT));
-  }
-  if (s.shafts.length === 0) {
-    for (const [x, z] of s.entrances) {
-      parts.push(new THREE.BoxGeometry(2, HEADHOUSE_HEIGHT, 2).translate(x, HEADHOUSE_HEIGHT / 2, z));
-    }
   }
   return parts;
 }

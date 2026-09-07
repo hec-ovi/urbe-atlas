@@ -180,7 +180,7 @@ function filterColor(key: FilterKey): string {
   if (key.startsWith('ground.')) return GROUND_COLORS[name as keyof typeof GROUND_COLORS];
   if (key.startsWith('zone.')) return parcelColor(name as Parameters<typeof parcelColor>[0], 'mid');
   if (key.startsWith('street.')) return streetColor(name as Parameters<typeof streetColor>[0]);
-  if (key.startsWith('transit.')) return TRANSIT_COLORS[name === 'bus' ? 'busRoute' : name as 'train' | 'subway'];
+  if (key.startsWith('transit.')) return TRANSIT_COLORS.subway;
   if (key.startsWith('furniture.')) return FURNITURE_COLORS[name as keyof typeof FURNITURE_COLORS];
   if (key === 'hydrology.water') return HYDROLOGY_COLORS['water.river'];
   if (key === 'hydrology.shoreline') return HYDROLOGY_COLORS.shoreline;

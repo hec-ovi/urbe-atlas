@@ -12,7 +12,7 @@ export const ZONE_KEYS: ParcelType[] = [
   'factory', 'commerce', 'mall', 'restaurant', 'coffee_shop',
 ];
 export const STREET_KEYS: StreetClass[] = ['street', 'road', 'highway', 'alley'];
-export const TRANSIT_KEYS = ['bus', 'train', 'subway'] as const;
+export const TRANSIT_KEYS = ['subway'] as const;
 export const FURNITURE_KEYS = ['signal', 'tree', 'pole', 'bin', 'guardrail'] as const;
 export const HYDROLOGY_KEYS = ['water', 'shoreline'] as const;
 export const DIAGNOSTIC_KEYS = ['highwayCenterlines', 'highwaySupports', 'stationAccess'] as const;
@@ -44,7 +44,7 @@ export const FILTER_GROUPS: FilterGroup[] = [
   { id: 'streets', title: 'Street network', description: 'Street, avenue, highway and pedestrian alley', keys: STREET_KEYS.map((k) => `street.${k}` as FilterKey), open: true },
   { id: 'hydrology', title: 'Waterfront', description: 'Water surfaces and exact shoreline bands', keys: HYDROLOGY_KEYS.map((k) => `hydrology.${k}` as FilterKey), open: true },
   { id: 'diagnostics', title: 'Geometry diagnostics', description: 'Bright overlays for structure inspection', keys: DIAGNOSTIC_KEYS.map((k) => `diagnostic.${k}` as FilterKey), open: true },
-  { id: 'transit', title: 'Public transit', description: 'Bus, train and underground subway', keys: TRANSIT_KEYS.map((k) => `transit.${k}` as FilterKey), open: true },
+  { id: 'transit', title: 'Public transit', description: 'Underground subway', keys: TRANSIT_KEYS.map((k) => `transit.${k}` as FilterKey), open: true },
   { id: 'furniture', title: 'Street furniture', description: 'Signals, trees, lights, bins and guardrails', keys: FURNITURE_KEYS.map((k) => `furniture.${k}` as FilterKey) },
   { id: 'districts', title: 'District boundaries', description: 'Planning area outlines', keys: ['districts'] },
 ];
