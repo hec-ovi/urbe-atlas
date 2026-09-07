@@ -40,7 +40,7 @@ Saved examples live in `samples/`; each records its blueprint version.
 
 ## How it works
 
-Rows and columns determine street intersections directly. Road widths and whole panel counts determine block dimensions. The generator places shared panel, curb, gutter, corner, parking and guardrail modules, then subdivides the rectangular building land and validates the result. The preview renders repeated modules with instanced geometry. Current cities use an orthogonal grid; diagonal and alley cuts are not produced.
+Rows and columns determine the main street intersections directly. Road widths and whole panel counts determine square and elongated rectangular blocks. Sparse 30/45 degree streets cut individual eligible blocks. Shared panel, curb, gutter, corner, parking and guardrail modules define the street geometry; the generator subdivides the remaining building land and validates the result. The preview renders repeated modules with instanced geometry.
 
 [The box map](docs/INDEX.md) lists the contracts. [Generation measurements](docs/PERFORMANCE.md) record complete-city CPU time, memory and the test conditions.
 

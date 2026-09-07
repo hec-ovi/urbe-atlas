@@ -1,6 +1,6 @@
 # Changelog
 
-0.19 blueprint: square and elongated rectangular blocks use whole panel groups. Sparse 30/45 degree block cuts connect to the main grid through fixed sidewalk, curb and gutter junction templates. Physical beds retain shared planning boundaries.
+0.19.0 blueprint: square and elongated rectangular blocks use whole panel groups. Sparse 30/45 degree block cuts connect to the main grid through fixed sidewalk, curb and gutter junction templates. Physical beds retain shared planning boundaries.
 
 0.18.1 blueprint: sparse 2-6 m guardrail groups and occasional tree pairs occupy selected frontages, with open gaps and finished-pavement clearance.
 
