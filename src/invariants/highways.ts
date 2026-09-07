@@ -14,9 +14,14 @@ export function checkHighwayStructures(bp: CityBlueprint): void {
   const highways = bp.streets.edges.filter((edge) => edge.class === 'highway');
   const edgeById = new Map(highways.map((edge) => [edge.id, edge]));
   const covered = new Set<string>();
+  const gradeEdges = new Set(bp.streets.edges.filter(edge => edge.class === 'street' || edge.class === 'road').map(edge => edge.id));
+  const gradeRoadway = (bp.streets.construction?.planningReservations?.edges ?? [])
+    .filter(reservation => gradeEdges.has(reservation.edgeId)).flatMap(reservation => reservation.roadway)
+    .map(polygon => ({ polygon, box: bounds(polygon), kind: 'crossing roadway' }));
   const pedestrianPaving = bp.volumetric.ground
     .filter((surface) => surface.surface === 'curb' || surface.surface === 'sidewalk')
-    .map((surface) => ({ polygon: surface.polygon, box: bounds(surface.polygon) }));
+    .map((surface) => ({ polygon: surface.polygon, box: bounds(surface.polygon), kind: 'pedestrian paving' }));
+  const supportObstacles = [...pedestrianPaving, ...gradeRoadway];
 
   for (const structure of bp.streets.highwayStructures) {
     if (structure.edgeIds.length === 0 || structure.path.length < 2) {
@@ -32,7 +37,7 @@ export function checkHighwayStructures(bp: CityBlueprint): void {
       }
     }
     checkRamps(structure);
-    checkSupports(structure, pedestrianPaving);
+    checkSupports(structure, supportObstacles);
 
     // The reserved deck corridor includes one meter of construction clearance
     // beyond each deck edge. A parcel entering it is a generator bug.
@@ -85,7 +90,7 @@ function checkRamps(structure: HighwayStructure): void {
 
 function checkSupports(
   structure: HighwayStructure,
-  pedestrianPaving: readonly { polygon: Polygon; box: ReturnType<typeof bounds> }[],
+  obstacles: readonly { polygon: Polygon; box: ReturnType<typeof bounds>; kind: string }[],
 ): void {
   const flatStart = structure.ramps.start;
   const flatEnd = pathLength(structure.path) - structure.ramps.end;
@@ -110,12 +115,12 @@ function checkSupports(
       }
     }
     const supportBox = bounds(support.footprint);
-    for (const paved of pedestrianPaving) {
+    for (const paved of obstacles) {
       if (paved.box.min[0] >= supportBox.max[0] || paved.box.max[0] <= supportBox.min[0]
         || paved.box.min[1] >= supportBox.max[1] || paved.box.max[1] <= supportBox.min[1]) continue;
       const overlap = intersection([support.footprint], [paved.polygon]).reduce((sum, polygon) => sum + area(polygon), 0);
       if (overlap > AREA_EPS) {
-        throw invariantFailure(`highway ${structure.edgeIds[0]} support enters pedestrian paving`, { overlap });
+        throw invariantFailure(`highway ${structure.edgeIds[0]} support enters ${paved.kind}`, { overlap });
       }
     }
     const along = distanceAlong(structure.path, support.position);

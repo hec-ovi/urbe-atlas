@@ -1,5 +1,7 @@
 # Changelog
 
+0.21.0 blueprint: a seeded four-lane highway crosses the city interior. Blocks reserve its full width, and supports keep clear of ground-level streets and sidewalks.
+
 0.20.0 blueprint: public transit is subway-only. Highway decks, subway entrance reservations and subway access paths remain available. Legacy surface-transit collections are empty.
 
 0.19.0 blueprint: square and elongated rectangular blocks use whole panel groups. Sparse 30/45 degree block cuts connect to the main grid through fixed sidewalk, curb and gutter junction templates. Physical beds retain shared planning boundaries.

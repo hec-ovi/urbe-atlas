@@ -7,12 +7,13 @@ import type { ModuleGroundRegion } from './streets/construction/modules/schema';
 import { intersection } from './geom/clip';
 import { area } from './geom/polygon';
 import { applyHighwayElevationProfiles } from './streets/Highways';
+import { LEVELS } from './levels';
 
 /** Connects district choices to the dimensioned street layout. */
 export class CityLayout {
   static plan(params: ResolvedParams, districtAt: (point: Vec2) => { id: string; kind: DistrictKind }, water: Polygon[]) {
     const design = params.streetDesign;
-    const plan = GridLayout.plan({ seed: String(params.seed), size: params.size, profiles: design.profiles,
+    const plan = GridLayout.plan({ seed: String(params.seed), size: params.size, profiles: design.profiles, highway: params.features.highways,
       perimeter: { profile: design.sidewalkProfiles[0], finish: params.pavingDesign?.layouts
         .find(value => value.id === params.pavingDesign!.defaultLayoutId)?.familyId ?? 'maintained' },
       sideAt: (point, kind) => {
@@ -28,12 +29,12 @@ export class CityLayout {
         return { profile, finish };
       },
     });
-    if (params.features.highways) {
-      const run = plan.runs[0];
+    if (plan.highwayRunId) {
+      const run = plan.runs.find(value => value.id === plan.highwayRunId)!;
       const ids = new Set(run.edges.map(member => member.edgeId));
       run.profileId = 'highway';
       for (const edge of plan.edges) if (ids.has(edge.id)) {
-        edge.class = 'highway'; edge.level = 8; edge.sidewalk = { left: 0, right: 0 };
+        edge.class = 'highway'; edge.level = LEVELS.highway; edge.sidewalk = { left: 0, right: 0 };
         delete edge.crossSection;
       }
       applyHighwayElevationProfiles(plan.edges);

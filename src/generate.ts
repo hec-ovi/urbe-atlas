@@ -42,7 +42,7 @@ import { closestOnSegment, dist } from './geom/vec';
 import { GradeDatum } from './streets/construction/datum';
 import { planHydrology, withHydrologyStructures } from './hydro/Hydrology';
 
-export const BLUEPRINT_VERSION = '0.20.0';
+export const BLUEPRINT_VERSION = '0.21.0';
 export const HYDROLOGY_BLUEPRINT_VERSION = BLUEPRINT_VERSION;
 
 const SUBDIVISION: Record<DistrictKind, SubdivisionConfig> = {
@@ -296,8 +296,12 @@ export function generateCity(input: AtlasParams, onProgress?: ProgressObserver):
     blockBounds: layout.blocks.map(block => block.outer), modules: layout.cover,
     lots: parcels.map(parcel => parcel.lot), open: blockOpenAreas.flat(), stationBays: subwayBayPaving });
   const pedestrianPaving = ground.filter((region) => region.surface === 'curb' || region.surface === 'sidewalk').map((region) => region.polygon);
-  const structures = supportHighwayEnvelopes(envelopes, [...subwayShafts, ...pedestrianPaving]);
   const planningReservations = StreetCorridors.reservations(streetEdges);
+  const gradeRoadway = planningReservations.edges.filter(reservation => {
+    const kind = streetEdgeById.get(reservation.edgeId)!.class;
+    return kind === 'street' || kind === 'road';
+  }).flatMap(reservation => reservation.roadway);
+  const structures = supportHighwayEnvelopes(envelopes, [...subwayShafts, ...pedestrianPaving, ...gradeRoadway]);
   const crossingObstacles = GradeDatum.clearanceFootprints({
     plan: GradeDatum.physicalPlan({ boundary, edges: streetEdges, structures }),
     supports: structures.flatMap((structure) => structure.supports.map((support) => ({ structureEdgeIds: structure.edgeIds, support }))),
