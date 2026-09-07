@@ -1,4 +1,4 @@
-import type { Polygon, Vec2 } from '../../../../../schema/blueprint';
+import type { Vec2 } from '../../../../../schema/blueprint';
 import { difference, offset, snapPoint } from '../../../../geom/clip';
 import { area } from '../../../../geom/polygon';
 import { invalidParams, unsatisfiable } from '../../../../errors';
