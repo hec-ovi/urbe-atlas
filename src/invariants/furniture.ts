@@ -46,8 +46,7 @@ export function checkFurniture(bp: CityBlueprint): void {
 
   const clear = new Obstacles();
   clear.add(bp.streets.crossings.flatMap((c) => c.segments.flatMap((s) => [s.from, s.to])));
-  clear.add(bp.transit.busStops.map((s) => s.position));
-  clear.add([...bp.transit.trainStations, ...bp.transit.subwayStations].flatMap((s) => s.entrances));
+  clear.add(bp.transit.subwayStations.flatMap((s) => s.entrances));
   clear.add(bp.parcels.map((p) => p.access.point));
   for (const point of bp.streets.planting) {
     const edge = edgeById.get(point.edgeId);

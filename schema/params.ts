@@ -45,7 +45,7 @@ export type { HydrologyParams, HydrologyType } from '../src/hydro/types';
 export interface FeatureToggles {
   /** Generate highways. Default true. */
   highways?: boolean;
-  /** Generate train stations and lines. Default true. */
+  /** Saved parameter compatibility. Resolved to false. */
   trains?: boolean;
   /** Generate alleys: narrow pedestrian cuts through long blocks. Default true. */
   alleys?: boolean;

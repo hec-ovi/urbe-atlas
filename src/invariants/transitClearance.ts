@@ -1,34 +1,17 @@
 /** Geometry at grade is reserved before zoning and may not enter a building or highway column. */
 import type { CityBlueprint, Polygon } from '../../schema/blueprint';
 import { invariantFailure } from '../errors';
-import { bufferLine, intersection, offset, union } from '../geom/clip';
+import { intersection } from '../geom/clip';
 import { area, bounds } from '../geom/polygon';
-import { LEVELS } from '../levels';
-import { RAIL } from '../transit/stations';
 
 const AREA_EPS = 1e-6;
 
 export function checkTransitClearance(bp: CityBlueprint): void {
-  for (const line of [...bp.transit.trainLines, ...bp.transit.subwayLines]) {
+  for (const line of bp.transit.subwayLines) {
     if (!(line.width > 0)) throw invariantFailure(`rail line ${line.id} has no corridor width`);
   }
-  const grade = union([
-    ...bp.transit.trainLines
-      .filter((line) => line.level >= LEVELS.ground)
-      .flatMap((line) => bufferLine(line.path, line.width + RAIL.buildingClearance * 2)),
-    ...bp.transit.trainStations
-      .filter((station) => station.level >= LEVELS.ground)
-      .flatMap((station) => offset([station.platform], RAIL.buildingClearance)),
-  ]);
-  const gradeStructures = [
-    ...grade,
-    ...bp.transit.subwayStations.flatMap((station) => station.shafts.map((shaft) => shaft.footprint)),
-  ];
+  const gradeStructures = bp.transit.subwayStations.flatMap((station) => station.shafts.map((shaft) => shaft.footprint));
   for (const parcel of bp.parcels) {
-    const overlap = overlapArea(grade, parcel.footprint);
-    if (overlap > AREA_EPS) {
-      throw invariantFailure(`grade-level rail enters building footprint ${parcel.id}`, { overlap });
-    }
     for (const station of bp.transit.subwayStations) {
       for (let i = 0; i < station.shafts.length; i++) {
         const shaftOverlap = overlapArea([station.shafts[i].footprint], parcel.footprint);
@@ -44,7 +27,7 @@ export function checkTransitClearance(bp: CityBlueprint): void {
     for (const support of structure.supports) {
       const overlap = overlapArea(gradeStructures, support.footprint);
       if (overlap > AREA_EPS) {
-        throw invariantFailure(`grade-level rail enters highway support on ${structure.edgeIds[0]}`, { overlap });
+        throw invariantFailure(`subway shaft enters highway support on ${structure.edgeIds[0]}`, { overlap });
       }
     }
   }

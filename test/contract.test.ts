@@ -82,8 +82,10 @@ describe('blueprint output', () => {
       }
     }
 
-    expect(bp.transit.busRoutes.length).toBeGreaterThan(0);
-    expect(bp.transit.busStops.length).toBeGreaterThan(0);
+    expect(bp.transit.busRoutes).toEqual([]);
+    expect(bp.transit.busStops).toEqual([]);
+    expect(bp.transit.trainLines).toEqual([]);
+    expect(bp.transit.trainStations).toEqual([]);
     expect(bp.volumetric.buildings.length).toBe(bp.parcels.length);
     expect(bp.volumetric.ground.length).toBeGreaterThan(0);
     expect(bp.stats.population).toBeGreaterThan(0);
@@ -99,10 +101,6 @@ describe('blueprint output', () => {
       ...(bp.streets.construction?.runs ?? []).map((x) => x.id),
       ...bp.blocks.map((x) => x.id),
       ...bp.parcels.map((x) => x.id),
-      ...bp.transit.busStops.map((x) => x.id),
-      ...bp.transit.busRoutes.map((x) => x.id),
-      ...bp.transit.trainStations.map((x) => x.id),
-      ...bp.transit.trainLines.map((x) => x.id),
       ...bp.transit.subwayStations.map((x) => x.id),
       ...bp.transit.subwayLines.map((x) => x.id),
     ];
@@ -135,32 +133,25 @@ describe('blueprint output', () => {
     }
   }, 15000); // One complete 2 km generation and its invariants.
 
-  it('every parcel access edge exists and every stop is on a route', () => {
+  it('every parcel access edge exists and every subway station is on a line', () => {
     const bp = defaultCity();
     const edgeIds = new Set(bp.streets.edges.map((e) => e.id));
     for (const p of bp.parcels) expect(edgeIds.has(p.access.edgeId)).toBe(true);
-    const routed = new Set(bp.transit.busRoutes.flatMap((r) => r.stopIds));
-    for (const s of bp.transit.busStops) expect(routed.has(s.id)).toBe(true);
     const onLine = new Set(bp.transit.subwayLines.flatMap((l) => l.stationIds));
     for (const s of bp.transit.subwayStations) expect(onLine.has(s.id)).toBe(true);
-    for (const r of bp.transit.busRoutes) expect(r.stopIds.length).toBeGreaterThanOrEqual(2);
-    for (const l of [...bp.transit.subwayLines, ...bp.transit.trainLines]) {
+    for (const l of bp.transit.subwayLines) {
       expect(l.stationIds.length).toBeGreaterThanOrEqual(2);
     }
   });
 
-  it('gives every station a platform, and every underground one a shaft per entrance', () => {
+  it('gives every subway station a platform and a shaft per entrance', () => {
     const bp = defaultCity();
     expect(bp.transit.subwayStations.length).toBeGreaterThan(0);
-    for (const st of [...bp.transit.subwayStations, ...bp.transit.trainStations]) {
+    for (const st of bp.transit.subwayStations) {
       expect(st.platform.length, `${st.id} platform`).toBeGreaterThanOrEqual(3);
       expect(pointInPolygon(st.position, st.platform), `${st.id} platform covers its position`).toBe(true);
       expect(st.box.bottom, `${st.id} box floor`).toBe(st.level);
       expect(st.box.top, `${st.id} box ceiling`).toBeGreaterThan(st.box.bottom);
-      if (st.level >= 0) {
-        expect(st.shafts, `${st.id} is at grade`).toEqual([]);
-        continue;
-      }
       expect(st.shafts.length, `${st.id} shafts`).toBe(st.entrances.length);
       st.shafts.forEach((shaft, i) => {
         expect(shaft.top).toBe(0);
@@ -208,8 +199,7 @@ describe('street furniture', () => {
     const edgeById = new Map(bp.streets.edges.map((e) => [e.id, e]));
     const clear: Vec2[] = [
       ...bp.streets.crossings.flatMap((c) => c.segments.flatMap((seg) => [seg.from, seg.to])),
-      ...bp.transit.busStops.map((s) => s.position),
-      ...[...bp.transit.trainStations, ...bp.transit.subwayStations].flatMap((s) => s.entrances),
+      ...bp.transit.subwayStations.flatMap((s) => s.entrances),
       ...bp.parcels.map((p) => p.access.point),
     ];
     for (const point of bp.streets.planting) {
@@ -232,7 +222,7 @@ describe('street furniture', () => {
     expect(trees.size).toBeGreaterThan(1);
     expect(trees.size).toBeLessThan(bp.streets.edges.length);
     expect([...trees.values()].every(count => count <= 2)).toBe(true);
-    // the closest any piece of furniture stands to a crossing, a stop, an entrance or a door
+    // the closest any piece of furniture stands to a crossing, an entrance or a door
     let worst = { gap: Infinity, at: '' };
     for (const point of bp.streets.planting) {
       for (const other of clear) {

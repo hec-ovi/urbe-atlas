@@ -130,7 +130,7 @@ export function resolveParams(input: AtlasParams): ResolvedParams {
   const featureInput = input.features as FeatureToggles | undefined;
   const features: Required<FeatureToggles> = {
     highways: featureInput?.highways ?? true,
-    trains: featureInput?.trains ?? true,
+    trains: false,
     subways: featureInput?.subways ?? true,
     alleys: featureInput?.alleys ?? true,
     airTunnels: featureInput?.airTunnels ?? true,

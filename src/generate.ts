@@ -2,7 +2,6 @@
 import type {
   Block,
   BuildingGrid,
-  BusStop,
   CityBlueprint,
   District,
   Parcel,
@@ -36,15 +35,14 @@ import type { FootprintPolicy } from './zoning/FootprintPolicy';
 import { INTERIOR } from './zoning/core';
 import { TransitPlanner } from './transit/TransitPlanner';
 import { Invariants } from './invariants/Invariants';
-import { bufferLine, difference, intersection, offset, snapPoint, union } from './geom/clip';
+import { bufferLine, difference, intersection, snapPoint, union } from './geom/clip';
 import { area, bounds, centroid, distanceToOutline, pointInPolygon } from './geom/polygon';
 import { length as lineLength, pointAt } from './geom/polyline';
 import { closestOnSegment, dist } from './geom/vec';
-import { RAIL, STATION } from './transit/stations';
 import { GradeDatum } from './streets/construction/datum';
 import { planHydrology, withHydrologyStructures } from './hydro/Hydrology';
 
-export const BLUEPRINT_VERSION = '0.19.0';
+export const BLUEPRINT_VERSION = '0.20.0';
 export const HYDROLOGY_BLUEPRINT_VERSION = BLUEPRINT_VERSION;
 
 const SUBDIVISION: Record<DistrictKind, SubdivisionConfig> = {
@@ -113,39 +111,13 @@ export function generateCity(input: AtlasParams, onProgress?: ProgressObserver):
   applyHighwayElevationProfiles(streetEdges);
   const envelopes = highwayEnvelopes(streetEdges);
   const streetEdgeById = new Map(streetEdges.map((e) => [e.id, e]));
-  // Curved joins can extend the deck into a face beyond its centerline
-  // offset, so construction clearance is reserved from the exact buffered
-  // run. A wider exclusion keeps an entire train platform away from a deck,
-  // regardless of the platform's eventual orientation.
   const highwayNoBuild = envelopes.flatMap(envelope => bufferLine(envelope.path, envelope.width + HIGHWAY_DECK.buildingClearance * 2));
-  const trainStationExclusion = union([
-    ...streetEdges
-      .filter((edge) => edge.class === 'highway')
-      .flatMap((edge) => bufferLine(
-        edge.path,
-        edge.width
-          + Math.hypot(STATION.train.platformLength, STATION.train.platformWidth)
-          + RAIL.buildingClearance * 2,
-      )),
-    ...offset(waterSurfaces, Math.hypot(STATION.train.platformLength, STATION.train.platformWidth) / 2 + 1),
-  ]);
-  // Transit runs on the driveable graph. The train is planned now because its
-  // grade-level right-of-way must be removed before parcels are subdivided.
   const vehicleEdges = streetEdges.filter((edge) => edge.class !== 'alley');
   const vehicleEdgeIds = new Set(vehicleEdges.map((edge) => edge.id));
   const vehicleNodes = graph.nodes.filter((node) => node.edgeIds.some((id) => vehicleEdgeIds.has(id)));
   const planner = new TransitPlanner(vehicleNodes, vehicleEdges);
   const nodeById = new Map(graph.nodes.map((node) => [node.id, node]));
   const transitRng = Rng.from(seed, 'transit');
-  const trainPlan = params.features.trains
-    ? planner.planTrain({
-        districtOfNode: (nodeId) => districtOfPoint(nodeById.get(nodeId)!.position),
-        cityCenter,
-        boundary,
-        stationExclusion: trainStationExclusion,
-        rng: transitRng,
-      })
-    : undefined;
 
   progress(4, 'Building blocks');
   const builtBlocks = layout.builtBlocks;
@@ -174,15 +146,7 @@ export function generateCity(input: AtlasParams, onProgress?: ProgressObserver):
       return e !== undefined && (e.sidewalk.left > 0 || e.sidewalk.right > 0);
     }),
   );
-  const trainNoBuild = trainPlan
-    ? union([
-        ...trainPlan.trainLines.flatMap((line) =>
-          bufferLine(line.path, line.width + RAIL.buildingClearance * 2)),
-        ...trainPlan.trainStations.flatMap((station) =>
-          offset([station.platform], RAIL.buildingClearance)),
-      ])
-    : [];
-  const existingInfrastructure = union([...highwayNoBuild, ...trainNoBuild]);
+  const existingInfrastructure = highwayNoBuild;
   const capacity = Zoning.populationForecast(planned.map((district, index) => ({
     districtId: `d${index}`, kind: district.kind, tier: district.tier, maxFloors: district.maxFloors,
     landArea: builtBlocks.reduce((sum, block, blockIndex) => blockDistrict[blockIndex] !== index ? sum : sum
@@ -317,19 +281,11 @@ export function generateCity(input: AtlasParams, onProgress?: ProgressObserver):
   progress(6, 'Planning transit');
   // --- transit -----------------------------------------------------------
   const population = zonedParcels.reduce((s, z) => s + z.residents, 0);
-  const transit = planner.plan({
-    districts: planned,
-    districtOfNode: (nodeId) => districtOfPoint(nodeById.get(nodeId)!.position),
-    cityCenter,
-    boundary,
-    population,
-    features: params.features,
-    trainPlan,
-    subwayPlan,
-    rng: transitRng,
-  });
-  pruneUnusedStops(transit.busStops, transit.busRoutes.flatMap((r) => r.stopIds));
-  if (waterSurfaces.length > 0) pruneWaterStops(transit, waterSurfaces);
+  const transit: CityBlueprint['transit'] = {
+    busStops: [], busRoutes: [], trainStations: [], trainLines: [],
+    subwayStations: subwayPlan?.subwayStations ?? [], subwayLines: subwayPlan?.subwayLines ?? [],
+    ...(subwayPlan?.subwayDemand ? { subwayDemand: subwayPlan.subwayDemand } : {}),
+  };
 
   progress(7, 'Constructing ground');
   // --- crossings, ground, volumetric -------------------------------------
@@ -340,7 +296,7 @@ export function generateCity(input: AtlasParams, onProgress?: ProgressObserver):
     blockBounds: layout.blocks.map(block => block.outer), modules: layout.cover,
     lots: parcels.map(parcel => parcel.lot), open: blockOpenAreas.flat(), stationBays: subwayBayPaving });
   const pedestrianPaving = ground.filter((region) => region.surface === 'curb' || region.surface === 'sidewalk').map((region) => region.polygon);
-  const structures = supportHighwayEnvelopes(envelopes, [...trainNoBuild, ...subwayShafts, ...pedestrianPaving]);
+  const structures = supportHighwayEnvelopes(envelopes, [...subwayShafts, ...pedestrianPaving]);
   const planningReservations = StreetCorridors.reservations(streetEdges);
   const crossingObstacles = GradeDatum.clearanceFootprints({
     plan: GradeDatum.physicalPlan({ boundary, edges: streetEdges, structures }),
@@ -357,8 +313,7 @@ export function generateCity(input: AtlasParams, onProgress?: ProgressObserver):
   const obstacles = new Obstacles();
   obstacles.add(crossings.flatMap((c) => c.segments.flatMap((s) => [s.from, s.to])));
   obstacles.add(signals.map((s) => s.position));
-  obstacles.add(transit.busStops.map((s) => s.position));
-  obstacles.add([...transit.trainStations, ...transit.subwayStations].flatMap((s) => s.entrances));
+  obstacles.add(transit.subwayStations.flatMap((s) => s.entrances));
   obstacles.add(parcels.map((p) => p.access.point));
   const planting = CityFurniture.place({ edges: streetEdges, ground, modules: layout.modules, obstacles,
     districtOf: edgeId => planned[edgeDistrict.get(edgeId) ?? 0].kind, rng: Rng.from(seed, 'planting') });
@@ -386,7 +341,6 @@ export function generateCity(input: AtlasParams, onProgress?: ProgressObserver):
       corridor: corridors!.byEdge.get(edge.id),
       level: edge.level,
     })).filter((edge) => edge.width > 0),
-    ...transit.trainLines.map((line) => ({ network: 'train' as const, refId: line.id, path: line.path, width: line.width, level: line.level })),
     ...transit.subwayLines.map((line) => ({ network: 'subway' as const, refId: line.id, path: line.path, width: line.width, level: line.level })),
   ]);
 
@@ -477,20 +431,4 @@ function closestSidewalkPoint(lot: Polygon, sidewalk: Polygon[], water: Polygon[
     }
   }
   return best;
-}
-
-function pruneUnusedStops(stops: BusStop[], usedIds: string[]): void {
-  const used = new Set(usedIds);
-  for (let i = stops.length - 1; i >= 0; i--) {
-    if (!used.has(stops[i].id)) stops.splice(i, 1);
-  }
-}
-
-function pruneWaterStops(transit: CityBlueprint['transit'], water: Polygon[]): void {
-  const removed = new Set(transit.busStops.filter((stop) => water.some((surface) => pointInPolygon(stop.position, surface))).map((stop) => stop.id));
-  transit.busStops = transit.busStops.filter((stop) => !removed.has(stop.id));
-  transit.busRoutes = transit.busRoutes
-    .map((route) => ({ ...route, stopIds: route.stopIds.filter((id) => !removed.has(id)) }))
-    .filter((route) => route.stopIds.length >= 2);
-  pruneUnusedStops(transit.busStops, transit.busRoutes.flatMap((route) => route.stopIds));
 }

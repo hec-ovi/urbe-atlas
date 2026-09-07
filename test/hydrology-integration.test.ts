@@ -49,7 +49,7 @@ function expectLandClear(city: CityBlueprint): void {
   for (const ground of city.volumetric.ground) {
     expect(overlap([ground.polygon], water), `${ground.surface} ground`).toBeLessThanOrEqual(0.01);
   }
-  for (const station of [...city.transit.trainStations, ...city.transit.subwayStations]) {
+  for (const station of city.transit.subwayStations) {
     expect(overlap([station.platform], water), `${station.id} platform`).toBeLessThanOrEqual(0.01);
   }
 }

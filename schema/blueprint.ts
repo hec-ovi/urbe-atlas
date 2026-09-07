@@ -285,6 +285,7 @@ export interface Envelope {
 }
 
 export interface Transit {
+  /** Saved-format compatibility collections; city generation publishes these empty. */
   busStops: BusStop[];
   busRoutes: BusRoute[];
   trainStations: Station[];

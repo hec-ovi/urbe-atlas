@@ -11,7 +11,7 @@ Compact decisions from the deep research pass. Full reasoning lives in the agent
 - No implementation gives connectivity for free; the reachability check is a hard test.
 
 ## PRNG and determinism
-- Core RNG: sfc32 seeded via splitmix32 (corrected reference version, discard first 12 outputs). One named sub-stream per subsystem (boundary, field, streets.highway/road/street, districts, blocks, parcels, transit.bus/train/subway), each derived by hashing label + index into the parent seed: retuning one subsystem never reshuffles another.
+- Core RNG: sfc32 seeded via splitmix32 (corrected reference version, discard first 12 outputs). One named sub-stream per subsystem (boundary, field, streets.highway/road/street, districts, blocks, parcels, transit.subway), each derived by hashing label + index into the parent seed: retuning one subsystem never reshuffles another.
 - Determinism hygiene: no Math.random/Date anywhere in generation; explicit total-order sorts with id tie-breaks; no iteration over identity-keyed Sets/Maps; Math.sin/cos are not spec-identical across engines, so trig results snap to the fixed-point grid immediately.
 
 ## Geometry kernel and parcels
@@ -25,14 +25,12 @@ Compact decisions from the deep research pass. Full reasoning lives in the agent
 - Lane 3.0 urban, 3.35 on transit routes. Carriageway: street 6.7-8.5, road 8.5-9.75, highway 3.75/lane.
 - Sidewalk through zone: 1.5 min, 1.8 desired, 2.4 adjacent to traffic; 1.5-2.1 residential, 2.4-3.7 downtown/commercial; wider on roads than streets, none on highways.
 
-## Transit
-- Stop spacing (core/mid/outer, m): bus 300/400/600; subway 700/1000/1400; train 1500/3000/5000. Bus parallel-route spacing ~800.
-- Counts by population P: bus routes round(12*(P/100k)^0.65) clamp [4,250]; subway lines round(3.5*(P/1M)^0.6), 0 below 300k; train lines round(4*(P/1M)^0.5), 0 below 150k; main train stations 1 below 500k, 2 to 2M, 3-5 above.
-- Topology by size: small radial bus only; mid radial bus + 1 rail terminus; large radial+ring subway + grid bus feeders + regional rail through 1-3 big stations.
-- Route construction (deterministic): pick terminal anchor pairs by weight (CBD, interchanges, corpo/office, hospital, mall, dense residential, industrial, coverage for poor districts ~30-40% of routes), connect by shortest path on street graph weighted edgeLength/(1+adjacentDemand) with a penalty on already-served edges, snap stops at target spacing, far-side of intersections, >= 26 m clearance.
-- Station dimensions (m): metro island platform 140 long x 8 wide (car 20-23 m, 6-car train, Delhi Metro practice; island width typical 6-10, egress-derived minimum 6-7.3); regional at-grade platform 180 x 6 (Metra/FRA, typical 150-200 long, 4-6 wide). Cut-and-cover metro platform at -12 m: a standard two-level box (concourse over platform) runs 12-17 m deep. Street stair shaft 8 m along the street by up to 3 m across (NFPA 130 minimum stair 1.12 m, built 2.4-3.6 m); concourse corridor 4 m (code 1.5-2.4, typical 3-5). NFPA 130 caps platform-to-exit travel at 100 m.
-- Street furniture (m): street trees 8 apart in downtown and commercial districts, 12 elsewhere (NACTO Urban Street Design Guide: 6-9 dense retail, 9-15 residential); furniture stands in the kerb-side furnishing zone, up to 0.6 wide or 40% of a narrow sidewalk, so the through zone stays clear; 6 clear of a crossing, a stop, a station entrance or a door. A light pole every third point, so 24 to 36 apart (practice 25-30). Signals: heads on every arm of an at-grade junction of 3+ streets where one is a road; the mast reaches from the kerb to the roadway centerline (right-hand traffic), 4.4 m on a street, 6.75 on a road, inside the 4.9-16.8 range of standard mast arms.
-- Coverage targets as tests: >= 90% residential parcels within 400 m of a bus stop; every station on >= 1 line; each rail network connected.
+## Subways
+- Reference subway spacing (core/mid/outer, m): 700/1000/1400.
+- Service target: round(3.5*(P/1M)^0.6), clamped to 1-6 lines. The pre-parcel population forecast fixes this target.
+- Station dimensions (m): metro island platform 140 long x 8 wide (car 20-23 m, 6-car train, Delhi Metro practice; island width typical 6-10, egress-derived minimum 6-7.3). Cut-and-cover metro platform at -12 m: a standard two-level box (concourse over platform) runs 12-17 m deep. Street stair shaft 8 m along the street by up to 3 m across (NFPA 130 minimum stair 1.12 m, built 2.4-3.6 m); concourse corridor 4 m (code 1.5-2.4, typical 3-5). NFPA 130 caps platform-to-exit travel at 100 m.
+- Street furniture (m): street trees 8 apart in downtown and commercial districts, 12 elsewhere (NACTO Urban Street Design Guide: 6-9 dense retail, 9-15 residential); furniture stands in the kerb-side furnishing zone, up to 0.6 wide or 40% of a narrow sidewalk, so the through zone stays clear; 6 clear of a crossing, a station entrance or a door. A light pole every third point, so 24 to 36 apart (practice 25-30). Signals: heads on every arm of an at-grade junction of 3+ streets where one is a road; the mast reaches from the kerb to the roadway centerline (right-hand traffic), 4.4 m on a street, 6.75 on a road, inside the 4.9-16.8 range of standard mast arms.
+- Every subway station belongs to a line; the network is connected and each line serves at least two stations.
 
 ## Urban statistics and ratios
 - Facility ratios (residents per facility): hospital 75k (US 1/56k, URDPFI 1/250k), clinic 15k (URDPFI), police station 50k (URDPFI 1/90k, US 1/28k), fire by radius not ratio (1.5 mi first engine), restaurant ~590 (1.7/1000 US metro), coffee shop 3.6k (IBISWorld), supermarket/pharmacy ~5k, hotel 1 per 5.3k residents (AHLA), community mall 1 per ~100k (ICSC ladder: neighborhood 2.8-11.6k m2 GLA, community 11.6-37k, regional 37-74k).

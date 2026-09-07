@@ -39,6 +39,8 @@
 - src/transit: subway plans with full sidewalk-connected entrance bays. src/transit/CONTRACT.md. Depends on street construction and zoning capacity; reservations/ owns entrance land geometry.
 - src/streets/construction: road profiles and normalized per-side curb, gutter and paved dimensions before parcels. src/streets/construction/CONTRACT.md. Depends on the Atlas graph, geometry and district contracts; corridor format support governs production reservations.
 
+- [Design references](RESEARCH.md): geometry, subway dimensions and urban statistics behind the published contracts.
+
 ## Measurements
 
 - [Generation](PERFORMANCE.md): full-city and HTTP worker timings, stage CPU costs and bounded reproduction.

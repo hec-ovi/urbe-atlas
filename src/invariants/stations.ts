@@ -17,7 +17,7 @@ const overlaps = (a: Polygon, b: Polygon): boolean =>
   intersection([a], [b]).reduce((sum, p) => sum + area(p), 0) > CONNECTED_AREA;
 
 export function checkStations(bp: CityBlueprint): void {
-  for (const st of [...bp.transit.trainStations, ...bp.transit.subwayStations]) {
+  for (const st of bp.transit.subwayStations) {
     checkStation(st);
   }
 }
@@ -31,12 +31,6 @@ function checkStation(st: Station): void {
   }
   if (st.box.bottom !== st.level || st.box.top <= st.box.bottom) {
     throw invariantFailure(`station ${st.id} box does not stand on its platform`, st.box);
-  }
-  if (st.level >= LEVELS.ground) {
-    // at grade the entrance is a place on the sidewalk beside the platform: no passage to build
-    if (st.shafts.length > 0) throw invariantFailure(`station ${st.id} is at grade but publishes shafts`);
-    if (st.accessPaths.length > 0) throw invariantFailure(`station ${st.id} is at grade but publishes access paths`);
-    return;
   }
   if (st.shafts.length !== st.entrances.length) {
     throw invariantFailure(`station ${st.id} has ${st.shafts.length} shafts for ${st.entrances.length} entrances`);

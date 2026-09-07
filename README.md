@@ -16,11 +16,11 @@ npm run generate -- --seed urbe --out city.json
 
 The preview opens creation with a fresh seed and a template dropdown. Generate city shows completed server stages in a blocking dialog; Cancel terminates the worker and removes the partial city. Saved cities open at `?city=id`; the Atlas logo returns to creation. Forms load from `/api/forms/creation` and `/api/forms/visualization`. `ATLAS_CITY_DATA_DIR` selects persistent storage, default `.atlas-cities`. Saved blueprints can be opened and downloaded. Generate exteriors starts a separate Engine job for the displayed blueprint; building previews open after verification.
 
-Generator flags: `--size N`, `--irregularity X`, `--max-floors N`, `--no-highways`, `--no-trains`, `--no-subways`, `--no-alleys`. Only `--seed` is required; everything else has a documented default in `schema/params.ts`.
+Generator flags: `--size N`, `--irregularity X`, `--max-floors N`, `--no-highways`, `--no-subways`, `--no-alleys`. Only `--seed` is required; everything else has a documented default in `schema/params.ts`.
 
 ## In
 
-`generateCity(params)` in TypeScript, or the CLI above. Params are a seed, city size, district count range, floor caps global and per district kind, wealth tier weights, feature toggles for highways, trains, subways, alleys, air and underground tunnels, and optional `hydrology: { type: "lagoon" | "river" | "sea-coast" }`.
+`generateCity(params)` in TypeScript, or the CLI above. Params are a seed, city size, district count range, floor caps global and per district kind, wealth tier weights, feature toggles for highways, subways, alleys, air and underground tunnels, and optional `hydrology: { type: "lagoon" | "river" | "sea-coast" }`.
 
 ## Out
 
@@ -29,12 +29,12 @@ One JSON blueprint (`schema/blueprint.ts`):
 - **districts** with kind (downtown, commercial, residential, industrial, mixed), wealth tier and floor cap, each a rectangle on the one city grid, clipped to the city outline
 - **streets** as a planar graph: street, road and highway classes with carriageway and sidewalk widths, exact distance-to-height profiles for driveable ramps, level-separated turn groups at overpasses, straight row and column centerlines, pedestrian crossings at intersections, traffic signals with their mast arms, street furniture (trees, light poles, bins) in the kerb-side strip, deterministic highway decks, ramps and support columns kept clear of pedestrian paving
 - **blocks** with continuous sidewalk rings, a 0.2 m curb, 0.3 m gutter and modeled 1 m panels, and rounded curb corners at intersections, and **parcels** typed residential through coffee shop, tiered poor to high rich, each with a lot, a footprint that hosts the core rectangle its type needs, derived from interior's core feasibility (12.14 x 13.74 m for elevator types such as offices and hotels, 11.14 x 9.74 m for the rest), a street access point and a 3D envelope whose floors stay within what that core allows
-- **transit**: bus stops and routes over street edges, forward-only train and subway paths with their corridor widths, and stations with their platform box and street-level entrances. Each underground entrance publishes its shaft plus a continuous 3D route through switchback stairs and a level passage to a platform handoff. At-grade track and platforms reserve their right-of-way before parcels are cut. Train platforms stay outside highway decks; subway entrances choose sidewalk space clear of buildings.
+- **transit**: connected subway lines, platforms and reserved street-level entrance bays. Each entrance has a shaft and a continuous 3D route through switchback stairs and a level passage to its platform.
 - **hydrology**, when requested: exact water-surface polygons, shoreline paths and construction bands, water material keys, and typed bridge or tunnel contacts where a street or railway crosses the water. Land, buildings and station entrances stay outside the reserved water.
 - **volumetric**: one prism per parcel plus ground cover polygons, for map rendering; the preview traces floor elevations on each prism without generating hidden caps between floors
 - **stats**: population estimate and parcel counts per type and per district
 
-The generator enforces its own coherence before it returns: connected street graph, street edges that never fold back over their own sidewalk band, bus routes that stay inside level-compatible junction groups, every parcel reachable from a sidewalk of its access edge, continuous sidewalks linked by crossings, connected rail networks, parcels that never overlap, footprints that host their type's core rectangle behind the shell wall, ground cover that fills the city without overlaps, and water plans that keep buildings and untyped infrastructure contacts out of water. `CONTRACT.md` lists every invariant and the closed error set.
+The generator enforces its own coherence before it returns: connected street graph, street edges that never fold back over their own sidewalk band, every parcel reachable from a sidewalk of its access edge, continuous sidewalks linked by crossings, connected subway networks, parcels that never overlap, footprints that host their type's core rectangle behind the shell wall, ground cover that fills the city without overlaps, and water plans that keep buildings and untyped infrastructure contacts out of water. `CONTRACT.md` lists every invariant and the closed error set.
 
 Saved examples live in `samples/`; each records its blueprint version.
 
