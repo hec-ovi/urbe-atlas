@@ -12,7 +12,7 @@
       "street.street": true, "street.road": true, "street.highway": true, "street.alley": true,
       "hydrology.water": true, "hydrology.shoreline": true,
       "diagnostic.highwayCenterlines": false, "diagnostic.highwaySupports": false, "diagnostic.stationAccess": false,
-      "transit.bus": true, "transit.train": true, "transit.subway": true,
+      "transit.subway": true,
       "furniture.guardrail": true, "furniture.signal": false, "furniture.tree": false, "furniture.pole": false, "furniture.bin": false,
       "districts": false, "interiorsOnly": false
     }
@@ -82,10 +82,8 @@
           ]
         },
         {
-          "id": "transit", "title": "Public transit", "description": "Bus, train and underground subway", "open": true,
+          "id": "transit", "title": "Public transit", "description": "Underground subway", "open": true,
           "items": [
-            { "key": "transit.bus", "label": "bus", "swatch": "#51d68a", "default": true },
-            { "key": "transit.train", "label": "train", "swatch": "#59ccff", "default": true },
             { "key": "transit.subway", "label": "subway", "swatch": "#f472b6", "default": true }
           ]
         },

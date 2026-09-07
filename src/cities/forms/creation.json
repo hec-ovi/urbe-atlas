@@ -10,7 +10,7 @@
     "districtCount": [1, 3],
     "maxFloors": 40,
     "tierWeights": {"poor": 0.3, "mid": 0.45, "rich": 0.2, "high_rich": 0.05},
-    "features": {"highways": true, "trains": true, "subways": true, "alleys": true, "airTunnels": true, "undergroundTunnels": true},
+    "features": {"highways": true, "subways": true, "alleys": true, "airTunnels": true, "undergroundTunnels": true},
     "pavingDesign": {
       "defaultLayoutId": "metre-slabs",
       "districtLayouts": [],
@@ -51,7 +51,7 @@
             "maxFloors": 8,
             "footprintShape": "rectangle",
             "tierWeights": {"poor": 0.3, "mid": 0.45, "rich": 0.2, "high_rich": 0.05},
-            "features": {"highways": false, "trains": false, "subways": false, "alleys": true, "airTunnels": true, "undergroundTunnels": true}
+            "features": {"highways": false, "subways": false, "alleys": true, "airTunnels": true, "undergroundTunnels": true}
           }
         },
         {
@@ -65,7 +65,7 @@
             "maxFloors": 40,
             "footprintShape": "rectangle",
             "tierWeights": {"poor": 0.3, "mid": 0.45, "rich": 0.2, "high_rich": 0.05},
-            "features": {"highways": true, "trains": true, "subways": true, "alleys": true, "airTunnels": true, "undergroundTunnels": true}
+            "features": {"highways": true, "subways": true, "alleys": true, "airTunnels": true, "undergroundTunnels": true}
           }
         },
         {
@@ -79,7 +79,7 @@
             "maxFloors": 60,
             "footprintShape": "rectangle",
             "tierWeights": {"poor": 0.3, "mid": 0.45, "rich": 0.2, "high_rich": 0.05},
-            "features": {"highways": true, "trains": true, "subways": true, "alleys": true, "airTunnels": true, "undergroundTunnels": true}
+            "features": {"highways": true, "subways": true, "alleys": true, "airTunnels": true, "undergroundTunnels": true}
           }
         }
       ],
@@ -167,7 +167,6 @@
       "columns": 2,
       "items": [
         {"type": "toggle", "id": "highways", "path": "features.highways", "label": "Highways", "description": "Elevated through-routes with ramps and supports"},
-        {"type": "toggle", "id": "trains", "path": "features.trains", "label": "Trains", "description": "Grade rail corridors, platforms and stations"},
         {"type": "toggle", "id": "subways", "path": "features.subways", "label": "Subways", "description": "Underground lines, platforms and street entrances"},
         {"type": "toggle", "id": "alleys", "path": "features.alleys", "label": "Alleys", "description": "Pedestrian cuts through long and dense blocks"},
         {"type": "toggle", "id": "airTunnels", "path": "features.airTunnels", "label": "Air tunnels", "description": "Allow downstream bridges and overhead links"},
