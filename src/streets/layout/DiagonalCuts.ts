@@ -17,8 +17,10 @@ export class DiagonalCuts {
     const firstAngle = random.chance(0.5) ? 30 : 45;
     const byId = new Map(plan.edges.map(edge => [edge.id, edge]));
     const parking = new Set(plan.modules.parking?.map(bay => bay.blockId));
+    const highway = new Set(plan.runs.find(run => run.id === plan.highwayRunId)?.edges.map(member => member.edgeId));
     const candidates = plan.blocks.map(block => ({ block, frontages: block.edgeIds.map(id => byId.get(id)!), rank: random.next() }))
       .filter(({ block, frontages }) => !parking.has(block.id) && frontages.length === 4
+        && !frontages.some(edge => highway.has(edge.id))
         && frontages[0].class === 'street' && frontages[3].class === 'street'
         && block.outer[0][0] > plan.bounds.min[0] + 15 && block.outer[0][1] > plan.bounds.min[1] + 15
         && block.outer[2][0] < plan.bounds.max[0] - 15 && block.outer[2][1] < plan.bounds.max[1] - 15)

@@ -8,6 +8,7 @@ import { intersection } from './geom/clip';
 import { area } from './geom/polygon';
 import { applyHighwayElevationProfiles } from './streets/Highways';
 import { LEVELS } from './levels';
+import { HighwayUnderpasses } from './streets/layout/underpasses';
 
 /** Connects district choices to the dimensioned street layout. */
 export class CityLayout {
@@ -51,9 +52,14 @@ export class CityLayout {
       plan.modules.parking = plan.modules.parking.filter(bay => kept.has(bay.blockId));
       plan.modules.parking.forEach(bay => { bay.blockId = kept.get(bay.blockId)!; });
     }
+    const underpasses = HighwayUnderpasses.apply(plan, {
+      boundary: [[0, 0], [params.size.width, 0], [params.size.width, params.size.depth], [0, params.size.depth]],
+      water, clearHeight: design.crossings!.pedestrianClearance,
+    });
     const cover = ModuleGround.cover(plan.modules);
     const byBlock = new Map<string, ModuleGroundRegion[]>(plan.blocks.map(block => [block.id, []]));
     cover.forEach(region => byBlock.get(region.blockId)?.push(region));
+    underpasses.forEach((regions, blockId) => byBlock.get(blockId)?.push(...regions));
     const blocks = plan.blocks.map(block => ({
       boundary: block.outer, boundaryRegions: [block.outer], interior: block.interiors ?? [block.interior], edgeIds: block.edgeIds,
       sidewalk: byBlock.get(block.id)!.filter(region => region.surface === 'sidewalk').map(region => region.polygon),
