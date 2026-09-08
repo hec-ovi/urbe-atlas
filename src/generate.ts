@@ -40,6 +40,7 @@ import { area, bounds, centroid, distanceToOutline, pointInPolygon } from './geo
 import { length as lineLength, pointAt } from './geom/polyline';
 import { closestOnSegment, dist } from './geom/vec';
 import { GradeDatum } from './streets/construction/datum';
+import { applyLandmarkFloors } from './landmarks';
 import { planHydrology, withHydrologyStructures } from './hydro/Hydrology';
 
 export const BLUEPRINT_VERSION = '0.21.0';
@@ -400,10 +401,11 @@ export function generateCity(input: AtlasParams, onProgress?: ProgressObserver):
   };
 
   progress(10, 'Validating city');
-  Invariants.check(blueprint);
+  const result = params.landmarkFloors ? applyLandmarkFloors(blueprint, params.landmarkFloors) : blueprint;
+  Invariants.check(result);
   progress(11, 'Preparing shared street geometry');
   progress(12, 'Serializing blueprint');
-  return blueprint;
+  return result;
 }
 
 /** Point on the block's sidewalk band closest to any vertex of the lot. */

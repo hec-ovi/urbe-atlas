@@ -1,5 +1,7 @@
 # Changelog
 
+Unreleased: optional landmark floor selections give elevator-hosted commercial towers exact heights within district caps. Saved parameters reproduce the selected envelopes and planning prisms.
+
 0.21.0 blueprint: a seeded four-lane highway crosses the city interior. Blocks reserve its full width, and supports keep clear of ground-level streets and sidewalks.
 
 0.20.0 blueprint: public transit is subway-only. Highway decks, subway entrance reservations and subway access paths remain available. Legacy surface-transit collections are empty.

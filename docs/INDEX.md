@@ -1,5 +1,7 @@
 # Box map
 
+- src/landmarks: exact floors for selected elevator-hosted commercial towers, with saved parameters that reproduce the result. Input: `src/landmarks/schema.ts`, output: `schema/blueprint.ts`. src/landmarks/CONTRACT.md. Depends on the root blueprint and its zoning hosting guarantees; the root generator applies it before validation.
+
 - src/streets/construction/modules/diagonal: local 30/45 degree block-cut templates with complete panels and rounded junction returns. Input/output: `src/streets/construction/modules/diagonal/schema.ts`. src/streets/construction/modules/diagonal/CONTRACT.md. Depends on street modules and geometry.
 
 - src/streets/layout: rectangular street grid sized in complete panel groups, with a seeded interior highway reservation, outer sidewalks, rare 30/45 degree block cuts, sparse parking and short guardrail groups. Input/output: `src/streets/layout/schema.ts`. src/streets/layout/CONTRACT.md. Depends on street construction dimensions, street modules and Atlas seed streams.

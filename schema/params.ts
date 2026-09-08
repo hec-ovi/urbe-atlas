@@ -14,6 +14,8 @@ import type { StreetDesign } from '../src/streets/construction/schema/design';
 export type { StreetDesign } from '../src/streets/construction/schema/design';
 import type { PavingDesign } from '../src/streets/construction/paving/schema';
 export type { PavingDesign } from '../src/streets/construction/paving/schema';
+import type { LandmarkFloors } from '../src/landmarks/schema';
+export type { LandmarkFloors } from '../src/landmarks/schema';
 
 export interface AtlasParams {
   seed: Seed;
@@ -33,6 +35,8 @@ export interface AtlasParams {
   maxFloors?: number;
   /** Floor cap per district kind; overrides maxFloors where set. */
   maxFloorsByDistrict?: Partial<Record<DistrictKind, number>>;
+  /** Exact floors for selected elevator-hosted commercial parcels, within district caps. Omitted by default. */
+  landmarkFloors?: LandmarkFloors;
   /** Wealth mix weights, normalized internally. Default { poor: 0.3, mid: 0.45, rich: 0.2, high_rich: 0.05 }. */
   tierWeights?: Partial<Record<WealthTier, number>>;
   features?: FeatureToggles;

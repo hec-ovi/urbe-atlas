@@ -13,6 +13,7 @@ const FIELDS: Record<keyof AtlasParams, true> = {
   districtCount: true,
   maxFloors: true,
   maxFloorsByDistrict: true,
+  landmarkFloors: true,
   tierWeights: true,
   features: true,
   hydrology: true,

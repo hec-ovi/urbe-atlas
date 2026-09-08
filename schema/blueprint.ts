@@ -58,7 +58,8 @@ export interface BlueprintMeta {
   version: string;
   seed: string;
   /** Params after defaults were applied: the exact input that reproduces this blueprint. */
-  params: Omit<Required<AtlasParams>, 'hydrology' | 'pavingDesign'> & Pick<AtlasParams, 'hydrology' | 'pavingDesign'>;
+  params: Omit<Required<AtlasParams>, 'hydrology' | 'pavingDesign' | 'landmarkFloors'>
+    & Pick<AtlasParams, 'hydrology' | 'pavingDesign' | 'landmarkFloors'>;
   /** Axis-aligned bounds of all geometry. */
   bounds: { min: Vec2; max: Vec2 };
   units: 'meters';

@@ -6,6 +6,8 @@ import type { StreetDesign } from '../streets/construction/schema/design';
 import { resolveStreetDesign } from '../streets/construction/Design';
 import { PavingPlanner } from '../streets/construction/paving/PavingPlanner';
 import type { PavingDesign } from '../streets/construction/paving/schema';
+import type { LandmarkFloors } from '../landmarks/schema';
+import { validateLandmarkFloors } from '../landmarks/validate';
 
 export interface ResolvedParams {
   seed: string | number;
@@ -17,6 +19,7 @@ export interface ResolvedParams {
   districtCount: [number, number];
   maxFloors: number;
   maxFloorsByDistrict: Partial<Record<DistrictKind, number>>;
+  landmarkFloors?: LandmarkFloors;
   tierWeights: Record<WealthTier, number>;
   features: Required<FeatureToggles>;
   hydrology?: HydrologyParams;
@@ -97,6 +100,8 @@ export function resolveParams(input: AtlasParams): ResolvedParams {
     }
   }
 
+  const landmarkFloors = input.landmarkFloors === undefined ? undefined : validateLandmarkFloors(input.landmarkFloors);
+
   if (input.tierWeights !== undefined && !isRecord(input.tierWeights)) {
     throw invalidParams('tierWeights must be an object', { field: 'tierWeights' });
   }
@@ -156,6 +161,7 @@ export function resolveParams(input: AtlasParams): ResolvedParams {
     districtCount: [dMin, dMax],
     maxFloors,
     maxFloorsByDistrict,
+    ...(landmarkFloors ? { landmarkFloors } : {}),
     tierWeights,
     features,
     ...(input.hydrology ? { hydrology: { ...input.hydrology } } : {}),
