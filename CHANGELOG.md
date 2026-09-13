@@ -1,8 +1,10 @@
 # Changelog
 
-Unreleased: physical underpass modules carry grade sidewalks beneath elevated highways, with complete curb, gutter and panel construction. Highway frontages reserve their corner land for these connections.
+0.5.0: blueprint 0.22.0 carries `architecture`, the movement plan: reserved widths, driving and walking lanes, legal turns, crossings with signal phases, and highway ramps. SKILL.md tells an agent how to call Atlas.
 
-Unreleased: optional landmark floor selections give elevator-hosted commercial towers exact heights within district caps. Saved parameters reproduce the selected envelopes and planning prisms.
+0.5.0: physical underpass modules carry grade sidewalks beneath elevated highways, with complete curb, gutter and panel construction. Highway frontages reserve their corner land for these connections.
+
+0.5.0: optional landmark floor selections give elevator-hosted commercial towers exact heights within district caps. Saved parameters reproduce the selected envelopes and planning prisms.
 
 0.21.0 blueprint: a seeded four-lane highway crosses the city interior. Blocks reserve its full width, and supports keep clear of ground-level streets and sidewalks.
 
@@ -14,7 +16,7 @@ Unreleased: optional landmark floor selections give elevator-hosted commercial t
 
 0.18 blueprint: orthogonal streets use whole-panel block dimensions, shared physical sidewalk modules, 20 cm curbs, 30 cm gutters, guardrails and sparse parking bays. The preview instances module geometry.
 
-Unreleased: city creation uses templates, fresh entry seeds and URL-based saved-city inspection. Server stage progress appears in a blocking dialog with confirmed worker cancellation. Exact geometry queries use indexed winding and prepared masks.
+0.5.0: city creation uses templates, fresh entry seeds and URL-based saved-city inspection. Server stage progress appears in a blocking dialog with confirmed worker cancellation. Exact geometry queries use indexed winding and prepared masks.
 
 0.4.0: blueprint 0.17.0 publishes continuous 7, 14 and 21 m street profiles, exact lanes and independent pedestrian bands reserved before parcels. Grade rail and complete outboard subway entrance bays reserve land from the zoning forecast; water contacts include actual asymmetric corridors. Shared grid-cell normalization preserves simple ground rings. The preview exposes rectangular footprint selection.
 

@@ -42,8 +42,9 @@ import { closestOnSegment, dist } from './geom/vec';
 import { GradeDatum } from './streets/construction/datum';
 import { applyLandmarkFloors } from './landmarks';
 import { planHydrology, withHydrologyStructures } from './hydro/Hydrology';
+import { planArchitecture } from './architecture/Architecture';
 
-export const BLUEPRINT_VERSION = '0.21.0';
+export const BLUEPRINT_VERSION = '0.22.0';
 export const HYDROLOGY_BLUEPRINT_VERSION = BLUEPRINT_VERSION;
 
 const SUBDIVISION: Record<DistrictKind, SubdivisionConfig> = {
@@ -366,6 +367,8 @@ export function generateCity(input: AtlasParams, onProgress?: ProgressObserver):
     entry.population += z.residents;
   });
 
+  const architecture = planArchitecture({ nodes: streetNodes, edges: streetEdges, highwayStructures: structures });
+
   const blueprint: CityBlueprint = {
     meta: {
       version: hydrology ? HYDROLOGY_BLUEPRINT_VERSION : BLUEPRINT_VERSION,
@@ -384,6 +387,7 @@ export function generateCity(input: AtlasParams, onProgress?: ProgressObserver):
         planningReservations,
         junctions: crossingPlan.junctions,
       } },
+    architecture,
     blocks,
     parcels,
     transit,

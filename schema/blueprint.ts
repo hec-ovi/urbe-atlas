@@ -9,6 +9,7 @@
  */
 
 import type { AtlasParams, DistrictKind, WealthTier } from './params';
+import type { Architecture } from './architecture';
 import type { HydrologyPlan } from '../src/hydro/types';
 import type { StreetConstruction, StreetCrossSection } from '../src/streets/construction/schema/sections';
 import type { EntranceBay } from '../src/transit/reservations/schema';
@@ -44,6 +45,8 @@ export interface CityBlueprint {
   meta: BlueprintMeta;
   districts: District[];
   streets: StreetGraph;
+  /** Movement plan over `streets`. Present on generated worlds; optional when reading older artifacts. */
+  architecture?: Architecture;
   blocks: Block[];
   parcels: Parcel[];
   transit: Transit;

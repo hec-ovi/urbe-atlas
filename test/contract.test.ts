@@ -3,7 +3,7 @@
  * generateCity once, through the real entry point (CONTRACT.md).
  */
 import { describe, expect, it } from 'vitest';
-import { AtlasError, generateCity } from '../src';
+import { ARCHITECTURE_VERSION, AtlasError, generateCity } from '../src';
 import { bandWidth } from '../src/geom/band';
 import { orientedBoundingBox } from '../src/geom/obb';
 import { pointInPolygon } from '../src/geom/polygon';
@@ -277,6 +277,75 @@ describe('errors', () => {
       expect.unreachable();
     } catch (e) {
       expect((e as AtlasError).code).toBe('E_UNSATISFIABLE');
+    }
+  });
+});
+
+describe('architecture', () => {
+  it('publishes lanes, reservations and walking lanes for every street edge', () => {
+    const bp = defaultCity();
+    const plan = bp.architecture!;
+    expect(plan.version).toBe(ARCHITECTURE_VERSION);
+    expect(plan.edges.map(e => e.edgeId)).toEqual(bp.streets.edges.map(e => e.id));
+    expect(plan.nodes.map(n => n.nodeId)).toEqual(bp.streets.nodes.map(n => n.id));
+    const laneIds = new Set<string>();
+    for (const record of plan.edges) {
+      const edge = bp.streets.edges.find(e => e.id === record.edgeId)!;
+      expect(record.reservation).toEqual({ carriageway: edge.width, left: edge.sidewalk.left, right: edge.sidewalk.right });
+      const driving = record.lanes.reduce((sum, lane) => sum + lane.width, 0);
+      expect(driving).toBeLessThanOrEqual(edge.width + 1e-6);
+      if (edge.class !== 'alley') expect(record.lanes.length).toBeGreaterThan(0);
+      for (const lane of [...record.lanes, ...record.walkingLanes]) {
+        expect(laneIds.has(lane.id)).toBe(false);
+        laneIds.add(lane.id);
+      }
+      for (const walk of record.walkingLanes) expect(Math.abs(walk.offset)).toBeGreaterThan(edge.width / 2);
+    }
+  });
+
+  it('lets a car turn only between lanes that meet at one node and one level', () => {
+    const bp = defaultCity();
+    const plan = bp.architecture!;
+    const lanes = new Map(plan.edges.flatMap(e => e.lanes.map(lane => [lane.id, lane] as const)));
+    const levelAt = (edgeId: string, nodeId: string): number => {
+      const edge = bp.streets.edges.find(e => e.id === edgeId)!;
+      const knots = edge.elevationProfile;
+      return edge.to === nodeId ? knots.at(-1)!.level : knots[0].level;
+    };
+    let turns = 0;
+    for (const node of plan.nodes) {
+      const position = bp.streets.nodes.find(n => n.id === node.nodeId)!.position;
+      for (const turn of node.turns) {
+        const from = lanes.get(turn.fromLaneId)!, to = lanes.get(turn.toLaneId)!;
+        expect(distance(from.path.at(-1)!, position)).toBeLessThan(20);
+        expect(distance(to.path[0], position)).toBeLessThan(20);
+        const fromEdge = turn.fromLaneId.split('.')[0], toEdge = turn.toLaneId.split('.')[0];
+        expect(levelAt(fromEdge, node.nodeId)).toBe(turn.level);
+        expect(levelAt(toEdge, node.nodeId)).toBe(turn.level);
+        turns++;
+      }
+    }
+    expect(turns).toBeGreaterThan(0);
+  });
+
+  it('joins each crossing to walking lanes of its own arm, releases it with a phase and ramps a car to the deck', () => {
+    const bp = defaultCity();
+    const plan = bp.architecture!;
+    const walking = new Map(plan.edges.flatMap(e => e.walkingLanes.map(lane => [lane.id, e.edgeId] as const)));
+    const groups = new Map(plan.signalGroups.map(group => [group.id, group]));
+    expect(plan.crossings.length).toBeGreaterThan(0);
+    for (const crossing of plan.crossings) {
+      for (const end of crossing.ends) expect(walking.get(end.walkingLaneId)).toBe(crossing.edgeId);
+      if (crossing.signalGroupId) expect(groups.get(crossing.signalGroupId)!.crossingIds).toContain(crossing.id);
+    }
+    const highways = new Set(bp.streets.edges.filter(e => e.class === 'highway').map(e => e.id));
+    expect(plan.ramps.length).toBe(bp.streets.highwayStructures.reduce((n, s) => n + (s.ramps.start > 0 ? 1 : 0) + (s.ramps.end > 0 ? 1 : 0), 0));
+    for (const ramp of plan.ramps) {
+      expect(ramp.foot).toBe(0);
+      expect(ramp.head).toBe(8);
+      expect(ramp.stretches.every(s => highways.has(s.edgeId))).toBe(true);
+      expect(ramp.deckEdgeIds.length).toBeGreaterThan(0);
+      expect(bp.streets.nodes.find(n => n.id === ramp.gradeNodeId)!.edgeIds.some(id => !highways.has(id))).toBe(true);
     }
   });
 });
