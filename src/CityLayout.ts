@@ -10,12 +10,14 @@ import { area } from './geom/polygon';
 import { applyHighwayElevationProfiles } from './streets/Highways';
 import { LEVELS } from './levels';
 import { HighwayUnderpasses } from './streets/layout/underpasses';
+import { CityDiagonalCandidates } from './CityDiagonalCandidates';
 
 /** Connects district choices to the dimensioned street layout. */
 export class CityLayout {
   static plan(params: ResolvedParams, districtAt: (point: Vec2) => { id: string; kind: DistrictKind }, water: Polygon[]) {
     const design = params.streetDesign;
     const plan = GridLayout.plan({ seed: String(params.seed), size: params.size, profiles: design.profiles, highway: params.features.highways,
+      diagonals: params.diagonals, diagonalCornerClearance: params.diagonalCornerClearance,
       perimeter: { profile: design.sidewalkProfiles[0], finish: params.pavingDesign?.layouts
         .find(value => value.id === params.pavingDesign!.defaultLayoutId)?.familyId ?? 'maintained' },
       sideAt: (point, kind) => {
@@ -54,8 +56,10 @@ export class CityLayout {
       plan.modules.parking.forEach(bay => { bay.blockId = kept.get(bay.blockId)!; });
     }
     LayoutPlanning.retain(plan.planning, kept);
+    const boundary: Polygon = [[0, 0], [params.size.width, 0], [params.size.width, params.size.depth], [0, params.size.depth]];
+    plan.diagonalCandidates = CityDiagonalCandidates.retain(plan.diagonalCandidates, kept, boundary, water);
     const underpasses = HighwayUnderpasses.apply(plan, {
-      boundary: [[0, 0], [params.size.width, 0], [params.size.width, params.size.depth], [0, params.size.depth]],
+      boundary,
       water, clearHeight: design.crossings!.pedestrianClearance,
     });
     const cover = ModuleGround.cover(plan.modules);

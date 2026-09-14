@@ -16,6 +16,8 @@ import type { PavingDesign } from '../src/streets/construction/paving/schema';
 export type { PavingDesign } from '../src/streets/construction/paving/schema';
 import type { LandmarkFloors } from '../src/landmarks/schema';
 export type { LandmarkFloors } from '../src/landmarks/schema';
+import type { DiagonalMode } from '../src/streets/layout/schema';
+export type { DiagonalMode } from '../src/streets/layout/schema';
 
 export interface AtlasParams {
   seed: Seed;
@@ -27,6 +29,10 @@ export interface AtlasParams {
   footprintShape?: FootprintShape;
   /** Numeric road and sidewalk profiles, resolved before parcels. Defaults to the construction catalog. */
   streetDesign?: StreetDesign;
+  /** Default candidates. Applied diagonal streets require explicit legacy-applied compatibility mode. */
+  diagonals?: DiagonalMode;
+  /** Full reserved-mouth clearance from each original rectangle corner, default 3 m. */
+  diagonalCornerClearance?: number;
   /** Optional caller-selected finish families. City geometry uses the dimensioned module catalog. */
   pavingDesign?: PavingDesign;
   /** District count range, inclusive. Default scales with area (about 2 per sqrt(km2), range 0.7x-1.3x): a village gets [1, 2-3], the default 3 km city [4, 8]. */

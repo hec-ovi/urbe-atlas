@@ -45,7 +45,7 @@ import { applyLandmarkFloors } from './landmarks';
 import { planHydrology, withHydrologyStructures } from './hydro/Hydrology';
 import { planArchitecture } from './architecture/Architecture';
 
-export const BLUEPRINT_VERSION = '0.22.0';
+export const BLUEPRINT_VERSION = '0.23.0';
 export const HYDROLOGY_BLUEPRINT_VERSION = BLUEPRINT_VERSION;
 
 const SUBDIVISION: Record<DistrictKind, SubdivisionConfig> = {
@@ -386,6 +386,7 @@ export function generateCity(input: AtlasParams, onProgress?: ProgressObserver):
     },
     districts,
     streets: { nodes: streetNodes, edges: streetEdges, crossings, signals, planting, highwayStructures: structures,
+      diagonalCandidates: layout.diagonalCandidates,
       construction: {
         version: '1.0.0', runs: streetPlan.runs, modules: layout.modules, reservations,
         planningReservations,

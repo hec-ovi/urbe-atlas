@@ -94,6 +94,8 @@ export interface District {
 
 /** Planar street graph. Edges reference nodes; blocks are its interior faces. */
 export interface StreetGraph {
+  /** Independent proposals; no graph, parcel or construction ownership. Optional on saved older blueprints. */
+  diagonalCandidates?: import('../src/streets/layout/schema').LayoutDiagonalCandidate[];
   nodes: StreetNode[];
   edges: StreetEdge[];
   /** Pedestrian crossings linking sidewalks across roadways at intersections. */

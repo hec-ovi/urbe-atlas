@@ -1,12 +1,12 @@
 import { createHash } from 'node:crypto';
 import { expect, it } from 'vitest';
-import { generateCity } from '../src';
+import { generateCity, BLUEPRINT_VERSION } from '../src';
 import { StreetReservations } from '../src/streets/layout/reservations/StreetReservations';
 
-it('publishes native street reservations through normal generation while retaining the baseline highway', () => {
-  const city = generateCity({ seed: 'appeal-1', size: { width: 800, depth: 800 } });
+it('publishes native street reservations with explicit compatible cuts and the baseline highway', () => {
+  const city = generateCity({ seed: 'appeal-1', diagonals: 'legacy-applied', size: { width: 800, depth: 800 } });
   const construction = city.streets.construction!;
-  expect(city.meta.version).toBe('0.22.0');
+  expect(city.meta.version).toBe(BLUEPRINT_VERSION);
   expect(city.parcels).toHaveLength(175);
   expect(createHash('sha256').update(JSON.stringify(city.streets.highwayStructures)).digest('hex'))
     .toBe('b330d73a2c3ad5714dfdd87a24a3fd1006730e3010d64cc80bbb9ec4c0c81680');

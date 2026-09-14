@@ -16,6 +16,8 @@ Only `seed` is required.
 | --- | --- | --- |
 | `seed` | required | String or number. |
 | `size` | `{ width: 1000, depth: 1000 }` | City extent in meters. |
+| `diagonals` | `candidates` | Independent corridor proposals; `off` omits them, explicit `legacy-applied` constructs local cuts. |
+| `diagonalCornerClearance` | 3 | Metres from every complete reserved mouth to original rectangle corners. |
 | `districtCount` | scales with area | `[min, max]` districts. |
 | `maxFloors` | 40 | Global floor cap. |
 | `maxFloorsByDistrict` | none | Floor cap per district kind: downtown, commercial, residential, industrial, mixed. |
@@ -26,6 +28,8 @@ Only `seed` is required.
 `streetDesign`, `pavingDesign`, `footprintShape`, `landmarkFloors` and `irregularity` are advanced; see CONTRACT.md.
 
 ## Response
+
+`streets.diagonalCandidates` contains independent straight corridor proposals with terminal/intermediate face clearance and separate actual construction and padded reservation widths. Candidates change no graph, parcels or meshes.
 
 A `CityBlueprint`: `meta`, `districts`, `streets` (node and edge graph), `architecture` (movement plan), `blocks`, `parcels`, `transit`, optional `hydrology`, `volumetric` and `stats`. Parcels carry type, wealth tier, lot, rectangular footprint, street access and height envelope. The movement plan carries each street's reserved widths, driving lanes and walking lanes, the legal turns at every node, crossings with their signal phases, and the ramps up to highway decks. Full shapes: CONTRACT.md and `schema/`.
 
