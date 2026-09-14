@@ -2,7 +2,7 @@
 
 Purpose: deterministically generates the 2D city blueprint (districts, streets with sidewalks, typed parcels with 3D envelopes, transit and optional hydrology) from a seed and parameters.
 
-Status: package v0.6.0, blueprint v0.23.0, architecture 1.0.0. Breaking changes go through the orchestrator.
+Status: package v0.6.1, blueprint v0.23.0, architecture 1.0.0. Breaking changes go through the orchestrator.
 
 ## Conventions
 - Units: meters. Ground plane XZ, +Y up. 2D points are `[x, z]`; heights along +Y.
@@ -106,12 +106,12 @@ Closed set, thrown as `AtlasError { code, message, details? }` ([schema/blueprin
 - Every parcel footprint hosts the core rectangle its type needs, derived from interior's published core feasibility ([src/zoning/core.ts](src/zoning/core.ts) mirrors the constants of `../interior/schemas/core-feasibility.json`; a test fails when that file moves). A rectangle is a core mode's band length by its plate depth, with the stair shaft sized for the longest flight the recipe allows, plus one 0.5 m snap (the corridor face and the core start land on interior's grid) and twice the deepest facade (0.62 m) on both axes; it fits in either orientation. Walkup 11.14 x 9.74 m, walkup with two stairs 17.64 x 9.74 m, compact elevator core 12.14 x 13.74 m, standard elevator core 20.14 x 9.74 m. A heavy type (offices, corpo, hotel, hospital, mall, factory) hosts the compact rectangle; a light type (residential, commerce, restaurant, coffee_shop, clinic, police, military) hosts the walkup rectangle, and one of the two-stair rectangles when its footprint exceeds 460 m2.
 - Every parcel footprint keeps its type's band end to end, the short side of its rectangle: `HEAVY_BAND` 12.14 m, `LIGHT_BAND` 9.74 m ([src/zoning/bands.ts](src/zoning/bands.ts)). The band is the width between the footprint's two long sides along the whole footprint, where an oblique end cut is a cap and not a narrowing. The zoner assigns a lot only types whose band it hosts; a heavy type whose footprint cannot host its rectangle is retyped to the district's main light type (commerce in downtown, commercial and industrial districts, residential in residential and mixed ones); a lot hosting no rectangle merges into a neighbour parcel or becomes open area.
 - Envelope floors stay within what the hosted core allows: no cap with an elevator rectangle, 6 floors with the two-stair walkup rectangle, 4 with the walkup rectangle alone.
-- Every envelope admits at least one floor at the minimum floor height of its type's family, mirrored from exterior's floor constants: 2.6 residential, 2.8 hotel, 3.4 offices, 3.6 corpo, 3.8 hospital and clinic, 3.0 police and military, 4.5 factory, 3.0 commerce, mall, restaurant and coffee shop.
+- Every generated envelope allocates each floor at the greater of its hard family minimum and Exterior's mirrored generation policy: 4 m clear height plus 0.5 m allowance. Nominal pitch is at least 4.5 m; taller type programs retain their pitch. Maximum height allocates every permitted floor at the nominal pitch, rounded to centimetres. Local [floor policy](src/zoning/floorMinimums.ts) mirrors [Exterior constants](../exterior/schemas/floor-constants.json) without runtime sibling imports.
 
 ## Depends on
 
 - [Source partition](src/geom/partition/CONTRACT.md): retained ground ownership and exact coverage proofs.
 - [Interior](../interior/CONTRACT.md): the mirrored [core-feasibility constants](../interior/schemas/core-feasibility.json) constrain parcel footprints and floor caps.
-- [Exterior](../exterior/CONTRACT.md): the mirrored [floor constants](../exterior/schemas/floor-constants.json) constrain envelope floor heights.
+- [Exterior](../exterior/CONTRACT.md): the mirrored [floor constants and generation policy](../exterior/schemas/floor-constants.json) constrain envelope floor heights.
 
 Atlas imports no sibling runtime data. These compatibility edges keep every generated parcel buildable by the published building contracts.

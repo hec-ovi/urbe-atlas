@@ -3,7 +3,7 @@ import type { CityBlueprint } from '../../schema/blueprint';
 import { invariantFailure } from '../errors';
 import { COMPACT_RECT, coreFit } from '../zoning/core';
 import { isHeavy, minBand } from '../zoning/bands';
-import { minFloorHeight } from '../zoning/floorMinimums';
+import { activeMinFloorHeight } from '../zoning/floorMinimums';
 import { validateFootprints } from '../zoning/validateFootprints';
 import { ALLEY_WIDTH, CURB_WIDTH } from '../streets/widths';
 import { HIGHWAY_EXIT_TOLERANCE } from '../streets/Highways';
@@ -84,7 +84,7 @@ export class Invariants {
       }
     }
 
-    // footprints: the type's band end to end, core feasibility, one floor of the type's family
+    // Footprint hosting and complete floor allocation under the active generation policy.
     validateFootprints(bp);
     for (const p of bp.parcels) {
       if (!hostsBand(p.footprint, minBand(p.type))) {
@@ -102,10 +102,13 @@ export class Invariants {
       if (p.envelope.maxFloors > fit.floorCap) {
         throw invariantFailure(`parcel ${p.id} has ${p.envelope.maxFloors} floors, over the ${fit.floorCap} its core allows`);
       }
-      const minHeight = minFloorHeight(p.type);
-      if (p.envelope.maxHeight < minHeight - 1e-6) {
+      const minHeight = activeMinFloorHeight(p.type);
+      const minimumTotal = Math.round(p.envelope.maxFloors * minHeight * 100) / 100;
+      const nominalTotal = Math.round(p.envelope.maxFloors * p.envelope.floorHeight * 100) / 100;
+      if (!Number.isFinite(p.envelope.floorHeight) || p.envelope.floorHeight < minHeight
+        || !Number.isFinite(p.envelope.maxHeight) || p.envelope.maxHeight < minimumTotal || p.envelope.maxHeight !== nominalTotal) {
         throw invariantFailure(
-          `parcel ${p.id} (${p.type}) allows ${p.envelope.maxHeight} m, below the ${minHeight} m minimum floor of its family`,
+          `parcel ${p.id} (${p.type}) floor allocation requires at least ${minHeight} m pitch and ${nominalTotal} m nominal total height`,
         );
       }
     }

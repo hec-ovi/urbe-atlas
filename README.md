@@ -36,6 +36,8 @@ One JSON blueprint (`schema/blueprint.ts`):
 - **volumetric**: one prism per parcel plus ground cover polygons, for map rendering; the preview traces floor elevations on each prism without generating hidden caps between floors
 - **stats**: population estimate and parcel counts per type and per district
 
+Building envelopes allocate at least 4.5 m per floor for the default 4 m clear height and 0.5 m allowance. Taller building programs retain their nominal pitch.
+
 The generator enforces its own coherence before it returns: connected street graph, street edges that never fold back over their own sidewalk band, every parcel reachable from a sidewalk of its access edge, continuous sidewalks linked by crossings, connected subway networks, parcels that never overlap, footprints that host their type's core rectangle behind the shell wall, ground cover that fills the city without overlaps, and water plans that keep buildings and untyped infrastructure contacts out of water. `CONTRACT.md` lists every invariant and the closed error set.
 
 Saved examples live in `samples/`; each records its blueprint version.

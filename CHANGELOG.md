@@ -1,5 +1,7 @@
 # Changelog
 
+0.6.1: building envelopes allocate the default 4 m clear height with a 0.5 m floor allowance, preserving taller building programs.
+
 0.6.0: blueprint 0.23.0 publishes independent diagonal corridor candidates by default, with complete original-face clearance and separate construction/reservation dimensions. Explicit `legacy-applied` preserves constructed local cuts.
 
 0.5.1: source street reservations retain frontage/corner supports, exact ground ownership, native six-metre parking and protected station/highway references.
