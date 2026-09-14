@@ -7,6 +7,7 @@ import { highwayEnvelopes } from '../../construction/highway';
 import { difference, intersection, union } from '../../../geom/clip';
 import { PolygonIndex } from '../../../geom/PolygonIndex';
 import { invariantFailure, unsatisfiable } from '../../../errors';
+import { UnderpassPlanning } from './UnderpassPlanning';
 import { cornerDimensions, placementKey, turnPoint } from './Placement';
 import type { GridLayoutPlan, UnderpassBlockGround, UnderpassSettings } from './schema';
 
@@ -72,6 +73,9 @@ export class HighwayUnderpasses {
         const id = `underpass:${node.id}:${turn}`;
         const placement: ModulePlacement = { moduleId: module.definition.id, blockId: id, origin, turn,
           count: 1, step: 2, finish: first.finish };
+        UnderpassPlanning.replace(plan, { ownerId: id, nodeId: node.id, first, last, origin, turn,
+          gradeEdgeIds: grade.map(edge => edge.id), highwayEdgeIds: highway.map(edge => edge.id),
+          length: startReturn + highway[0].width + 1 + endReturn, width: Math.min(startWidth, endWidth), startReturn, endReturn });
         definitions.set(module.definition.id, module.definition);
         placements.push(placement);
         frontages.push({ id, boundary });

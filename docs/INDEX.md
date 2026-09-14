@@ -1,6 +1,6 @@
 # Box map
 
-- src/streets/layout/underpasses: continuous grade sidewalk modules beneath clear elevated highway crossings. Input/output: `src/streets/layout/underpasses/schema.ts`. src/streets/layout/underpasses/CONTRACT.md. Depends on layout, underpass modules, physical highway clearance and geometry; CityLayout consumes its block paving.
+- src/streets/layout/underpasses: continuous grade sidewalk modules and authored support handoffs beneath clear elevated highway crossings. Input/output: `src/streets/layout/underpasses/schema.ts`. src/streets/layout/underpasses/CONTRACT.md. Depends on layout, underpass modules, physical highway clearance and geometry; CityLayout consumes its block paving.
 
 - src/streets/construction/modules/underpass: complete physical sidewalks across an elevated highway opening. Input/output: `src/streets/construction/modules/underpass/schema.ts`. src/streets/construction/modules/underpass/CONTRACT.md. Depends on street modules and geometry.
 

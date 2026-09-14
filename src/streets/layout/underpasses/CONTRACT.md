@@ -6,7 +6,7 @@ Constructs continuous grade sidewalks beneath the layout's elevated highway.
 
 Each interior highway intersection has two opposite grade arms. Each sidewalk joins its original end widths and lateral frontages. The narrower width continues beneath the highway. Ground roadway excludes the new module owners; the module supplies every physical prism and matching planning cover. Existing streets, building land, IDs and unused module placements retain their geometry.
 
-The entire owner stays inside city land and outside water and low deck solids at the caller's pedestrian clearance. Later highway supports reserve the completed sidewalk. Saved frontages identify each underpass owner. Returned regions keep block sidewalk and curb queries aligned with physical paving.
+The entire owner stays inside city land and outside water and low deck solids at the caller's pedestrian clearance. Later highway supports reserve the completed sidewalk. Saved frontages identify each underpass owner. Authored support records replace the swallowed corner arcs, trim adjoining frontages at their original straight-module endpoints, and publish the grade-facing and highway-facing spans. Straight interfaces use null corner references. Non-owning protected records retain the junction, contributing edges and replaced corner IDs. Returned regions keep block sidewalk and curb queries aligned with physical paving.
 
 Errors: `E_INVALID_PARAMS` for invalid clearance; `E_INVARIANT` for missing source corners or incompatible grade geometry; `E_UNSATISFIABLE` when city land or physical clearance cannot fit the underpass.
 
