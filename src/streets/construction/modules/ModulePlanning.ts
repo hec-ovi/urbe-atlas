@@ -14,7 +14,7 @@ export class ModulePlanning {
       frontages: fronts.map(([start, end], side) => {
         const turn = ((side + 2) % 4) as QuarterTurn;
         return { id: frontageId(side), ownerId: input.id, side: side as QuarterTurn, start: [...start], end: [...end],
-          inward: transform([0, 1], [0, 0], turn), pavedWidth: input.width, moduleStationOrigin: [...start],
+          inward: transform([0, 1], [0, 0], turn), pavedWidth: input.width, moduleStationOrigin: [...start], moduleStationEnd: [...end],
           cornerIds: [cornerId(side + 1), cornerId(side)] };
       }),
       corners: corners.map((origin, side): ModuleCornerPlan => ({ kind: 'explicit', id: cornerId(side), ownerId: input.id,
@@ -46,6 +46,7 @@ export class ModulePlanning {
       const station = input.sidewalks[(side + 3) % 4];
       return { id: frontageId(side), ownerId: input.id, side: turn, start: [...start], end: [...end], inward,
         pavedWidth: input.sidewalks[side], moduleStationOrigin: transform([station, -0.5], corners[side].placement.origin, turn),
+        moduleStationEnd: transform([input.panels[side % 2] - input.sidewalks[(side + 1) % 4], -0.5], corners[side].placement.origin, turn),
         cornerIds: [cornerId(side), cornerId(side + 1)] };
     }) };
   }

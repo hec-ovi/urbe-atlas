@@ -104,6 +104,8 @@ export interface ModuleFrontagePlan {
   pavedWidth: SidewalkWidth;
   /** Source module station zero. Parking start/end are measured from this point along the frontage. */
   moduleStationOrigin: Vec2;
+  /** End of the original straight module run, before its next corner support. */
+  moduleStationEnd?: Vec2;
   cornerIds: [string, string];
 }
 
