@@ -5,6 +5,7 @@ import type { BlockModuleInput, ModuleBlock, ModuleConstruction, ModuleDefinitio
 import { guardrail, straight } from './Straight';
 import { parking, parkingSupport } from './Parking';
 import { NativeParking } from './NativeParking';
+import { ModulePlanning } from './ModulePlanning';
 import { perimeterCorner } from './Perimeter';
 
 export class StreetModuleKit {
@@ -107,7 +108,7 @@ export class StreetModuleKit {
       id: input.id,
       outer: rectangle(input.origin[0] - 0.5, input.origin[1] - 0.5, width + 1, depth + 1),
       interior: rectangle(input.origin[0] + west, input.origin[1] + south, lengths[0], lengths[1]),
-      placements: structuredClone(placed),
+      placements: structuredClone(placed), planning: ModulePlanning.block(input),
     };
   }
 

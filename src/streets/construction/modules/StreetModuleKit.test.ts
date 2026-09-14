@@ -26,6 +26,17 @@ describe('StreetModuleKit public construction', () => {
     const kit = new StreetModuleKit();
     const block = kit.block(input);
     const construction = kit.construction();
+    for (const frontage of block.planning!.frontages) {
+      const [first, last] = frontage.cornerIds.map(id => block.planning!.corners.find(corner => corner.id === id)!);
+      expect(frontage.start).toEqual(first.arc.at(-1));
+      expect(frontage.end).toEqual(last.arc[0]);
+      const dx = frontage.end[0] - frontage.start[0], dz = frontage.end[1] - frontage.start[1];
+      expect(frontage.inward[0]).toBeCloseTo(-Math.sign(dz));
+      expect(frontage.inward[1]).toBeCloseTo(Math.sign(dx));
+      expect(first.placement.moduleId).toBe(`corner:${input.sidewalks[(frontage.side + 3) % 4]}:${frontage.pavedWidth}`);
+      expect(construction.placements.some(placement => placement.moduleId === first.placement.moduleId
+        && placement.turn === first.placement.turn && placement.origin.every((n, i) => n === first.placement.origin[i]))).toBe(true);
+    }
     expect(block.outer).toEqual([[9.5, 19.5], [50.5, 19.5], [50.5, 52.5], [9.5, 52.5]]);
     expect(block.interior).toEqual([[14, 22], [46, 22], [46, 46], [14, 46]]);
     expect(baseArea(construction)).toBeCloseTo(signedArea(block.outer) - signedArea(block.interior), 8);

@@ -93,9 +93,41 @@ export interface BlockModuleInput {
   parking?: { side: QuarterTurn; start: number; slots: 1 | 2 | 3; profile?: 'native' }[];
 }
 
+export interface ModuleFrontagePlan {
+  id: string;
+  ownerId: string;
+  side: QuarterTurn;
+  /** Road-facing tangent endpoints; station zero is start, increasing toward end. */
+  start: Vec2;
+  end: Vec2;
+  inward: Vec2;
+  pavedWidth: SidewalkWidth;
+  /** Source module station zero. Parking start/end are measured from this point along the frontage. */
+  moduleStationOrigin: Vec2;
+  cornerIds: [string, string];
+}
+
+export interface ModuleCornerPlan {
+  id: string;
+  ownerId: string;
+  frontageIds: [string, string];
+  /** Published road-facing arc from incoming to outgoing frontage. */
+  center: Vec2;
+  radius: number;
+  arc: Polygon;
+  /** Exact source placement identity, used when another producer replaces this corner. */
+  placement: { moduleId: string; origin: Vec2; turn: QuarterTurn };
+}
+
+export interface ModuleBlockPlan {
+  frontages: ModuleFrontagePlan[];
+  corners: ModuleCornerPlan[];
+}
+
 export interface ModuleBlock {
   id: string;
   outer: Polygon;
   interior: Polygon;
   placements: ModulePlacement[];
+  planning?: ModuleBlockPlan;
 }
