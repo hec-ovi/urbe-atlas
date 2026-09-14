@@ -6,6 +6,7 @@ import { Rng } from '../../core/rng';
 import { invalidParams } from '../../errors';
 import { axis, type GridAxis } from './Axis';
 import { crossSection, sideSection } from './Sections';
+import { parkingSection, supportsNativeParking } from './ParkingSections';
 import { LayoutPlanning } from './LayoutPlanning';
 import { DiagonalCuts } from './DiagonalCuts';
 import { LayoutCandidates } from './LayoutCandidates';
@@ -92,11 +93,15 @@ export class GridLayout {
         const eligible = sidewalks.map((width, side) => ({ width, side: side as QuarterTurn,
           length: panels[side % 2] - sidewalks[(side + 1) % 4] - sidewalks[(side + 3) % 4] }))
           .filter(candidate => candidate.width === 6 && candidate.length >= 32
-            && frontages[candidate.side].crossSection!.runId !== highwayRunId);
+            && frontages[candidate.side].crossSection!.runId !== highwayRunId
+            && supportsNativeParking(frontages[candidate.side].crossSection!.sidewalks[candidate.side < 2 ? 'left' : 'right']));
         if (eligible.length && rng.chance(0.15)) {
           const selected = eligible[rng.int(0, eligible.length - 1)];
           const slots = selected.length >= 38 && rng.chance(0.25) ? 3 : 2;
           parking.push({ side: selected.side, start: rng.int(4, Math.floor((selected.length - 12 - slots * 6) / 2)) * 2, slots, profile: 'native' });
+          const side = selected.side < 2 ? 'left' : 'right';
+          const section = frontages[selected.side].crossSection!;
+          section.sidewalks[side] = parkingSection(section.sidewalks[side]);
         }
         const guardrails: BlockModuleInput['guardrails'] = [];
         for (let side = 0; side < 4 && guardrails.length < 2; side++) {

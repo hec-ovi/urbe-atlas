@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { LayoutPlanning } from './LayoutPlanning';
 import { GridLayout } from './GridLayout';
+import { ModuleGround } from '../construction/modules/ModuleGround';
+import { difference } from '../../geom/clip';
 import type { GridLayoutInput } from './schema';
-import type { Polygon } from '../../../schema/blueprint';
+import type { Polygon, Vec2 } from '../../../schema/blueprint';
 
 const area = (ring: Polygon) => ring.reduce((sum, p, i) => {
   const q = ring[(i + 1) % ring.length];
@@ -15,7 +17,8 @@ const input: GridLayoutInput = {
     shoulders: { left: 0, right: 0 } })),
   sideAt: (point, kind) => ({ finish: 'maintained', profile: {
     id: kind === 'road' ? 'wide' : point[0] < 500 ? 'normal' : 'narrow',
-    curb: 0.2, border: 0, furnishing: 0, walking: kind === 'road' ? 6 : point[0] < 500 ? 4 : 2, frontage: 0,
+    curb: 0.2, border: kind === 'road' ? 1 : 0, furnishing: kind === 'road' ? 1 : 0,
+    walking: kind === 'road' ? 3 : point[0] < 500 ? 4 : 2, frontage: kind === 'road' ? 1 : 0,
     edge: { curbRise: 0.2, gutter: { width: 0.3, lip: { width: 0.02, height: 0.02, side: 'road' } } },
   } }),
 };
@@ -88,7 +91,7 @@ describe('GridLayout public plan', () => {
       expect(bay.start).toBeGreaterThanOrEqual(8);
       expect(bay.slots.map(area)).toEqual(Array(bay.slotCount).fill(15));
       expect(bay.profile).toBe('native');
-      if (bay.profile === 'native') expect(bay.walkingClearance).toBeGreaterThanOrEqual(2);
+      if (bay.profile === 'native') expect(bay.walkingClearance).toBeGreaterThanOrEqual(3.5);
     }
     const rails = plan.modules.placements.filter(placement => placement.moduleId === 'guardrail:2');
     const railBlocks = new Set(rails.map(rail => rail.blockId));
@@ -99,6 +102,29 @@ describe('GridLayout public plan', () => {
     const definitions = new Set(plan.modules.definitions.map(definition => definition.id));
     expect(plan.modules.placements.every(placement => definitions.has(placement.moduleId))).toBe(true);
     expect(plan.modules.placements.reduce((sum, placement) => sum + placement.count, 0)).toBeGreaterThan(definitions.size * 100);
+  });
+
+  it('reserves the complete native walking strip on its actual paved receiving land', () => {
+    const plan = GridLayout.plan(input), ground = ModuleGround.cover(plan.modules);
+    for (const bay of plan.modules.parking ?? []) {
+      if (bay.profile !== 'native') continue;
+      const face = plan.planning.frontages.find(frontage => frontage.id === bay.frontageId)!;
+      const edge = plan.edges.find(edge => face.edgeIds.includes(edge.id))!;
+      const side = edge.crossSection!.sidewalks[bay.side < 2 ? 'left' : 'right'];
+      const walking = side.geometry!.intervals.find(interval => interval.role === 'walking')!;
+      expect([walking.start, walking.end, side.bands.walking]).toEqual([3, 6.5, 3.5]);
+      const at = (point: Vec2, offset: number): Vec2 => [point[0] + face.inward[0] * offset, point[1] + face.inward[1] * offset];
+      const [a, b] = bay.footprint;
+      const strip = [at(a, walking.start), at(b, walking.start), at(b, walking.end), at(a, walking.end)];
+      const paved = ground.filter(field => field.blockId === bay.blockId && field.surface === 'sidewalk').map(field => field.polygon);
+      expect(difference([strip], paved)).toEqual([]);
+    }
+    const protectedWalking = GridLayout.plan({...input, sideAt: (point, kind) => {
+      const result = input.sideAt(point, kind);
+      if (kind === 'road') result.profile = {...result.profile, border: 0, furnishing: 0, walking: 6, frontage: 0};
+      return result;
+    }});
+    expect(protectedWalking.modules.parking ?? []).toEqual([]);
   });
 
   it('retains authored support identities when source owners are filtered and renamed', () => {
