@@ -68,6 +68,8 @@ export class GridLayout {
     });
     nodes.forEach(value => { value.connections = [{ level: 0, edgeIds: [...value.edgeIds] }]; });
 
+    const highwayRunId = x.highwayIndex !== undefined ? runs[z.roads.length + x.highwayIndex].id
+      : z.highwayIndex !== undefined ? runs[z.highwayIndex].id : undefined;
     const kit = new StreetModuleKit();
     const blocks: GridLayoutPlan['blocks'] = [];
     const details = Rng.from(input.seed, 'street-details');
@@ -82,11 +84,12 @@ export class GridLayout {
         const parking: BlockModuleInput['parking'] = [];
         const eligible = sidewalks.map((width, side) => ({ width, side: side as QuarterTurn,
           length: panels[side % 2] - sidewalks[(side + 1) % 4] - sidewalks[(side + 3) % 4] }))
-          .filter(candidate => candidate.width >= 4 && candidate.length >= 28);
+          .filter(candidate => candidate.width === 6 && candidate.length >= 32
+            && frontages[candidate.side].crossSection!.runId !== highwayRunId);
         if (eligible.length && rng.chance(0.15)) {
           const selected = eligible[rng.int(0, eligible.length - 1)];
-          const slots = selected.length >= 36 && rng.chance(0.25) ? 3 : 2;
-          parking.push({ side: selected.side, start: rng.int(3, Math.floor((selected.length - 6 - 4 - slots * 4) / 2)) * 2, slots });
+          const slots = selected.length >= 38 && rng.chance(0.25) ? 3 : 2;
+          parking.push({ side: selected.side, start: rng.int(4, Math.floor((selected.length - 12 - slots * 6) / 2)) * 2, slots, profile: 'native' });
         }
         const guardrails: BlockModuleInput['guardrails'] = [];
         for (let side = 0; side < 4 && guardrails.length < 2; side++) {
@@ -113,8 +116,6 @@ export class GridLayout {
     const bounds = { min: [x.min, z.min] as Vec2, max: [x.max, z.max] as Vec2 };
     if (input.perimeter) kit.perimeter({ id: 'fringe', bounds,
       width: sideSection(input.perimeter.profile).geometry!.pavedWidth as SidewalkWidth, finish: input.perimeter.finish });
-    const highwayRunId = x.highwayIndex !== undefined ? runs[z.roads.length + x.highwayIndex].id
-      : z.highwayIndex !== undefined ? runs[z.highwayIndex].id : undefined;
     const plan: GridLayoutPlan = { nodes, edges, runs, blocks, modules: kit.construction(), roadway, bounds,
       ...(highwayRunId ? { highwayRunId } : {}) };
     if (input.diagonals !== false) DiagonalCuts.apply(plan, input);

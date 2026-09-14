@@ -78,8 +78,10 @@ describe('GridLayout public plan', () => {
     expect(new Set(parking.map(bay => bay.blockId)).size).toBe(parking.length);
     for (const bay of parking) {
       expect(bay.start % 2).toBe(0);
-      expect(bay.start).toBeGreaterThanOrEqual(6);
-      expect(bay.slots.map(area)).toEqual(Array(bay.slotCount).fill(8));
+      expect(bay.start).toBeGreaterThanOrEqual(8);
+      expect(bay.slots.map(area)).toEqual(Array(bay.slotCount).fill(15));
+      expect(bay.profile).toBe('native');
+      if (bay.profile === 'native') expect(bay.walkingClearance).toBeGreaterThanOrEqual(2);
     }
     const rails = plan.modules.placements.filter(placement => placement.moduleId === 'guardrail:2');
     const railBlocks = new Set(rails.map(rail => rail.blockId));
@@ -121,6 +123,10 @@ describe('GridLayout public plan', () => {
         const edge = plan.edges.find(value => value.id === member.edgeId)!;
         expect(edge.width).toBe(14);
         expect(edge.crossSection!.lanes).toHaveLength(4);
+      }
+      for (const bay of plan.modules.parking ?? []) {
+        const block = plan.blocks.find(block => block.id === bay.blockId)!;
+        expect(run.edges.some(member => member.edgeId === block.edgeIds[bay.side])).toBe(false);
       }
       for (const block of plan.blocks) {
         expect((block.outer[1][0] - block.outer[0][0] - 1) % 2).toBe(0);
