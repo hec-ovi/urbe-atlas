@@ -8,7 +8,7 @@ import type { ReservationInput } from './schema';
 function input(): ReservationInput {
   const design = resolveStreetDesign();
   const plan = GridLayout.plan({ seed: 'modules', size: { width: 800, depth: 800 }, profiles: design.profiles,
-    diagonals: false, sideAt: () => ({ profile: design.sidewalkProfiles[2], finish: 'maintained' }),
+    diagonals: 'off', sideAt: () => ({ profile: design.sidewalkProfiles[2], finish: 'maintained' }),
     perimeter: { profile: design.sidewalkProfiles[0], finish: 'maintained' } });
   return { planning: plan.planning, layoutBlocks: plan.blocks, modules: plan.modules,
     streets: { nodes: plan.nodes, edges: plan.edges, highwayStructures: [] },

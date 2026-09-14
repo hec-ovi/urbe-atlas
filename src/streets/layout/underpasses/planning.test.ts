@@ -7,7 +7,7 @@ import { HighwayUnderpasses } from './HighwayUnderpasses';
 it('replaces corner supports with explicit underpass spans and retained source handoffs', () => {
   const design = resolveStreetDesign();
   const plan = GridLayout.plan({ seed: 'underpass-supports', size: { width: 800, depth: 800 },
-    profiles: design.profiles, highway: true, diagonals: false,
+    profiles: design.profiles, highway: true, diagonals: 'off',
     sideAt: () => ({ profile: design.sidewalkProfiles[2], finish: 'maintained' }) });
   const highway = new Set(plan.runs.find(run => run.id === plan.highwayRunId)!.edges.map(edge => edge.edgeId));
   for (const edge of plan.edges) if (highway.has(edge.id)) {

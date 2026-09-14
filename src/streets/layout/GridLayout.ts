@@ -8,6 +8,7 @@ import { axis, type GridAxis } from './Axis';
 import { crossSection, sideSection } from './Sections';
 import { LayoutPlanning } from './LayoutPlanning';
 import { DiagonalCuts } from './DiagonalCuts';
+import { LayoutCandidates } from './LayoutCandidates';
 import type { GridLayoutInput, GridLayoutPlan } from './schema';
 
 const rectangle = (x: number, z: number, width: number, depth: number): Vec2[] =>
@@ -15,7 +16,10 @@ const rectangle = (x: number, z: number, width: number, depth: number): Vec2[] =
 
 export class GridLayout {
   static plan(input: GridLayoutInput): GridLayoutPlan {
-    if (input.diagonals !== undefined && typeof input.diagonals !== 'boolean') throw invalidParams('diagonals must be boolean');
+    if (input.diagonals !== undefined && !['candidates', 'off', 'legacy-applied'].includes(input.diagonals))
+      throw invalidParams('diagonals must be candidates, off or legacy-applied');
+    if (!Number.isFinite(input.diagonalCornerClearance ?? 3) || (input.diagonalCornerClearance ?? 3) < 0)
+      throw invalidParams('diagonalCornerClearance must be finite and nonnegative');
     if (input.highway !== undefined && typeof input.highway !== 'boolean') throw invalidParams('highway must be boolean');
     const highwayRng = input.highway ? Rng.from(input.seed, 'highway-route') : undefined;
     const highwayAxis = highwayRng?.int(0, 1);
@@ -123,9 +127,10 @@ export class GridLayout {
       LayoutPlanning.add(planning, perimeter.planning!, [horizontal[0], vertical.at(-1)!, horizontal.at(-1)!, vertical[0]]
         .map(edges => edges.map(edge => edge.id)));
     }
-    const plan: GridLayoutPlan = { planning, nodes, edges, runs, blocks, modules: kit.construction(), roadway, bounds,
+    const plan: GridLayoutPlan = { diagonalCandidates: [], planning, nodes, edges, runs, blocks, modules: kit.construction(), roadway, bounds,
       ...(highwayRunId ? { highwayRunId } : {}) };
-    if (input.diagonals !== false) DiagonalCuts.apply(plan, input);
+    if (input.diagonals === 'legacy-applied') DiagonalCuts.apply(plan, input);
+    else if (input.diagonals !== 'off') plan.diagonalCandidates = LayoutCandidates.plan(plan, input);
     return plan;
   }
 }

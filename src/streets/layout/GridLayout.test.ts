@@ -9,7 +9,7 @@ const area = (ring: Polygon) => ring.reduce((sum, p, i) => {
   return sum + p[0] * q[1] - q[0] * p[1];
 }, 0) / 2;
 const input: GridLayoutInput = {
-  seed: 'modules', diagonals: false, size: { width: 1000, depth: 800 },
+  seed: 'modules', diagonals: 'off', size: { width: 1000, depth: 800 },
   profiles: [1, 2, 4].map(count => ({ id: `lanes:${count}`, classes: [count === 4 ? 'road' : 'street'],
     lanes: Array.from({ length: count }, (_, i) => ({ width: 3.5, direction: i < count / 2 ? 'forward' : 'backward' })),
     shoulders: { left: 0, right: 0 } })),

@@ -5,7 +5,7 @@ import { length } from '../../geom/polyline';
 
 it('adds sparse declared-angle cuts with connected split frontages and preserved run stations', () => {
   const design = resolveStreetDesign();
-  const plan = GridLayout.plan({ seed: 'urbe', size: { width: 1000, depth: 1000 }, profiles: design.profiles,
+  const plan = GridLayout.plan({ seed: 'urbe', diagonals: 'legacy-applied', size: { width: 1000, depth: 1000 }, profiles: design.profiles,
     sideAt: () => ({ profile: design.sidewalkProfiles[1], finish: 'plain' }) });
   const cuts = plan.edges.filter(edge => edge.path[0][0] !== edge.path[1][0] && edge.path[0][1] !== edge.path[1][1]);
   expect(cuts).toHaveLength(2);
