@@ -20,6 +20,8 @@ Purpose: assigns continuous street cross sections and reserves each side's space
 - The static corridor queries return exact per-side or functional-band polygons, including bent path joins. These are edge-local reservations; a caller checks all intersecting roads before placing an object near a junction. An older edge without a cross section exposes its full sidewalk as walking space and empty other bands.
 - A profile's optional `edge` supplies curb rise, gutter width and a road-facing lip's width/height. The existing `curb` is horizontal width. Selected sides publish `geometry.version = 1.0.0`, owned edge settings and normalized intervals from the carriageway edge; `top` is relative to roadway top. These are dimensions, not final ground polygons.
 
+Published `StreetConstruction.reservations` optionally carries the [street reservation handoff](../layout/reservations/CONTRACT.md), version 1.0.0. It references final ground and original supports; it does not replace edge-local corridor queries.
+
 ## Invariants
 
 - Units are metres. Left/right refer to the directed edge path. Positive lane offset is left. Legacy side bands run from road to building: curb, border, furnishing, walking, frontage. Explicit geometry publishes gutter-lip and gutter intervals before those bands.

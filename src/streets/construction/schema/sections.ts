@@ -4,6 +4,7 @@ import type { StreetPlanningReservations } from '../corridors/schema';
 import type { PavingConstruction } from '../paving/schema';
 import type { CrossingJunction } from '../../crossings/schema';
 import type { ModuleConstruction } from '../modules/schema';
+import type { StreetReservations } from '../../layout/reservations/schema';
 
 export interface StreetCrossSection {
   runId: string;
@@ -50,6 +51,8 @@ export interface StreetConstruction {
   runs: StreetRun[];
   /** Shared physical panel, curb, gutter, corner and furniture pieces. */
   modules?: ModuleConstruction;
+  /** Authored frontage/corner supports linked to the exact saved ground array. */
+  reservations?: StreetReservations;
   /** Exact edge-local planning queries. Modules or final ground own physical geometry. */
   planningReservations?: StreetPlanningReservations;
   /** Whole-cell construction over sole GroundSurface owner polygons. */
