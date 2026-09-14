@@ -18,7 +18,8 @@ export class GridLayout {
   static plan(input: GridLayoutInput): GridLayoutPlan {
     if (input.diagonals !== undefined && !['candidates', 'off', 'legacy-applied'].includes(input.diagonals))
       throw invalidParams('diagonals must be candidates, off or legacy-applied');
-    if (!Number.isFinite(input.diagonalCornerClearance ?? 3) || (input.diagonalCornerClearance ?? 3) < 0)
+    if (input.diagonalCornerClearance !== undefined
+      && (!Number.isFinite(input.diagonalCornerClearance) || input.diagonalCornerClearance < 0))
       throw invalidParams('diagonalCornerClearance must be finite and nonnegative');
     if (input.highway !== undefined && typeof input.highway !== 'boolean') throw invalidParams('highway must be boolean');
     const highwayRng = input.highway ? Rng.from(input.seed, 'highway-route') : undefined;
