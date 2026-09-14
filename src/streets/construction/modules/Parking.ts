@@ -1,7 +1,14 @@
 import type { Polygon } from '../../../../schema/blueprint';
 import { DIMENSIONS as D, insetBody, jointedBand, prism, rectangle } from './Geometry';
-import type { ModuleDefinition, ModulePrism, SidewalkWidth } from './schema';
+import type { BlockModuleInput, ModuleDefinition, ModulePrism, SidewalkWidth } from './schema';
 import { straight } from './Straight';
+import { NativeParking } from './NativeParking';
+
+export function parkingSupport(bay: NonNullable<BlockModuleInput['parking']>[number]): { start: number; end: number } {
+  const native = bay.profile === 'native';
+  return { start: bay.start - (native ? 2 : 0),
+    end: bay.start + (native ? NativeParking.length(bay.slots) + 2 : 4 + bay.slots * 4) };
+}
 
 /** A fixed two-station return, with full panels and shared orthogonal curb offsets. */
 function terminal(width: SidewalkWidth): ModulePrism[] {

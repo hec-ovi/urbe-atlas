@@ -58,16 +58,21 @@ export interface PerimeterModuleInput {
   finish: string;
 }
 
-export interface ModuleParking {
+interface ParkingIdentity {
   blockId: string;
   side: QuarterTurn;
   start: number;
   end: number;
   slotCount: number;
-  slotLength: 4;
-  width: 2;
   slots: Polygon[];
 }
+
+export type ModuleParking = ParkingIdentity & (
+  | { profile?: undefined; slotLength: 4; width: 2 }
+  | { profile: 'native'; slotLength: 6; width: 2.5; endRun: 2; footprint: Polygon;
+      /** Complete construction span, including two metres beyond each bay end. */
+      support: { start: number; end: number }; walkingClearance: number }
+);
 
 export interface BlockModuleInput {
   id: string;
@@ -84,8 +89,8 @@ export interface BlockModuleInput {
   guardrails?: { side: QuarterTurn; start: number; segments: 1 | 2 | 3 }[];
   /** Distance intervals along each side's counterclockwise straight run. */
   reserved?: [Vec2[], Vec2[], Vec2[], Vec2[]];
-  /** Whole 4 m slots, with a 2 m transition at each end; wide sidewalks only. */
-  parking?: { side: QuarterTurn; start: number; slots: 1 | 2 | 3 }[];
+  /** Native six-metre bays require a 6 m paved side; omitted profile retains four-metre bays. */
+  parking?: { side: QuarterTurn; start: number; slots: 1 | 2 | 3; profile?: 'native' }[];
 }
 
 export interface ModuleBlock {
