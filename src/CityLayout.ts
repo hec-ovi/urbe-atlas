@@ -2,6 +2,7 @@ import type { Polygon, Vec2 } from '../schema/blueprint';
 import type { DistrictKind } from '../schema/params';
 import type { ResolvedParams } from './params/defaults';
 import { GridLayout } from './streets/layout/GridLayout';
+import { LayoutPlanning } from './streets/layout/LayoutPlanning';
 import { ModuleGround } from './streets/construction/modules/ModuleGround';
 import type { ModuleGroundRegion } from './streets/construction/modules/schema';
 import { intersection } from './geom/clip';
@@ -52,6 +53,7 @@ export class CityLayout {
       plan.modules.parking = plan.modules.parking.filter(bay => kept.has(bay.blockId));
       plan.modules.parking.forEach(bay => { bay.blockId = kept.get(bay.blockId)!; });
     }
+    LayoutPlanning.retain(plan.planning, kept);
     const underpasses = HighwayUnderpasses.apply(plan, {
       boundary: [[0, 0], [params.size.width, 0], [params.size.width, params.size.depth], [0, params.size.depth]],
       water, clearHeight: design.crossings!.pedestrianClearance,

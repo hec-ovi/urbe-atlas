@@ -24,6 +24,8 @@ Generator flags: `--size N`, `--irregularity X`, `--max-floors N`, `--no-highway
 
 ## Out
 
+Street construction includes source frontage/corner supports linked to the saved ground array, native parking footprints and protected station/highway references. [Reservation contract](src/streets/layout/reservations/CONTRACT.md).
+
 One JSON blueprint (`schema/blueprint.ts`):
 
 - **districts** with kind (downtown, commercial, residential, industrial, mixed), wealth tier and floor cap, each a rectangle on the one city grid, clipped to the city outline

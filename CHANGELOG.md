@@ -1,5 +1,7 @@
 # Changelog
 
+0.5.1: source street reservations retain frontage/corner supports, exact ground ownership, native six-metre parking and protected station/highway references.
+
 0.5.0: blueprint 0.22.0 carries `architecture`, the movement plan: reserved widths, driving and walking lanes, legal turns, crossings with signal phases, and highway ramps. SKILL.md tells an agent how to call Atlas.
 
 0.5.0: physical underpass modules carry grade sidewalks beneath elevated highways, with complete curb, gutter and panel construction. Highway frontages reserve their corner land for these connections.

@@ -16,6 +16,7 @@ import { resolveParams } from './params/defaults';
 import { CityConstructionSupport } from './CityConstructionSupport';
 import { unsatisfiable } from './errors';
 import { CityLayout } from './CityLayout';
+import { StreetReservations } from './streets/layout/reservations/StreetReservations';
 import { CityGround } from './CityGround';
 import { DistrictPlanner } from './districts/DistrictPlanner';
 import { DistrictShapes } from './districts/DistrictShapes';
@@ -369,6 +370,9 @@ export function generateCity(input: AtlasParams, onProgress?: ProgressObserver):
 
   const architecture = planArchitecture({ nodes: streetNodes, edges: streetEdges, highwayStructures: structures });
 
+  const reservations = StreetReservations.build({ planning: layout.planning, layoutBlocks: layout.blocks, modules: layout.modules,
+    streets: { nodes: streetNodes, edges: streetEdges, highwayStructures: structures }, blocks, parcels, transit, volumetric });
+
   const blueprint: CityBlueprint = {
     meta: {
       version: hydrology ? HYDROLOGY_BLUEPRINT_VERSION : BLUEPRINT_VERSION,
@@ -383,7 +387,7 @@ export function generateCity(input: AtlasParams, onProgress?: ProgressObserver):
     districts,
     streets: { nodes: streetNodes, edges: streetEdges, crossings, signals, planting, highwayStructures: structures,
       construction: {
-        version: '1.0.0', runs: streetPlan.runs, modules: layout.modules,
+        version: '1.0.0', runs: streetPlan.runs, modules: layout.modules, reservations,
         planningReservations,
         junctions: crossingPlan.junctions,
       } },
