@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { LayoutPlanning } from './LayoutPlanning';
 import { GridLayout } from './GridLayout';
 import type { GridLayoutInput } from './schema';
 import type { Polygon } from '../../../schema/blueprint';
@@ -98,6 +99,16 @@ describe('GridLayout public plan', () => {
     const definitions = new Set(plan.modules.definitions.map(definition => definition.id));
     expect(plan.modules.placements.every(placement => definitions.has(placement.moduleId))).toBe(true);
     expect(plan.modules.placements.reduce((sum, placement) => sum + placement.count, 0)).toBeGreaterThan(definitions.size * 100);
+  });
+
+  it('retains authored support identities when source owners are filtered and renamed', () => {
+    const plan = GridLayout.plan(input), ownerId = plan.blocks[1].id;
+    const original = structuredClone(plan.planning.frontages.filter(frontage => frontage.ownerId === ownerId));
+    LayoutPlanning.retain(plan.planning, new Map([[ownerId, 'retained']]));
+    expect(plan.planning.frontages).toEqual(original.map(frontage => ({ ...frontage, ownerId: 'retained' })));
+    expect(plan.planning.corners.every(corner => corner.ownerId === 'retained')).toBe(true);
+    const corners = new Set(plan.planning.corners.map(corner => corner.id));
+    expect(plan.planning.frontages.every(frontage => frontage.cornerIds.every(id => id === null || corners.has(id)))).toBe(true);
   });
 
   it('rejects incompatible profiles and sizes that cannot hold its blocks', () => {

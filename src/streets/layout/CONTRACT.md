@@ -14,6 +14,8 @@ Optional `diagonals` defaults to true. Sparse interior blocks can carry one comp
 
 The plan retains `planning.frontages` and `planning.corners` from the original module producers. Frontages name their actual source graph edges; graph splits update those references. Diagonal templates replace the original block supports with their authored contour supports. Outer sidewalks retain their own directed supports. Null corner references mark straight handoffs between owners. `planning.protected` carries non-owning underpass references supplied by the underpass producer. This metadata assigns no additional ground.
 
+`LayoutPlanning.retain(planning, ownerIdMap)` filters source supports to retained owners and applies the caller's owner-ID mapping. Frontage/corner IDs and all coordinates remain unchanged; references between surviving supports retain their original identity. It changes only this planning metadata.
+
 Invalid profiles or nonboolean feature flags throw `E_INVALID_PARAMS`; a size that cannot fit two blocks on each axis throws `E_UNSATISFIABLE`.
 
 Dependencies: [construction](../construction/CONTRACT.md), [modules](../construction/modules/CONTRACT.md), [diagonal templates](../construction/modules/diagonal/CONTRACT.md), [Atlas](../../../CONTRACT.md).
