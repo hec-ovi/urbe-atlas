@@ -27,7 +27,7 @@ describe('GridLayout public plan', () => {
     const supportIds = new Set(plan.planning.corners.map(corner => corner.id));
     for (const frontage of plan.planning.frontages) {
       expect(frontage.edgeIds.every(id => edges.has(id))).toBe(true);
-      expect(frontage.cornerIds.every(id => supportIds.has(id))).toBe(true);
+      expect(frontage.cornerIds.every(id => id === null || supportIds.has(id))).toBe(true);
       expect(plan.blocks.some(block => block.id === frontage.ownerId)).toBe(true);
     }
     const visited = new Set<string>();

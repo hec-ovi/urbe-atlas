@@ -72,7 +72,7 @@ export class GridLayout {
     const highwayRunId = x.highwayIndex !== undefined ? runs[z.roads.length + x.highwayIndex].id
       : z.highwayIndex !== undefined ? runs[z.highwayIndex].id : undefined;
     const kit = new StreetModuleKit();
-    const planning: GridLayoutPlan['planning'] = { frontages: [], corners: [] };
+    const planning: GridLayoutPlan['planning'] = { frontages: [], corners: [], protected: [] };
     const blocks: GridLayoutPlan['blocks'] = [];
     const details = Rng.from(input.seed, 'street-details');
     for (let row = 0; row < z.panels.length; row++) {

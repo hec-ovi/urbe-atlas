@@ -12,7 +12,7 @@ The reserved rectangle remains inside the requested size. An optional perimeter 
 
 Optional `diagonals` defaults to true. Sparse interior blocks can carry one complete 30 or 45 degree street cut, with one or two lanes and fixed module junctions. Candidates have no parking bay, preserve reserved highway frontages and use local frontage roads. Their new junctions remain at least 40 m from the original street nodes; insufficient candidates leave the base grid intact. The target is one cut per 20 blocks, with at least one candidate considered. Cuts are nonadjacent and remain inside one block. Graph splits preserve source run stations and frontage references.
 
-The plan retains `planning.frontages` and `planning.corners` from the original module producers. Frontages name their actual source graph edges; graph splits update those references. Diagonal templates replace the original block supports with their authored contour supports. Outer sidewalks retain their own directed supports. This metadata assigns no additional ground.
+The plan retains `planning.frontages` and `planning.corners` from the original module producers. Frontages name their actual source graph edges; graph splits update those references. Diagonal templates replace the original block supports with their authored contour supports. Outer sidewalks retain their own directed supports. Null corner references mark straight handoffs between owners. `planning.protected` carries non-owning underpass references supplied by the underpass producer. This metadata assigns no additional ground.
 
 Invalid profiles or nonboolean feature flags throw `E_INVALID_PARAMS`; a size that cannot fit two blocks on each axis throws `E_UNSATISFIABLE`.
 

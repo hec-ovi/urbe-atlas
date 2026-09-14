@@ -23,12 +23,15 @@ export interface GridLayoutBlock extends Omit<ModuleBlock, 'placements'> {
   interiors?: Polygon[];
 }
 
-export interface LayoutFrontage extends Omit<ModuleFrontagePlan, 'side' | 'pavedWidth'> {
+export interface LayoutFrontage extends Omit<ModuleFrontagePlan, 'side' | 'pavedWidth' | 'cornerIds'> {
   pavedWidth: number;
+  /** Null marks a straight handoff to another owner. */
+  cornerIds: [string | null, string | null];
   edgeIds: string[];
 }
 
 export interface LayoutPlanningData {
+  protected: { kind: 'underpass'; ownerId: string; nodeId: string; edgeIds: string[]; replacedCornerIds: string[] }[];
   frontages: LayoutFrontage[];
   corners: ModuleCornerPlan[];
 }
