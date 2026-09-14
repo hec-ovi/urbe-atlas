@@ -10,9 +10,9 @@ export function validateInput(input: DiagonalCandidateInput): void {
   if (!input || !Array.isArray(input.rectangles) || !Array.isArray(input.facePairs)
     || !Array.isArray(input.allowedRegions)) throw invalidParams('candidate collections must be arrays');
   if (!Number.isFinite(input.constructionWidth) || input.constructionWidth <= 0
-    || !Number.isFinite(input.cornerClearance ?? 3) || (input.cornerClearance ?? 3) < 0)
+    || (input.cornerClearance !== undefined && (!Number.isFinite(input.cornerClearance) || input.cornerClearance < 0)))
     throw invalidParams('candidate width must be positive and cornerClearance nonnegative');
-  const angles = input.angles ?? [30, 45];
+  const angles = input.angles === undefined ? [30, 45] : input.angles;
   if (!Array.isArray(angles) || !angles.length || angles.some(angle => angle !== 30 && angle !== 45)
     || new Set(angles).size !== angles.length) throw invalidParams('angles must contain distinct 30 or 45 values');
   const rectangles = new Set<string>();
