@@ -6,6 +6,7 @@ import { Rng } from '../../core/rng';
 import { invalidParams } from '../../errors';
 import { axis, type GridAxis } from './Axis';
 import { crossSection, sideSection } from './Sections';
+import { LayoutPlanning } from './LayoutPlanning';
 import { DiagonalCuts } from './DiagonalCuts';
 import type { GridLayoutInput, GridLayoutPlan } from './schema';
 
@@ -71,6 +72,7 @@ export class GridLayout {
     const highwayRunId = x.highwayIndex !== undefined ? runs[z.roads.length + x.highwayIndex].id
       : z.highwayIndex !== undefined ? runs[z.highwayIndex].id : undefined;
     const kit = new StreetModuleKit();
+    const planning: GridLayoutPlan['planning'] = { frontages: [], corners: [] };
     const blocks: GridLayoutPlan['blocks'] = [];
     const details = Rng.from(input.seed, 'street-details');
     for (let row = 0; row < z.panels.length; row++) {
@@ -102,6 +104,7 @@ export class GridLayout {
         }
         const block = kit.block({ id: `b${blocks.length}`, origin, panels, sidewalks,
           finish, centerDouble: true, guardrails, parking });
+        LayoutPlanning.add(planning, block.planning!, frontages.map(edge => [edge.id]));
         blocks.push({ id: block.id, outer: block.outer, interior: block.interior,
           edgeIds: frontages.map(value => value.id) as [string, string, string, string] });
       }
@@ -114,9 +117,13 @@ export class GridLayout {
       }
     }
     const bounds = { min: [x.min, z.min] as Vec2, max: [x.max, z.max] as Vec2 };
-    if (input.perimeter) kit.perimeter({ id: 'fringe', bounds,
-      width: sideSection(input.perimeter.profile).geometry!.pavedWidth as SidewalkWidth, finish: input.perimeter.finish });
-    const plan: GridLayoutPlan = { nodes, edges, runs, blocks, modules: kit.construction(), roadway, bounds,
+    if (input.perimeter) {
+      const perimeter = kit.perimeter({ id: 'fringe', bounds,
+        width: sideSection(input.perimeter.profile).geometry!.pavedWidth as SidewalkWidth, finish: input.perimeter.finish });
+      LayoutPlanning.add(planning, perimeter.planning!, [horizontal[0], vertical.at(-1)!, horizontal.at(-1)!, vertical[0]]
+        .map(edges => edges.map(edge => edge.id)));
+    }
+    const plan: GridLayoutPlan = { planning, nodes, edges, runs, blocks, modules: kit.construction(), roadway, bounds,
       ...(highwayRunId ? { highwayRunId } : {}) };
     if (input.diagonals !== false) DiagonalCuts.apply(plan, input);
     return plan;

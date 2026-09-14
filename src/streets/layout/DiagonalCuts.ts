@@ -6,6 +6,7 @@ import type { DiagonalBlockTemplate } from '../construction/modules/diagonal/sch
 import type { SidewalkWidth } from '../construction/modules/schema';
 import type { GridLayoutInput, GridLayoutPlan } from './schema';
 import { crossSection, sideSection } from './Sections';
+import { LayoutPlanning } from './LayoutPlanning';
 
 /** Adds bounded local exceptions by splitting only their two known frontage edges. */
 export class DiagonalCuts {
@@ -70,6 +71,7 @@ export class DiagonalCuts {
       plan.modules.placements = plan.modules.placements.filter(placement => placement.blockId !== block.id);
       if (!plan.modules.definitions.some(definition => definition.id === template.definition.id)) plan.modules.definitions.push(template.definition);
       plan.modules.placements.push({ moduleId: template.definition.id, blockId: block.id, origin, turn: 0, count: 1, step: 2, finish: selected.finish });
+      LayoutPlanning.diagonal(plan, block.id, template, origin, id);
       frontages.forEach(edge => used.add(edge.id));
       placed++;
     }
@@ -93,6 +95,7 @@ export class DiagonalCuts {
     run.edges = run.edges.flatMap(member => member.edgeId !== edge.id ? [member] : [
       { ...member, end: member.start + firstLength }, { ...member, edgeId: nextId, start: member.start + firstLength },
     ]);
+    plan.planning.frontages.forEach(frontage => { frontage.edgeIds = frontage.edgeIds.flatMap(id => id === edge.id ? [id, nextId] : [id]); });
     plan.blocks.forEach(block => { block.edgeIds = block.edgeIds.flatMap(id => id === edge.id ? [edge.id, nextId] : [id]); });
     return node;
   }

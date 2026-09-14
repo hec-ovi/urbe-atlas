@@ -24,6 +24,12 @@ describe('GridLayout public plan', () => {
     const plan = GridLayout.plan(input);
     const nodes = new Map(plan.nodes.map(node => [node.id, node]));
     const edges = new Map(plan.edges.map(edge => [edge.id, edge]));
+    const supportIds = new Set(plan.planning.corners.map(corner => corner.id));
+    for (const frontage of plan.planning.frontages) {
+      expect(frontage.edgeIds.every(id => edges.has(id))).toBe(true);
+      expect(frontage.cornerIds.every(id => supportIds.has(id))).toBe(true);
+      expect(plan.blocks.some(block => block.id === frontage.ownerId)).toBe(true);
+    }
     const visited = new Set<string>();
     const pending = [plan.nodes[0].id];
     while (pending.length) {

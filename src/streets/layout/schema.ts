@@ -1,7 +1,7 @@
 import type { Polygon, StreetEdge, StreetNode, Vec2 } from '../../../schema/blueprint';
 import type { RoadProfile, SidewalkProfile } from '../construction/schema/design';
 import type { StreetRun } from '../construction/schema/sections';
-import type { ModuleBlock, ModuleConstruction } from '../construction/modules/schema';
+import type { ModuleBlock, ModuleConstruction, ModuleFrontagePlan, ModuleCornerPlan } from '../construction/modules/schema';
 
 export interface GridLayoutInput {
   seed: string;
@@ -23,7 +23,18 @@ export interface GridLayoutBlock extends Omit<ModuleBlock, 'placements'> {
   interiors?: Polygon[];
 }
 
+export interface LayoutFrontage extends Omit<ModuleFrontagePlan, 'side' | 'pavedWidth'> {
+  pavedWidth: number;
+  edgeIds: string[];
+}
+
+export interface LayoutPlanningData {
+  frontages: LayoutFrontage[];
+  corners: ModuleCornerPlan[];
+}
+
 export interface GridLayoutPlan {
+  planning: LayoutPlanningData;
   nodes: StreetNode[];
   edges: StreetEdge[];
   runs: StreetRun[];

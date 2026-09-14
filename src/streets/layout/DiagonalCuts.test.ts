@@ -38,6 +38,11 @@ it('adds sparse declared-angle cuts with connected split frontages and preserved
     const placed = plan.modules.placements.filter(placement => placement.blockId === block.id);
     expect(placed).toHaveLength(1);
     expect(placed[0].moduleId).toMatch(/^diagonal:/);
+    const supports = plan.planning.frontages.filter(frontage => frontage.ownerId === block.id);
+    expect(supports.some(frontage => frontage.edgeIds.includes(edge.id))).toBe(true);
+    expect(supports.every(frontage => frontage.edgeIds.every(id => edges.has(id)))).toBe(true);
+    expect(plan.planning.corners.filter(corner => corner.ownerId === block.id)
+      .every(corner => corner.placement.moduleId === placed[0].moduleId)).toBe(true);
     expect(plan.modules.parking?.some(bay => bay.blockId === block.id) ?? false).toBe(false);
   }
 }, 20000);
