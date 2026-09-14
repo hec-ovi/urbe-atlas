@@ -1,11 +1,11 @@
-/**
- * Minimum floor height per parcel type, mirrored from exterior's published
- * floor constants (../exterior/schemas/floor-constants.json: its family map
- * plus each family's minFloorHeight). An envelope must admit at least one
- * floor of its family, so a type's nominal floor height never sits below
- * this value. The orchestrator keeps the mirror in sync when exterior bumps.
- */
+/** Local mirror of Exterior's published hard minima and generation policy. */
 import type { ParcelType } from '../../schema/blueprint';
+
+export const FLOOR_GENERATION_POLICY = {
+  defaultClearHeight: 4,
+  clearHeightAllowance: 0.5,
+  defaultFloorHeight: 4.5,
+} as const;
 
 type Family = 'residential' | 'hotel' | 'office' | 'corpo' | 'hospital' | 'security' | 'industrial' | 'commerce';
 
@@ -39,4 +39,9 @@ const MIN_FLOOR_HEIGHT: Record<Family, number> = {
 /** Shortest floor the type's family can build, meters. */
 export function minFloorHeight(type: ParcelType): number {
   return MIN_FLOOR_HEIGHT[FAMILY[type]];
+}
+
+/** Generation pitch for the requested clear room height and slab/ceiling allowance. */
+export function activeMinFloorHeight(type: ParcelType): number {
+  return Math.max(minFloorHeight(type), FLOOR_GENERATION_POLICY.defaultClearHeight + FLOOR_GENERATION_POLICY.clearHeightAllowance);
 }

@@ -9,6 +9,8 @@ Purpose: assigns compatible building uses and fits buildable footprints to reser
 - `FootprintHost(policy).fit(lot, profile)` returns `{footprint, floorCap}` or `null`, caching one run's exact hosting result per lot and profile. `HostingProfile` carries `setback`, minimum `band`, compact-core requirement `heavy` and retained-area share `keep`; `FootprintHost.ts` declares both shapes.
 - `Zoning.assign` tests each eligible use through the same hosting policy consumed by final Buildability. A rejected heavy use can take its district's light fallback. Buildability merges an unhosted lot into its longest-boundary neighbor or retains it as open land.
 - `Zoning.populationForecast(districts)` takes each district's id, kind, tier, floor cap and net land area before subdivision. It returns total and per-district residential capacity, [population-schema.ts](population-schema.ts). Infrastructure uses this forecast; final city population still comes from hosted residential lots.
+- `minFloorHeight(type)` and `activeMinFloorHeight(type)` in [floorMinimums.ts](floorMinimums.ts) take [ParcelType](../../schema/blueprint.ts) and return metre pitches: the hard family bound, and the maximum of that bound and the mirrored generation policy's 4 m clear height plus 0.5 m allowance.
+- `makeEnvelope(type, tier, districtMaxFloors, rng)` in [envelopes.ts](envelopes.ts) returns [Envelope](../../schema/blueprint.ts). Nominal pitch meets the active minimum; taller type programs retain their pitch. `maxHeight` allocates all `maxFloors` at that pitch, rounded to centimetres. `rng` is the caller's seeded Atlas random stream.
 
 ## Invariants
 
@@ -27,3 +29,4 @@ Malformed district capacity data fails with `E_INVALID_PARAMS`.
 
 - Root Atlas schema and geometry kernel.
 - Mirrored Interior core-feasibility constants in `core.ts`.
+- Mirrored Exterior hard family minima and generation policy from its public `schemas/floor-constants.json`; runtime generation reads only local constants.
