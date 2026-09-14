@@ -27,7 +27,8 @@ export function validateInput(input: DiagonalCandidateInput): void {
   for (const pair of input.facePairs) {
     if (!pair || !identity(pair.id) || pairs.has(pair.id)) throw invalidParams('invalid face-pair identity');
     pairs.add(pair.id);
-    for (const face of [pair.from, pair.to]) {
+    if (pair.through !== undefined && !Array.isArray(pair.through)) throw invalidParams('intermediate faces must be an array');
+    for (const face of [pair.from, ...(pair.through ?? []), pair.to]) {
       if (!face || !rectangles.has(face.rectangleId) || !identity(face.streetId)
         || !['south', 'east', 'north', 'west'].includes(face.side)) throw invalidParams('invalid receiving face');
     }

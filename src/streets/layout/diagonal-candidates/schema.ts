@@ -3,7 +3,13 @@ import type { Polygon, Vec2 } from '../../../../schema/blueprint';
 export type RectangleSide = 'south' | 'east' | 'north' | 'west';
 export interface CandidateRectangle { id: string; min: Vec2; max: Vec2 }
 export interface ReceivingFace { rectangleId: string; side: RectangleSide; streetId: string }
-export interface CandidateFacePair { id: string; from: ReceivingFace; to: ReceivingFace }
+export interface CandidateFacePair {
+  id: string;
+  from: ReceivingFace;
+  to: ReceivingFace;
+  /** Original faces crossed between the two terminal mouths, in traversal order. */
+  through?: ReceivingFace[];
+}
 export interface DiagonalCandidateInput {
   rectangles: CandidateRectangle[];
   facePairs: CandidateFacePair[];
@@ -28,4 +34,5 @@ export interface DiagonalCandidate {
   centerline: [Vec2, Vec2];
   footprint: Polygon;
   mouths: [CandidateMouth, CandidateMouth];
+  intermediateMouths: CandidateMouth[];
 }

@@ -19,25 +19,31 @@ export class DiagonalCandidates {
     for (const pair of input.facePairs) {
       const from = new Face(pair.from, rectangles.get(pair.from.rectangleId)!);
       const to = new Face(pair.to, rectangles.get(pair.to.rectangleId)!);
+      const through = (pair.through ?? []).map(face => new Face(face, rectangles.get(face.rectangleId)!));
+      const faces = [from, ...through, to];
       for (const angle of input.angles ?? [30, 45]) for (const slope of [1, -1] as const) {
         const radians = angle * Math.PI / 180;
         const normal: Vec2 = [-slope * Math.sin(radians), Math.cos(radians)];
         const direction: Vec2 = [normal[1], -normal[0]];
-        const a = from.interval(normal, width, clearance), b = to.interval(normal, width, clearance);
-        const low = Math.max(a[0], b[0]), high = Math.min(a[1], b[1]);
+        const intervals = faces.map(face => face.interval(normal, width, clearance));
+        const low = Math.max(...intervals.map(value => value[0])), high = Math.min(...intervals.map(value => value[1]));
         if (low > high) continue;
         const offset = low / 2 + high / 2;
         const mouths = [from.mouth(normal, offset, width), to.mouth(normal, offset, width)] as const;
-        if (mouths.some(mouth => mouth.cornerClearances.some(value => !Number.isFinite(value) || value < clearance))) continue;
+        const intermediateMouths = through.map(face => face.mouth(normal, offset, width));
+        if ([...mouths, ...intermediateMouths].some(mouth => mouth.cornerClearances.some(value => !Number.isFinite(value) || value < clearance))) continue;
         const startLow = from.point(normal, offset - width / 2), startHigh = from.point(normal, offset + width / 2);
         const endLow = to.point(normal, offset - width / 2), endHigh = to.point(normal, offset + width / 2);
         const advance = (start: Vec2, end: Vec2) => (end[0] - start[0]) * direction[0] + (end[1] - start[1]) * direction[1];
         if (advance(startLow, endLow) * advance(startHigh, endHigh) <= 0) continue;
+        const travelSign = Math.sign(advance(startLow, endLow));
+        if (faces.slice(1).some((face, index) => [-width / 2, width / 2].some(shift =>
+          advance(faces[index].point(normal, offset + shift), face.point(normal, offset + shift)) * travelSign <= 0))) continue;
         const footprint = ensureCCW([startLow, startHigh, endHigh, endLow]);
         if (!land.covers('allowed', footprint)) continue;
         result.push({ id: JSON.stringify([pair.id, angle, slope]), facePairId: pair.id, angle, slope,
           constructionWidth: width, centerline: [from.point(normal, offset), to.point(normal, offset)],
-          footprint, mouths: [mouths[0], mouths[1]] });
+          footprint, mouths: [mouths[0], mouths[1]], intermediateMouths });
       }
     }
     return result;

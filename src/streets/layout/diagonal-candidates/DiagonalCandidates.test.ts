@@ -77,6 +77,23 @@ it('requires complete allowed-land coverage across disconnected gaps and enclose
   expect(DiagonalCandidates.plan(source)).toEqual([]);
 });
 
+it('checks full intermediate mouths in traversal order even when all allowed land is covered', () => {
+  const source = input();
+  source.rectangles.push({ id: 'intermediate', min: [0, 40], max: [100, 45] });
+  source.facePairs[0].through = ['south', 'north'].map(side => ({ rectangleId: 'intermediate',
+    side: side as 'south' | 'north', streetId: 'shared-street' }));
+  const candidates = DiagonalCandidates.plan(source);
+  expect(candidates).toHaveLength(2);
+  expect(candidates.every(candidate => candidate.intermediateMouths.length === 2
+    && candidate.intermediateMouths.every(mouth => mouth.cornerClearances.every(distance => distance >= 3)))).toBe(true);
+  source.facePairs[0].through.reverse();
+  expect(DiagonalCandidates.plan(source)).toEqual([]);
+  source.facePairs[0].through.reverse();
+  source.rectangles[2].min[0] = 49;
+  source.rectangles[2].max[0] = 51;
+  expect(DiagonalCandidates.plan(source)).toEqual([]);
+});
+
 it('rejects invalid identities, dimensions, angles and allowed rings at the public entry', () => {
   const changes: ((source: DiagonalCandidateInput) => void)[] = [
     source => { source.rectangles.push(source.rectangles[0]); },

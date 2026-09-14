@@ -8,7 +8,9 @@ For each face pair and each positive/negative 30 or 45 degree slope, the planner
 
 The complete corridor must lie in the union of `allowedRegions`. Empty land, disconnected gaps and enclosed holes remain excluded. Exact binary coverage admits no gap tolerance. Rings are simple unclosed polygons; holes are represented by the surrounding allowed pieces. A failed midpoint yields no candidate; this finite proposal set is not an exhaustive search for offsets around obstacles. Coincident or crossing mouth boundaries produce no candidate.
 
-Results follow face-pair order, angle order and positive then negative slope. Each candidate has one centerline, one complete footprint and both mouth endpoints with measured corner clearances. Identical inputs return identical data. Inputs remain unchanged; output contains no graph edits, land subdivisions or model assets.
+Optional `through` faces identify every original face crossed between the terminals, in traversal order. Their complete mouths constrain the same offset interval and appear in `intermediateMouths`. Each strip edge must advance through them strictly between the terminals. The caller supplies these faces from the original layout.
+
+Results follow face-pair order, angle order and positive then negative slope. Each candidate has one centerline, one complete footprint and mouth endpoints with measured corner clearances. Identical inputs return identical data. Inputs remain unchanged; output contains no graph edits, land subdivisions or model assets.
 
 Malformed identities, rectangle bounds, regions, angles or dimensions throw `E_INVALID_PARAMS`. Valid inputs without feasible candidates return `[]`.
 
