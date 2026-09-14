@@ -12,6 +12,12 @@ it('constructs complete 30/45 degree block templates with physical panels and di
     const template = DiagonalBlock.build(input);
     expect(DiagonalBlock.build(input)).toEqual(template);
     expect(template.interiors).toHaveLength(2);
+    expect(template.planning).toHaveLength(template.interiors.length);
+    for (const contour of template.planning) for (const [i, frontage] of contour.frontages.entries()) {
+      expect(frontage.start).toEqual(contour.corners[i].arc.at(-1));
+      expect(frontage.end).toEqual(contour.corners[(i + 1) % contour.corners.length].arc[0]);
+      expect(Math.hypot(...frontage.inward)).toBeCloseTo(1);
+    }
     expect(Math.atan2(template.axis.normal[0], template.axis.normal[1]) * 180 / Math.PI).toBeCloseTo(angle, 10);
     expect(template.definition.parts.filter(part => part.role === 'panel' && Math.abs(area(part.polygon) - 0.988 ** 2) < 0.002).length).toBeGreaterThan(50);
     for (const part of template.definition.parts) {

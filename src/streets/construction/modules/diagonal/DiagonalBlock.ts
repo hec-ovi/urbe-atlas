@@ -53,6 +53,10 @@ export class DiagonalBlock {
       ...fields.gutter.map(polygon => prism('joint', polygon, -0.03, -0.008)),
       ...panelBodies(outlines, fields),
     ];
-    return { definition: { id, parts, partitionedBeds: true }, interiors, axis };
+    return { definition: { id, parts, partitionedBeds: true }, interiors, axis,
+      planning: outlines.map(outline => ({ corners: outline.corners,
+        frontages: outline.sides.map((side, i) => ({ start: [...outline.corners[i].arc.at(-1)!],
+          end: [...outline.corners[(i + 1) % outline.corners.length].arc[0]], inward: [...side.normal], pavedWidth: side.width })),
+      })) };
   }
 }

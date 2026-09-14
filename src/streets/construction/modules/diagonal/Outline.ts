@@ -37,7 +37,7 @@ export function insetVertex(previous: Side, side: Side): Vec2 {
   return [(d * b[1] - a[1] * e) / determinant, (a[0] * e - d * b[0]) / determinant];
 }
 
-export function rounded(sides: Side[]): { polygon: Polygon; tangents: number[] } {
+export function rounded(sides: Side[]): { polygon: Polygon; tangents: number[]; corners: { center: Vec2; radius: number; arc: Polygon }[] } {
   const radius = 2.5;
   const turns = sides.map((side, i) => {
     const previous = sides[(i + sides.length - 1) % sides.length];
@@ -47,16 +47,17 @@ export function rounded(sides: Side[]): { polygon: Polygon; tangents: number[] }
   if (sides.some((side, i) => side.length <= tangents[i] + tangents[(i + 1) % sides.length])) {
     throw unsatisfiable('diagonal block cannot hold its rounded junction returns');
   }
-  const polygon = sides.flatMap((side, i): Polygon => {
+  const corners = sides.map((side, i) => {
     const previous = sides[(i + sides.length - 1) % sides.length];
     const start: Vec2 = [side.start[0] - previous.direction[0] * tangents[i], side.start[1] - previous.direction[1] * tangents[i]];
     const center: Vec2 = [start[0] + previous.normal[0] * radius, start[1] + previous.normal[1] * radius];
     const angle = Math.atan2(start[1] - center[1], start[0] - center[0]);
     const count = Math.max(1, Math.round(turns[i] / (Math.PI / 24)));
-    return Array.from({ length: count + 1 }, (_, station) => snapPoint([
+    const arc = Array.from({ length: count + 1 }, (_, station) => snapPoint([
       center[0] + radius * Math.cos(angle + turns[i] * station / count),
       center[1] + radius * Math.sin(angle + turns[i] * station / count),
     ]));
+    return { center, radius, arc };
   });
-  return { polygon, tangents };
+  return { polygon: corners.flatMap(corner => corner.arc), tangents, corners };
 }

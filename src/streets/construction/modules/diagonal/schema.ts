@@ -13,9 +13,15 @@ export interface DiagonalBlockInput {
   reach: number;
 }
 
+export interface DiagonalContourPlan {
+  frontages: { start: Vec2; end: Vec2; inward: Vec2; pavedWidth: number }[];
+  corners: { center: Vec2; radius: number; arc: Polygon }[];
+}
+
 export interface DiagonalBlockTemplate {
   definition: ModuleDefinition;
   interiors: Polygon[];
+  planning: DiagonalContourPlan[];
   /** The road centreline satisfies dot(normal, point) = offset. */
   axis: { normal: Vec2; offset: number };
 }
