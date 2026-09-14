@@ -45,6 +45,7 @@ it('rejects broken owner indices, source frames, parking and exclusion boundarie
     (value: typeof result) => { value.owners[0].groundIndices.push(value.owners[0].groundIndices[0]); },
     (value: typeof result) => { value.owners[0].groundIndices.pop(); },
     (value: typeof result) => { value.frontages[0].inward = [0, 0]; },
+    (value: typeof result) => { value.corners[0].placement.moduleId = 'unknown'; },
     (value: typeof result) => { value.parking[0].footprint[0][0]++; },
     (value: typeof result) => { value.owners.find(owner => owner.kind === 'block')!.interiors = [source.volumetric.ground[0].polygon]; },
   ]) {

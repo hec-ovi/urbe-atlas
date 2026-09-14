@@ -3,6 +3,7 @@ import type { ModuleConstruction, ModuleCornerPlan } from '../../construction/mo
 import type { GridLayoutBlock, LayoutPlanningData } from '../schema';
 
 export interface ReservationCity {
+  modules: ModuleConstruction;
   streets: Pick<CityBlueprint['streets'], 'nodes' | 'edges' | 'highwayStructures'>;
   blocks: Pick<Block, 'id' | 'parcelIds'>[];
   parcels: Pick<Parcel, 'id' | 'lot'>[];
@@ -13,7 +14,6 @@ export interface ReservationCity {
 export interface ReservationInput extends ReservationCity {
   planning: LayoutPlanningData;
   layoutBlocks: Pick<GridLayoutBlock, 'id' | 'interior' | 'interiors'>[];
-  modules: ModuleConstruction;
 }
 
 export interface StreetOwner {

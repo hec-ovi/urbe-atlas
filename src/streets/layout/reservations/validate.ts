@@ -68,7 +68,10 @@ export function validateReservations(value: StreetReservations, city: Reservatio
   }
   for (const corner of corners.values()) {
     if (!owners.has(corner.ownerId) || corner.frontageIds.some(id => frontages.get(id)?.ownerId !== corner.ownerId)
-      || !point(corner.placement.origin) || ![0, 1, 2, 3].includes(corner.placement.turn)) fail('invalid street corner references', { cornerId: corner.id });
+      || !point(corner.placement.origin) || ![0, 1, 2, 3].includes(corner.placement.turn)
+      || !city.modules.placements.some(placement => placement.moduleId === corner.placement.moduleId
+        && placement.blockId === corner.ownerId && placement.turn === corner.placement.turn
+        && same(placement.origin, corner.placement.origin))) fail('invalid street corner references', { cornerId: corner.id });
     const boundary = corner.kind === 'arc' ? corner.arc : corner.boundary;
     if (!boundary.every(point) || boundary.length < 3 || (corner.kind === 'arc' && (!point(corner.center) || corner.radius <= 0))) {
       fail('invalid street corner support', { cornerId: corner.id });
