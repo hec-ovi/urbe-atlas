@@ -9,6 +9,8 @@ const FIELDS: Record<keyof AtlasParams, true> = {
   irregularity: true,
   footprintShape: true,
   streetDesign: true,
+  diagonals: true,
+  diagonalCornerClearance: true,
   pavingDesign: true,
   districtCount: true,
   maxFloors: true,

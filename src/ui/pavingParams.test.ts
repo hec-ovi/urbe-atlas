@@ -63,6 +63,7 @@ it.each([
   const panel = new ParamsPanel({ onGenerate });
   document.body.append(panel.root);
   const expected = parseParams(JSON.stringify({ seed: 'parameter-roundtrip', size: { width: 900, depth: 700 },
+    diagonals: 'legacy-applied', diagonalCornerClearance: 4,
     maxFloors: 12, maxFloorsByDistrict: { downtown: 9 }, landmarkFloors: { p3: 8 }, features: { alleys: false },
     ...(pavingDesign ? { pavingDesign } : {}),
   }));
