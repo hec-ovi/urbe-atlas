@@ -48,7 +48,7 @@ export interface ModuleConstruction {
   frontages?: ModuleFrontage[];
 }
 
-export interface ModuleFrontage { id: string; boundary: Polygon }
+export interface ModuleFrontage { id: string; boundary: Polygon; planning?: ModuleBlockPlan }
 
 export interface PerimeterModuleInput {
   id: string;
@@ -107,17 +107,18 @@ export interface ModuleFrontagePlan {
   cornerIds: [string, string];
 }
 
-export interface ModuleCornerPlan {
+interface CornerIdentity {
   id: string;
   ownerId: string;
   frontageIds: [string, string];
-  /** Published road-facing arc from incoming to outgoing frontage. */
-  center: Vec2;
-  radius: number;
-  arc: Polygon;
   /** Exact source placement identity, used when another producer replaces this corner. */
   placement: { moduleId: string; origin: Vec2; turn: QuarterTurn };
 }
+
+export type ModuleCornerPlan = CornerIdentity & (
+  | { kind: 'arc'; center: Vec2; radius: number; arc: Polygon }
+  | { kind: 'explicit'; boundary: Polygon }
+);
 
 export interface ModuleBlockPlan {
   frontages: ModuleFrontagePlan[];

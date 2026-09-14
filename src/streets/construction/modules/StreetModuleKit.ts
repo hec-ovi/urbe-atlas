@@ -38,7 +38,7 @@ export class StreetModuleKit {
       if (length % 2) add(straight(input.width, false, 1), transform([length - 1, 0], origins[side], turn), turn);
       add(cornerDefinition, corners[side], side as QuarterTurn);
     }
-    const out = { id: input.id, boundary: rectangle(min[0] - input.width - 0.5, min[1] - input.width - 0.5,
+    const out = { id: input.id, planning: ModulePlanning.perimeter(input), boundary: rectangle(min[0] - input.width - 0.5, min[1] - input.width - 0.5,
       width + input.width * 2 + 1, depth + input.width * 2 + 1) };
     this.blockIds.add(input.id);
     this.frontages.push(out);

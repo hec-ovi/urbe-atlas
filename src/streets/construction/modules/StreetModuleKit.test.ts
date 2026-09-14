@@ -28,6 +28,7 @@ describe('StreetModuleKit public construction', () => {
     const construction = kit.construction();
     for (const frontage of block.planning!.frontages) {
       const [first, last] = frontage.cornerIds.map(id => block.planning!.corners.find(corner => corner.id === id)!);
+      if (first.kind !== 'arc' || last.kind !== 'arc') throw new Error('block corner arc required');
       expect(frontage.start).toEqual(first.arc.at(-1));
       expect(frontage.end).toEqual(last.arc[0]);
       const dx = frontage.end[0] - frontage.start[0], dz = frontage.end[1] - frontage.start[1];
@@ -175,6 +176,11 @@ describe('StreetModuleKit public construction', () => {
     const construction = kit.construction();
     const cover = ModuleGround.cover(construction);
     expect(construction.frontages).toEqual([frontage]);
+    expect(frontage.planning!.frontages).toHaveLength(4);
+    expect(frontage.planning!.corners.every(corner => corner.kind === 'explicit')).toBe(true);
+    expect(frontage.planning!.frontages[0].start).toEqual([111, 20]);
+    expect(frontage.planning!.frontages[0].end).toEqual([10, 20]);
+    expect(frontage.planning!.frontages[0].inward).toEqual([0, -1]);
     expect(cover.reduce((sum, region) => sum + signedArea(region.polygon), 0))
       .toBeCloseTo(110 * 92 - 101 * 83, 7);
     expect(cover.every(region => region.blockId === 'fringe')).toBe(true);
