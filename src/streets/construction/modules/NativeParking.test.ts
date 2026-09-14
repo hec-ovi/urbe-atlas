@@ -19,6 +19,7 @@ describe('native parking through StreetModuleKit', () => {
     expect(bay.profile).toBe('native');
     if (bay.profile !== 'native') throw new Error('native parking required');
     expect([bay.slotLength, bay.width, bay.endRun, bay.walkingClearance]).toEqual([6, 2.5, 2, 3.5]);
+    expect(block.planning!.frontages.some(frontage => frontage.id === bay.frontageId)).toBe(true);
     expect(bay.end - bay.start).toBe(16);
     expect(bay.support).toEqual({ start: 6, end: 26 });
     expect(bay.slots.map(area)).toEqual([15, 15]);

@@ -82,7 +82,7 @@ export class StreetModuleKit {
         const end = bay.start + (native ? NativeParking.length(bay.slots) : 4 + bay.slots * 4);
         station = support.end;
         const identity = { blockId: input.id, side: turn, start: bay.start, end, slotCount: bay.slots };
-        this.parking.push(native ? { ...identity, profile: 'native', slotLength: 6, width: 2.5, endRun: 2,
+        this.parking.push(native ? { ...identity, profile: 'native', frontageId: ModulePlanning.frontageId(input.id, side), slotLength: 6, width: 2.5, endRun: 2,
           footprint: NativeParking.footprint(bay.slots).map(([x, z]) => transform([x + bay.start, z], origin, turn)),
           support, walkingClearance: sidewalk - 2.5,
           slots: Array.from({ length: bay.slots }, (_, slot) => rectangle(bay.start + 2 + slot * 6, -0.5, 6, 2.5)

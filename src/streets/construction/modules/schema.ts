@@ -69,7 +69,7 @@ interface ParkingIdentity {
 
 export type ModuleParking = ParkingIdentity & (
   | { profile?: undefined; slotLength: 4; width: 2 }
-  | { profile: 'native'; slotLength: 6; width: 2.5; endRun: 2; footprint: Polygon;
+  | { profile: 'native'; frontageId: string; slotLength: 6; width: 2.5; endRun: 2; footprint: Polygon;
       /** Complete construction span, including two metres beyond each bay end. */
       support: { start: number; end: number }; walkingClearance: number }
 );

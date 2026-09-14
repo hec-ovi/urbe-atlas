@@ -4,11 +4,13 @@ import type { BlockModuleInput, ModuleBlockPlan, ModuleCornerPlan, PerimeterModu
 
 /** Records the same source corners and station frames used by the module kit. */
 export class ModulePlanning {
+  static frontageId(ownerId: string, side: number): string { return `frontage:${ownerId}:${side}`; }
+
   static perimeter(input: PerimeterModuleInput): ModuleBlockPlan {
     const { min, max } = input.bounds;
     const corners: Vec2[] = [[min[0], min[1]], [max[0], min[1]], [max[0], max[1]], [min[0], max[1]]];
     const cornerId = (side: number) => `corner:${input.id}:${side % 4}`;
-    const frontageId = (side: number) => `frontage:${input.id}:${side % 4}`;
+    const frontageId = (side: number) => this.frontageId(input.id, side % 4);
     const fronts: [Vec2, Vec2][] = [[corners[1], corners[0]], [corners[2], corners[1]], [corners[3], corners[2]], [corners[0], corners[3]]];
     return {
       frontages: fronts.map(([start, end], side) => {
@@ -30,7 +32,7 @@ export class ModulePlanning {
     const [width, depth] = input.panels;
     const origins: Vec2[] = [[0, 0], [width, 0], [width, depth], [0, depth]];
     const cornerId = (side: number) => `corner:${input.id}:${side % 4}`;
-    const frontageId = (side: number) => `frontage:${input.id}:${side % 4}`;
+    const frontageId = (side: number) => this.frontageId(input.id, side % 4);
     const radius = D.radius + D.curb + D.gutter;
     const corners = origins.map((local, side) => {
       const turn = side as QuarterTurn, origin = transform(local, input.origin, 0);
