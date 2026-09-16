@@ -1,6 +1,6 @@
-import type { Vec2 } from '../../../../schema/blueprint';
+import type { Polygon, Vec2 } from '../../../../schema/blueprint';
 import { invalidParams, invariantFailure } from '../../../errors';
-import { difference } from '../../../geom/clip';
+import { difference, intersection } from '../../../geom/clip';
 import { transform } from '../../construction/modules/Geometry';
 import { measure } from '../../construction/modules/Format';
 import type { QuarterTurn } from '../../construction/modules/schema';
@@ -9,7 +9,7 @@ import type { MedianConstruction, AvenueMedian } from './schema';
 import { MedianIsland, outline } from './Island';
 
 export class AvenueMedians {
-  static build(plan: GridLayoutPlan): MedianConstruction {
+  static build(plan: GridLayoutPlan, water: Polygon[] = []): MedianConstruction {
     const out: MedianConstruction = { medians: [], definitions: [], placements: [], owners: [], frontages: [] };
     const edges = new Map(plan.edges.map(edge => [edge.id, edge]));
     const nodes = new Map(plan.nodes.map(node => [node.id, node]));
@@ -28,6 +28,7 @@ export class AvenueMedians {
       const id = `median:${edge.id}`, origin = transform([start, 0], startPoint, turn);
       const place = (point: Vec2) => transform(point, origin, turn).map(measure) as Vec2;
       const footprint = outline(length, 1.7).map(place), paving = outline(length, 1).map(place);
+      if (intersection([footprint], water).length) continue;
       if (difference([footprint], plan.roadway).length) throw invariantFailure('median leaves its reserved roadway', { edgeId: edge.id });
       const ornaments: AvenueMedian['ornaments'] = [];
       for (let station = 4, i = 0; station <= length - 4; station += 12, i++) ornaments.push({ kind: i % 2 ? 'pole' : 'tree', position: place([station, 0]) });
