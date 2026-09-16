@@ -11,11 +11,16 @@ export class Frontages {
       const roadTop = ground.find(value => value.surface === 'roadway' || value.surface === 'gutter')?.top;
       const pavedTop = ground.find(value => value.surface === 'sidewalk')?.top;
       if (roadTop === undefined || pavedTop === undefined) throw invariantFailure('street frontage lacks authored levels', { frontageId: source.id });
+      const curbWidth = source.curbWidth === undefined ? 0.2 : source.curbWidth;
+      const gutterWidth = source.gutterWidth === undefined ? 0.3 : source.gutterWidth;
+      if (curbWidth !== 0.2 || (gutterWidth !== 0.3 && gutterWidth !== 0.5)) {
+        throw invariantFailure('street frontage has unsupported edge dimensions', { frontageId: source.id, curbWidth, gutterWidth });
+      }
       const direction = [source.inward[1], -source.inward[0]];
       const station = (point: number[]) => (point[0] - source.start[0]) * direction[0] + (point[1] - source.start[1]) * direction[1];
       return { id: source.id, ownerId: source.ownerId, edgeIds: source.edgeIds, start: source.start, end: source.end,
         inward: source.inward, stationRange: [0, station(source.end)], moduleStationOffset: station(source.moduleStationOrigin),
-        pavedWidth: source.pavedWidth, roadTop, pavedTop, curbWidth: 0.2, gutterWidth: 0.3, cornerIds: source.cornerIds };
+        pavedWidth: source.pavedWidth, roadTop, pavedTop, curbWidth, gutterWidth, cornerIds: source.cornerIds };
     });
   }
 

@@ -2,10 +2,14 @@ import { intersection, difference } from '../../../geom/clip';
 import { area } from '../../../geom/polygon';
 import { invariantFailure } from '../../../errors';
 import type { ReservationCity, StreetReservations } from './schema';
+import type { Polygon } from '../../../../schema/blueprint';
 
 const fail = (message: string, details: Record<string, unknown> = {}): never => { throw invariantFailure(message, details); };
 const point = (value: number[]): boolean => Array.isArray(value) && value.length === 2 && value.every(Number.isFinite);
 const same = (a: unknown, b: unknown): boolean => JSON.stringify(a) === JSON.stringify(b);
+const near = (a: number, b: number): boolean => Number.isFinite(a) && Math.abs(a - b) <= 1e-8;
+// Translating before the shoelace sum prevents cancellation at large city coordinates.
+const localArea = (polygon: Polygon): number => area(polygon.map(([x, z]) => [x - polygon[0][0], z - polygon[0][1]]));
 function indexed<T extends { id: string }>(rows: T[], name: string): Map<string, T> {
   const out = new Map<string, T>();
   for (const row of rows) {
@@ -16,6 +20,8 @@ function indexed<T extends { id: string }>(rows: T[], name: string): Map<string,
 }
 
 export function validateReservations(value: StreetReservations, city: ReservationCity): void {
+  const format = city.modules.format === undefined ? 'source' : city.modules.format, district = format === 'district';
+  if (format !== 'source' && format !== 'district') fail('unknown street construction format', { format });
   if (value.version !== '1.0.0' || value.groundArray.path !== 'volumetric.ground'
     || value.groundArray.count !== city.volumetric.ground.length) fail('street reservations address a different ground array');
   const ground = city.volumetric.ground, claimed = new Set<number>();
@@ -54,8 +60,8 @@ export function validateReservations(value: StreetReservations, city: Reservatio
     const length = dx * frontage.inward[1] - dz * frontage.inward[0];
     if (Math.abs(Math.hypot(...frontage.inward) - 1) > 1e-9 || Math.abs(dx * frontage.inward[0] + dz * frontage.inward[1]) > 0.002
       || length <= 0 || frontage.stationRange[0] !== 0 || Math.abs(frontage.stationRange[1] - length) > 1e-8
-      || !Number.isFinite(frontage.moduleStationOffset) || ![2, 4, 6].includes(frontage.pavedWidth)
-      || frontage.curbWidth !== 0.2 || frontage.gutterWidth !== 0.3) fail('invalid street frontage frame', { frontageId: frontage.id });
+      || !Number.isFinite(frontage.moduleStationOffset) || !(district ? [4.2] : [2, 4, 6]).includes(frontage.pavedWidth)
+      || frontage.curbWidth !== 0.2 || frontage.gutterWidth !== (district ? 0.5 : 0.3)) fail('invalid street frontage frame', { frontageId: frontage.id });
     const source = owner!.groundIndices.map(index => ground[index]);
     if (!Number.isFinite(frontage.roadTop) || frontage.pavedTop - frontage.roadTop !== 0.2
       || !source.some(ground => ground.surface === 'sidewalk' && ground.top === frontage.pavedTop)
@@ -80,18 +86,19 @@ export function validateReservations(value: StreetReservations, city: Reservatio
   indexed(value.parking, 'parking');
   for (const bay of value.parking) {
     const frontage = frontages.get(bay.frontageId), owner = owners.get(bay.ownerId);
-    if (!frontage || !owner || frontage.ownerId !== bay.ownerId || frontage.pavedWidth !== 6
+    if (!frontage || !owner || frontage.ownerId !== bay.ownerId || frontage.pavedWidth !== (district ? 4.2 : 6)
       || frontage.edgeIds.some(id => edges.get(id)?.class === 'highway')) fail('parking lacks an eligible frontage', { parkingId: bay.id });
-    if (!Number.isSafeInteger(bay.slotCount) || bay.slotCount < 1 || bay.slotCount > 3 || bay.slotLength !== 6 || bay.depth !== 2.5 || bay.endRun !== 2
-      || bay.end - bay.start !== bay.slotCount * 6 + 4 || bay.slots.length !== bay.slotCount
-      || bay.walkingClearance !== frontage!.pavedWidth - bay.depth || bay.walkingClearance < 2
-      || bay.support.start !== bay.start - 2 || bay.support.end !== bay.end + 2
+    if (!Number.isSafeInteger(bay.slotCount) || bay.slotCount < 1 || bay.slotCount > 3 || bay.slotLength !== 6 || bay.depth !== (district ? 2 : 2.5) || bay.endRun !== 2
+      || !near(bay.end - bay.start, bay.slotCount * 6 + 4) || bay.slots.length !== bay.slotCount
+      || !near(bay.walkingClearance, frontage!.pavedWidth - bay.depth) || bay.walkingClearance < 2
+      || !near(bay.support.start, bay.start - 2) || !near(bay.support.end, bay.end + 2)
       || bay.support.start < 0 || bay.support.end > frontage!.stationRange[1]) fail('invalid native parking dimensions', { parkingId: bay.id });
     const at = (station: number, depth: number): number[] => [frontage!.start[0] + frontage!.inward[1] * station + frontage!.inward[0] * depth,
       frontage!.start[1] - frontage!.inward[0] * station + frontage!.inward[1] * depth];
     const expected = [at(bay.start, 0), at(bay.end, 0), at(bay.end - 2, bay.depth), at(bay.start + 2, bay.depth)];
     if (bay.footprint.length !== 4 || bay.footprint.some((p, i) => !point(p) || p.some((n, axis) => Math.abs(n - expected[i][axis]) > 1e-8))
-      || bay.slots.some(slot => Math.abs(area(slot) - 15) > 1e-8) || difference(bay.slots, [bay.footprint]).length
+      || bay.slots.some(slot => slot.length !== 4 || !slot.every(point) || Math.abs(localArea(slot) - bay.slotLength * bay.depth) > 1e-6)
+      || difference(bay.slots, [bay.footprint]).length
       || difference([bay.footprint], owner!.groundIndices.filter(index => ground[index].surface === 'roadway').map(index => ground[index].polygon)).length) {
       fail('parking differs from its authored ground footprint', { parkingId: bay.id });
     }

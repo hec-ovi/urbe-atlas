@@ -42,7 +42,7 @@ export interface StreetFrontage {
   roadTop: number;
   pavedTop: number;
   curbWidth: 0.2;
-  gutterWidth: 0.3;
+  gutterWidth: 0.3 | 0.5;
   cornerIds: [string | null, string | null];
 }
 
@@ -56,7 +56,7 @@ export interface StreetParking {
   support: { start: number; end: number };
   slotCount: number;
   slotLength: 6;
-  depth: 2.5;
+  depth: 2 | 2.5;
   endRun: 2;
   walkingClearance: number;
   footprint: Polygon;

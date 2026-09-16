@@ -2,7 +2,7 @@
 
 - src/streets/layout/diagonal-candidates: independent straight corridor proposals between authored rectangle faces, with complete mouth clearance and allowed-land coverage. Input/output: `src/streets/layout/diagonal-candidates/schema.ts`. src/streets/layout/diagonal-candidates/CONTRACT.md. Depends on Atlas coordinates/errors and exact source partition; applies no city changes.
 
-- src/streets/layout/reservations: links authored street supports to exact saved ground owners, parking and protected station/highway references. Input/output: `src/streets/layout/reservations/schema.ts`. src/streets/layout/reservations/CONTRACT.md. Depends on layout, modules, Atlas blueprint and geometry.
+- src/streets/layout/reservations: links source and district frontage dimensions, native parking and protected infrastructure to exact saved ground owners. Input/output: `src/streets/layout/reservations/schema.ts`. src/streets/layout/reservations/CONTRACT.md. Depends on layout, modules, Atlas blueprint and geometry.
 
 - src/streets/layout/underpasses: continuous grade sidewalk modules and authored support handoffs beneath clear elevated highway crossings. Input/output: `src/streets/layout/underpasses/schema.ts`. src/streets/layout/underpasses/CONTRACT.md. Depends on layout, underpass modules, physical highway clearance and geometry; CityLayout consumes its block paving.
 

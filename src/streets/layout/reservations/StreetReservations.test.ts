@@ -2,6 +2,7 @@ import { expect, it } from 'vitest';
 import { GridLayout } from '../GridLayout';
 import { resolveStreetDesign } from '../../construction/Design';
 import { ModuleGround } from '../../construction/modules/ModuleGround';
+import { StreetModuleKit } from '../../construction/modules/StreetModuleKit';
 import { StreetReservations } from './StreetReservations';
 import type { ReservationInput } from './schema';
 
@@ -52,4 +53,38 @@ it('rejects broken owner indices, source frames, parking and exclusion boundarie
     const invalid = structuredClone(result); mutate(invalid);
     expect(() => StreetReservations.validate(invalid, source)).toThrowError(expect.objectContaining({ code: 'E_INVARIANT' }));
   }
+});
+
+it('retains district frontage dimensions and two-metre native parking from the authored module ground', () => {
+  const kit = new StreetModuleKit('district');
+  const block = kit.block({ id: 'district-block', origin: [10000.1, 20000.1], panels: [80, 64], sidewalks: [4, 4, 4, 4],
+    finish: 'luxury-blue', parking: [{ side: 0, start: 8, slots: 2, profile: 'native' }] });
+  const modules = kit.construction(), planning = block.planning!;
+  const edges: ReservationInput['streets']['edges'] = planning.frontages.map(frontage => ({
+    id: `edge:${frontage.side}`, class: 'street', from: `from:${frontage.side}`, to: `to:${frontage.side}`,
+    path: [frontage.start, frontage.end], width: 7, sidewalk: { left: 4.9, right: 4.9 }, districtIds: [], level: 0,
+    elevationProfile: [{ distance: 0, level: 0 }, { distance: Math.hypot(frontage.end[0] - frontage.start[0], frontage.end[1] - frontage.start[1]), level: 0 }],
+  }));
+  const source: ReservationInput = {
+    planning: { ...planning, frontages: planning.frontages.map(frontage => ({ ...frontage, edgeIds: [`edge:${frontage.side}`] })), protected: [] },
+    layoutBlocks: [block], modules, streets: { edges, highwayStructures: [], nodes: edges.flatMap(edge => [
+      { id: edge.from, position: edge.path[0], edgeIds: [edge.id], connections: [{ level: 0, edgeIds: [edge.id] }] },
+      { id: edge.to, position: edge.path[1], edgeIds: [edge.id], connections: [{ level: 0, edgeIds: [edge.id] }] },
+    ]) }, blocks: [{ id: block.id, parcelIds: ['parcel'] }], parcels: [{ id: 'parcel', lot: block.interior }],
+    transit: { subwayStations: [] }, volumetric: { ground: ModuleGround.cover(modules)
+      .map(({ blockId, ...ground }) => ({ ...ground, moduleBlockId: blockId })) },
+  };
+  const original = structuredClone(source), result = StreetReservations.build(source);
+  expect(result.frontages.map(frontage => [frontage.pavedWidth, frontage.curbWidth, frontage.gutterWidth]))
+    .toEqual(Array.from({ length: 4 }, () => [4.2, 0.2, 0.5]));
+  expect(result.parking).toHaveLength(1);
+  expect([result.parking[0].depth, result.parking[0].slotLength, result.parking[0].walkingClearance]).toEqual([2, 6, 2.2]);
+  expect(result.parking[0].slots).toEqual(modules.parking![0].slots);
+  expect(() => StreetReservations.validate(result, source)).not.toThrow();
+  expect(source).toEqual(original);
+  expect(StreetReservations.build(source)).toEqual(result);
+  const wrongGutter = structuredClone(source); wrongGutter.planning.frontages[0].gutterWidth = 0.3;
+  expect(() => StreetReservations.build(wrongGutter)).toThrowError(expect.objectContaining({ code: 'E_INVARIANT' }));
+  const wrongParking = structuredClone(result); wrongParking.parking[0].depth = 2.5;
+  expect(() => StreetReservations.validate(wrongParking, source)).toThrowError(expect.objectContaining({ code: 'E_INVARIANT' }));
 });
