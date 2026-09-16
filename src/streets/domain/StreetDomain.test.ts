@@ -6,19 +6,31 @@ import type { StreetDomainState } from './schema';
 
 describe('street domain', () => {
   it('reserves configured dimensions and refuses a collapsed inset', () => {
-    const design = resolveStreetDesign();
+    const design = resolveStreetDesign({
+      profiles: [
+        { id: 'street', classes: ['street'], lanes: [{ direction: 'forward', width: 4 }], shoulders: { left: 0, right: 0 } },
+        { id: 'avenue', classes: ['road'], lanes: [
+          { direction: 'backward', width: 3.5 }, { direction: 'backward', width: 3.5 },
+          { direction: 'forward', width: 3.5 }, { direction: 'forward', width: 3.5 },
+        ], shoulders: { left: 0, right: 0 } },
+      ],
+      sidewalkProfiles: [2, 6].map((walking) => ({
+        id: `paved-${walking}`, curb: 0.2, border: 0, furnishing: 0, walking, frontage: 0,
+        edge: { curbRise: 0.2, gutter: { width: 0.3, lip: { width: 0.02, height: 0.02, side: 'road' } } },
+      })),
+    });
     const domain = StreetDomain.reserve({
       boundary: [[0, 0], [200, 0], [200, 200], [0, 200]], design, highways: true, alleys: true,
     });
-    expect(domain.clearance).toBe(19.002);
-    expect(domain.covers([[19.002, 50], [180.998, 50]])).toBe(true);
-    expect(domain.covers([[19, 50], [181, 50]])).toBe(false);
+    expect(domain.clearance).toBe(13.502);
+    expect(domain.covers([[13.502, 50], [186.498, 50]])).toBe(true);
+    expect(domain.covers([[13.5, 50], [186.5, 50]])).toBe(false);
     design.profiles = design.profiles.map((profile) => ({
       ...profile, shoulders: { left: 3, right: 1 },
     }));
     expect(StreetDomain.reserve({
       boundary: [[0, 0], [200, 0], [200, 200], [0, 200]], design, highways: false, alleys: false,
-    }).clearance).toBe(21.002);
+    }).clearance).toBe(15.502);
     expect(() => StreetDomain.reserve({
       boundary: [[0, 0], [20, 0], [20, 20], [0, 20]], design, highways: false, alleys: false,
     })).toThrowError(expect.objectContaining({ code: 'E_UNSATISFIABLE' }));
