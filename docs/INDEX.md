@@ -12,7 +12,7 @@
 
 - src/streets/construction/modules/diagonal: local 30/45 degree block-cut templates with authored frontage supports, complete panels and rounded junction returns. Input/output: `src/streets/construction/modules/diagonal/schema.ts`. src/streets/construction/modules/diagonal/CONTRACT.md. Depends on street modules and geometry.
 
-- src/streets/layout: rectangular street grid sized in complete panel groups, with a seeded interior highway reservation, outer sidewalks, independent 30/45 degree corridor candidates, sparse native parking clear of highways with matching walking authority, authored construction supports and short guardrail groups. Input/output: `src/streets/layout/schema.ts`. src/streets/layout/CONTRACT.md. Depends on street construction dimensions, street modules and Atlas seed streams.
+- src/streets/layout: rectangular street grid sized in complete panel groups, with uniform district blocks, selected central avenue median reservations, an interior highway, outer sidewalks and whole-module parking. Input/output: `src/streets/layout/schema.ts`. src/streets/layout/CONTRACT.md. Depends on street construction dimensions, street modules and Atlas seed streams.
 
 - src/streets/construction/modules: dimensioned panels, curbs, gutters, corners and parking, with source and district construction formats on shared 2 m stations. Input/output: `src/streets/construction/modules/schema.ts`. src/streets/construction/modules/CONTRACT.md. Depends on Atlas coordinates, errors and geometry; construction and renderers consume its repeated placements.
 

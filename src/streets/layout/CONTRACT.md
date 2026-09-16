@@ -2,6 +2,8 @@
 
 Places a rectangular street grid directly from lane widths and whole sidewalk panel counts.
 
+`moduleFormat: 'district'` uses one 4.2 m sidewalk profile and finish per complete block, 0.2 m curbs, 0.5 m gutters and 2 m parking depth. The 0.2 m inner separators are added outside integer panel counts; total block allowance is 1.8 m. Selected interior four-lane runs nearest supplied district centers reserve a 3.4 m median separately from their lanes. Highway and perimeter runs are ineligible. The optional center list defaults to the city center.
+
 `GridLayout.plan(input)` takes [GridLayoutInput](schema.ts) and returns [GridLayoutPlan](schema.ts). Street profiles supply 1, 2 or 4 lanes. A caller selects each side's resolved sidewalk profile and finish from its district. Paved widths must be 2, 4 or 6 m with the module kit's 20 cm curb and 30 cm gutter.
 
 `highway: true` reserves one four-lane interior through-run before block dimensions are calculated. The independent highway seed stream chooses its row or column within the middle half of the grid indices. At least one block remains on both sides, including in small cities. `highwayRunId` identifies the reserved grade run; the caller assigns its highway class and elevations. Omission or false publishes no highway reservation.

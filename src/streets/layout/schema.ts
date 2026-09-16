@@ -1,7 +1,7 @@
 import type { Polygon, StreetEdge, StreetNode, Vec2 } from '../../../schema/blueprint';
 import type { RoadProfile, SidewalkProfile } from '../construction/schema/design';
 import type { StreetRun } from '../construction/schema/sections';
-import type { ModuleBlock, ModuleConstruction, ModuleFrontagePlan, ModuleCornerPlan } from '../construction/modules/schema';
+import type { ModuleBlock, ModuleConstruction, ModuleFormat, ModuleFrontagePlan, ModuleCornerPlan } from '../construction/modules/schema';
 import type { SidewalkSectionRecord } from '../construction/schema/sections';
 import type { DiagonalCandidate } from './diagonal-candidates/schema';
 
@@ -19,6 +19,8 @@ export interface LayoutDiagonalCandidate extends Omit<DiagonalCandidate, 'constr
 }
 
 export interface GridLayoutInput {
+  moduleFormat?: ModuleFormat;
+  districtCenters?: Vec2[];
   seed: string;
   size: { width: number; depth: number };
   profiles: RoadProfile[];

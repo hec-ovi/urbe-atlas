@@ -1,6 +1,10 @@
 import { Rng } from '../../core/rng';
 import { invalidParams, unsatisfiable } from '../../errors';
 import type { RoadProfile } from '../construction/schema/design';
+import { roadwayTotal } from '../construction/Design';
+import { measure } from '../construction/modules/Format';
+
+export interface AxisOptions { blockGap?: number; centralAvenue?: boolean; medianIndices?: number[] }
 
 export interface GridAxis {
   roads: { position: number; width: number; profile: RoadProfile }[];
@@ -10,7 +14,7 @@ export interface GridAxis {
   highwayIndex?: number;
 }
 
-export function axis(extent: number, profiles: RoadProfile[], rng: Rng, highwayRng?: Rng): GridAxis {
+export function axis(extent: number, profiles: RoadProfile[], rng: Rng, highwayRng?: Rng, options: AxisOptions = {}): GridAxis {
   if (!Number.isFinite(extent) || extent < 1 || !Array.isArray(profiles) || profiles.length === 0) {
     throw invalidParams('street grid requires a finite size and road profiles');
   }
@@ -21,8 +25,7 @@ export function axis(extent: number, profiles: RoadProfile[], rng: Rng, highwayR
     || !Array.isArray(profile.classes) || !profile.classes.includes(profile.lanes.length === 4 ? 'road' : 'street'))) {
     throw invalidParams('street grid profiles require 1, 2 or 4 lanes with positive widths and valid classes');
   }
-  const widths = profiles.map(profile => profile.lanes.reduce((sum, lane) => sum + lane.width, 0)
-    + profile.shoulders.left + profile.shoulders.right);
+  const widths = profiles.map(roadwayTotal), gap = options.blockGap ?? 1;
   if (widths.some(width => !Number.isFinite(width) || width <= 0)) {
     throw invalidParams('street grid profiles require 1, 2 or 4 lanes with positive widths');
   }
@@ -30,12 +33,17 @@ export function axis(extent: number, profiles: RoadProfile[], rng: Rng, highwayR
   const highwayIndex = highwayRng?.int(Math.max(1, Math.ceil(count / 4)), Math.min(count - 1, Math.floor(count * 3 / 4)));
   const selected = Array.from({ length: count + 1 }, (_, i) => {
     const eligible = profiles.map((profile, index) => ({ profile, width: widths[index] }))
-      .filter(item => (i === highwayIndex || i % 3 === 0) ? item.profile.lanes.length === 4 : item.profile.lanes.length <= 2);
+      .filter(item => (i === highwayIndex || i % 3 === 0 || options.centralAvenue && i === Math.floor(count / 2))
+        ? item.profile.lanes.length === 4 : item.profile.lanes.length <= 2);
     if (!eligible.length) throw invalidParams('street grid requires both local and avenue profiles');
-    return eligible[rng.int(0, eligible.length - 1)];
+    const selected = eligible[rng.int(0, eligible.length - 1)];
+    if (!options.medianIndices?.includes(i)) return selected;
+    if (i === highwayIndex || i === 0 || i === count || selected.profile.lanes.length !== 4) throw invalidParams('median requires an interior grade avenue');
+    const profile = { ...selected.profile, id: `${selected.profile.id}-median`, median: { width: 3.4 } };
+    return { profile, width: roadwayTotal(profile) };
   });
   const roadSpace = selected.reduce((sum, item) => sum + item.width, 0);
-  const pairs = Math.floor((extent - 44 - roadSpace - count) / 2);
+  const pairs = Math.floor((extent - 44 - roadSpace - count * gap) / 2);
   const base = Math.floor(pairs / count);
   if (base < 24) throw unsatisfiable('city axis cannot fit two whole-panel blocks', { extent });
   const panels = Array.from({ length: count }, (_, i) => (base + (i < pairs % count ? 1 : 0)) * 2);
@@ -50,12 +58,12 @@ export function axis(extent: number, profiles: RoadProfile[], rng: Rng, highwayR
   const stretch = Math.min(Math.floor(base / 3), (panels[short] - 48) / 2) * 2;
   panels[short] -= stretch;
   panels[long] += stretch;
-  const span = roadSpace + panels.reduce((sum, value) => sum + value + 1, 0);
-  const min = (extent - span) / 2;
+  const span = measure(roadSpace + panels.reduce((sum, value) => sum + value + gap, 0));
+  const min = measure((extent - span) / 2);
   let position = min;
   const roads = selected.map((road, index) => {
-    const center = position + road.width / 2;
-    position += road.width + (panels[index] === undefined ? 0 : panels[index] + 1);
+    const center = measure(position + road.width / 2);
+    position = measure(position + road.width + (panels[index] === undefined ? 0 : panels[index] + gap));
     return { ...road, position: center };
   });
   return { roads, panels, min, max: min + span, highwayIndex };

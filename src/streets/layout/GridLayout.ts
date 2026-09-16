@@ -10,6 +10,8 @@ import { parkingSection, supportsNativeParking } from './ParkingSections';
 import { LayoutPlanning } from './LayoutPlanning';
 import { DiagonalCuts } from './DiagonalCuts';
 import { LayoutCandidates } from './LayoutCandidates';
+import { MedianSelection } from './MedianSelection';
+import { measure, moduleSizing } from '../construction/modules/Format';
 import type { GridLayoutInput, GridLayoutPlan } from './schema';
 
 const rectangle = (x: number, z: number, width: number, depth: number): Vec2[] =>
@@ -23,10 +25,21 @@ export class GridLayout {
       && (!Number.isFinite(input.diagonalCornerClearance) || input.diagonalCornerClearance < 0))
       throw invalidParams('diagonalCornerClearance must be finite and nonnegative');
     if (input.highway !== undefined && typeof input.highway !== 'boolean') throw invalidParams('highway must be boolean');
-    const highwayRng = input.highway ? Rng.from(input.seed, 'highway-route') : undefined;
-    const highwayAxis = highwayRng?.int(0, 1);
-    const x = axis(input.size.width, input.profiles, Rng.from(input.seed, 'street-columns'), highwayAxis === 0 ? highwayRng : undefined);
-    const z = axis(input.size.depth, input.profiles, Rng.from(input.seed, 'street-rows'), highwayAxis === 1 ? highwayRng : undefined);
+    const sizing = moduleSizing(input.moduleFormat), district = sizing.format === 'district';
+    if (district && input.diagonals === 'legacy-applied') throw invalidParams('legacy-applied diagonals require the source module format');
+    if (input.districtCenters?.some(point => !Array.isArray(point) || point.length !== 2 || !point.every(Number.isFinite))) throw invalidParams('districtCenters require finite XZ points');
+    const rim = measure(sizing.curb + sizing.gutter), gap = measure(2 * (rim + sizing.separator));
+    const makeAxes = (medians: { x: number[]; z: number[] } = { x: [], z: [] }) => {
+      const highwayRng = input.highway ? Rng.from(input.seed, 'highway-route') : undefined;
+      const highwayAxis = highwayRng?.int(0, 1);
+      const options = { blockGap: gap, centralAvenue: district };
+      return {
+        x: axis(input.size.width, input.profiles, Rng.from(input.seed, 'street-columns'), highwayAxis === 0 ? highwayRng : undefined, { ...options, medianIndices: medians.x }),
+        z: axis(input.size.depth, input.profiles, Rng.from(input.seed, 'street-rows'), highwayAxis === 1 ? highwayRng : undefined, { ...options, medianIndices: medians.z }),
+      };
+    };
+    let { x, z } = makeAxes();
+    if (district) ({ x, z } = makeAxes(MedianSelection.select(x, z, input.districtCenters ?? [[input.size.width / 2, input.size.depth / 2]])));
     const nodes: StreetNode[] = [];
     const edges: StreetEdge[] = [];
     const runs: StreetRun[] = [];
@@ -77,22 +90,33 @@ export class GridLayout {
 
     const highwayRunId = x.highwayIndex !== undefined ? runs[z.roads.length + x.highwayIndex].id
       : z.highwayIndex !== undefined ? runs[z.highwayIndex].id : undefined;
-    const kit = new StreetModuleKit();
+    const kit = new StreetModuleKit(sizing.format);
     const planning: GridLayoutPlan['planning'] = { frontages: [], corners: [], protected: [] };
     const blocks: GridLayoutPlan['blocks'] = [];
     const details = Rng.from(input.seed, 'street-details');
     for (let row = 0; row < z.panels.length; row++) {
       for (let column = 0; column < x.panels.length; column++) {
         const frontages = [horizontal[row][column], vertical[column + 1][row], horizontal[row + 1][column], vertical[column][row]];
-        const sidewalks = frontages.map((value, side) => value.crossSection!.sidewalks[side < 2 ? 'left' : 'right'].geometry!.pavedWidth) as BlockModuleInput['sidewalks'];
-        const origin: Vec2 = [x.roads[column].position + x.roads[column].width / 2 + 0.5, z.roads[row].position + z.roads[row].width / 2 + 0.5];
+        const origin: Vec2 = [measure(x.roads[column].position + x.roads[column].width / 2 + rim), measure(z.roads[row].position + z.roads[row].width / 2 + rim)];
         const panels: [number, number] = [x.panels[column], z.panels[row]];
-        const finish = input.sideAt([origin[0] + panels[0] / 2, origin[1] + panels[1] / 2], 'street').finish;
+        const selected = input.sideAt([origin[0] + panels[0] / 2 + sizing.separator, origin[1] + panels[1] / 2 + sizing.separator], 'street');
+        const finish = selected.finish;
+        if (district) {
+          const section = sideSection(selected.profile);
+          if (Math.abs(section.geometry!.pavedWidth - 4.2) > 1e-8 || section.geometry!.edge.gutter.width !== sizing.gutter)
+            throw invalidParams('district blocks require the shared 4.2 m sidewalk profile');
+          frontages.forEach((edge, side) => {
+            const key = side < 2 ? 'left' : 'right';
+            edge.crossSection!.sidewalks[key] = structuredClone(section);
+            edge.sidewalk[key] = section.geometry!.totalWidth;
+          });
+        }
+        const sidewalks = frontages.map((value, side) => measure(value.crossSection!.sidewalks[side < 2 ? 'left' : 'right'].geometry!.pavedWidth - sizing.separator)) as BlockModuleInput['sidewalks'];
         const rng = details.fork(`parking:${row}:${column}`);
         const parking: BlockModuleInput['parking'] = [];
         const eligible = sidewalks.map((width, side) => ({ width, side: side as QuarterTurn,
           length: panels[side % 2] - sidewalks[(side + 1) % 4] - sidewalks[(side + 3) % 4] }))
-          .filter(candidate => candidate.width === 6 && candidate.length >= 32
+          .filter(candidate => candidate.width === (district ? 4 : 6) && candidate.length >= 32
             && frontages[candidate.side].crossSection!.runId !== highwayRunId
             && supportsNativeParking(frontages[candidate.side].crossSection!.sidewalks[candidate.side < 2 ? 'left' : 'right']));
         if (eligible.length && rng.chance(0.15)) {
@@ -123,13 +147,13 @@ export class GridLayout {
     for (const road of x.roads) {
       for (let row = 0; row < z.panels.length; row++) {
         const start = z.roads[row].position + z.roads[row].width / 2;
-        roadway.push(rectangle(road.position - road.width / 2, start, road.width, z.panels[row] + 1));
+        roadway.push(rectangle(road.position - road.width / 2, start, road.width, z.panels[row] + gap));
       }
     }
     const bounds = { min: [x.min, z.min] as Vec2, max: [x.max, z.max] as Vec2 };
     if (input.perimeter) {
       const perimeter = kit.perimeter({ id: 'fringe', bounds,
-        width: sideSection(input.perimeter.profile).geometry!.pavedWidth as SidewalkWidth, finish: input.perimeter.finish });
+        width: measure(sideSection(input.perimeter.profile).geometry!.pavedWidth - sizing.separator) as SidewalkWidth, finish: input.perimeter.finish });
       LayoutPlanning.add(planning, perimeter.planning!, [horizontal[0], vertical.at(-1)!, horizontal.at(-1)!, vertical[0]]
         .map(edges => edges.map(edge => edge.id)));
     }
