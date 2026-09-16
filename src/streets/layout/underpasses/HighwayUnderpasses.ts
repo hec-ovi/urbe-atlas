@@ -8,7 +8,7 @@ import { difference, intersection, snap, union } from '../../../geom/clip';
 import { PolygonIndex } from '../../../geom/PolygonIndex';
 import { invariantFailure, unsatisfiable } from '../../../errors';
 import { UnderpassPlanning } from './UnderpassPlanning';
-import { cornerDimensions, placementKey, turnPoint } from './Placement';
+import { cornerDimensions, placementKey, turnPoint, waterExcludedKeys } from './Placement';
 import type { GridLayoutPlan, UnderpassBlockGround, UnderpassSettings } from './schema';
 
 /** Fits one physical owner per grade sidewalk beneath the highway. */
@@ -18,6 +18,8 @@ export class HighwayUnderpasses {
     if (!plan.edges.some(edge => edge.class === 'highway')) return additions;
     const format = plan.modules.format ?? 'source', curbWidth = 0.2, gutterWidth = format === 'district' ? 0.5 : 0.3;
     const rim = snap(curbWidth + gutterWidth);
+    const excluded = waterExcludedKeys(settings.waterExcludedCorners === undefined ? [] : settings.waterExcludedCorners, plan.planning);
+    if (excluded.size && !settings.water.length) throw invariantFailure('water-excluded corners require water exclusions');
     const edges = new Map(plan.edges.map(edge => [edge.id, edge]));
     const sourceCorners = new Map(plan.planning.corners.filter(corner => corner.kind === 'arc')
       .map(corner => [placementKey(corner.placement.origin, corner.placement.turn), corner]));
@@ -59,10 +61,13 @@ export class HighwayUnderpasses {
         const offset = grade[0].width / 2 + rim;
         const startPoint = turnPoint([-half, offset], node.position, turn);
         const endPoint = turnPoint([half, offset], node.position, turn);
-        const first = corners.get(placementKey(startPoint, ((turn + 1) % 4) as QuarterTurn));
-        const last = corners.get(placementKey(endPoint, turn));
-        if (!first || !last || removed.has(first) || removed.has(last)) {
-          throw invariantFailure('highway underpass has no paired corner owners', { nodeId: node.id, turn });
+        const firstKey = placementKey(startPoint, ((turn + 1) % 4) as QuarterTurn), lastKey = placementKey(endPoint, turn);
+        const first = corners.get(firstKey), last = corners.get(lastKey);
+        const consumed = [first, last].some(placement => placement && removed.has(placement));
+        if (!first || !last || consumed) {
+          const absent = [first ? undefined : firstKey, last ? undefined : lastKey].filter((key): key is string => key !== undefined);
+          if (!consumed && absent.length && absent.every(key => excluded.has(key))) continue;
+          throw invariantFailure('highway underpass has no paired corner owners', { nodeId: node.id, turn, missingPlacementKeys: absent });
         }
         const [startWidth, startReturn] = cornerDimensions(first, plan.planning, format);
         const [endReturn, endWidth] = cornerDimensions(last, plan.planning, format);

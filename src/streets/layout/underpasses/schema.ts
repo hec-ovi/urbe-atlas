@@ -1,10 +1,12 @@
 import type { Polygon } from '../../../../schema/blueprint';
-import type { ModuleGroundRegion } from '../../construction/modules/schema';
+import type { ModuleCornerPlan, ModuleGroundRegion } from '../../construction/modules/schema';
 export type { GridLayoutPlan } from '../schema';
 
 export interface UnderpassSettings {
   boundary: Polygon;
   water: Polygon[];
+  /** Original corner supports removed with whole water-intersecting blocks. */
+  waterExcludedCorners?: ModuleCornerPlan[];
   clearHeight: number;
 }
 

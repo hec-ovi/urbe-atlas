@@ -6,7 +6,7 @@
 
 - src/streets/layout/reservations: links source and district frontage dimensions, native parking and protected infrastructure to exact saved ground owners. Input/output: `src/streets/layout/reservations/schema.ts`. src/streets/layout/reservations/CONTRACT.md. Depends on layout, modules, Atlas blueprint and geometry.
 
-- src/streets/layout/underpasses: continuous source and district sidewalks beneath clear elevated highways, fitted to authored physical corner supports. Input/output: `src/streets/layout/underpasses/schema.ts`. src/streets/layout/underpasses/CONTRACT.md. Depends on layout, underpass modules, physical highway clearance and geometry; CityLayout consumes its block paving.
+- src/streets/layout/underpasses: source and district sidewalks beneath clear highways, with authored corner handoffs and explicit shoreline exclusions. Input/output: `src/streets/layout/underpasses/schema.ts`. src/streets/layout/underpasses/CONTRACT.md. Depends on layout, underpass modules, physical highway clearance and geometry; CityLayout consumes its block paving.
 
 - src/streets/construction/modules/underpass: complete source or district sidewalks across an elevated highway opening, fitted to physical corner dimensions. Input/output: `src/streets/construction/modules/underpass/schema.ts`. src/streets/construction/modules/underpass/CONTRACT.md. Depends on street modules and geometry.
 

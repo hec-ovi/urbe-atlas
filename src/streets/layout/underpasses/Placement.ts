@@ -1,5 +1,5 @@
 import type { Vec2 } from '../../../../schema/blueprint';
-import type { ModuleFormat, ModulePlacement, QuarterTurn } from '../../construction/modules/schema';
+import type { ModuleCornerPlan, ModuleFormat, ModulePlacement, QuarterTurn } from '../../construction/modules/schema';
 import type { LayoutPlanningData } from '../schema';
 import { invariantFailure } from '../../../errors';
 
@@ -9,6 +9,25 @@ export function turnPoint([x, z]: Vec2, origin: Vec2, turn: QuarterTurn): Vec2 {
 }
 
 export const placementKey = (origin: Vec2, turn: QuarterTurn): string => `${Math.round(origin[0] * 1000)}:${Math.round(origin[1] * 1000)}:${turn}`;
+
+/** Only original supports explicitly excluded by the caller can have no surviving endpoint. */
+export function waterExcludedKeys(excluded: ModuleCornerPlan[], planning: LayoutPlanningData): Set<string> {
+  if (!Array.isArray(excluded)) throw invariantFailure('water exclusions must contain authored corner supports');
+  const keys = new Set<string>(), retained = new Set(planning.corners.map(corner => placementKey(corner.placement.origin, corner.placement.turn)));
+  for (const corner of excluded) {
+    const placement = corner?.placement;
+    if (!corner?.id || !placement?.moduleId || !Array.isArray(placement.origin) || placement.origin.length !== 2
+      || !placement.origin.every(Number.isFinite) || ![0, 1, 2, 3].includes(placement.turn)) {
+      throw invariantFailure('water exclusion has no authored corner identity', { cornerId: corner?.id });
+    }
+    const key = placementKey(placement.origin, placement.turn);
+    if (keys.has(key) || retained.has(key)) {
+      throw invariantFailure('water-excluded corner is repeated or retained', { cornerId: corner.id });
+    }
+    keys.add(key);
+  }
+  return keys;
+}
 
 /** Physical dimensions come from the two authored frontage frames at this corner. */
 export function cornerDimensions(placement: ModulePlacement, planning: LayoutPlanningData, format: ModuleFormat = 'source'): [number, number] {
