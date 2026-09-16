@@ -3,14 +3,15 @@ import type { StreetEdge } from '../../../../schema/blueprint';
 import { resolveStreetDesign } from '../Design';
 import { StreetSections } from '../StreetSections';
 import { GradeDatum, type GradeDatumInput } from './index';
+import { datumStreetDesign } from './fixtures/design';
 
 function inputs(side: 'left' | 'right'): { legacy: GradeDatumInput; explicit: GradeDatumInput } {
   const path: StreetEdge['path'] = [[20, 50], [80, 50]];
   const source = { id: 'street', class: 'street' as const, from: 'a', to: 'b', path };
   const nodes = path.map((position, index) => ({ id: index ? 'b' : 'a', position, edgeIds: ['street'] }));
-  const legacyPlan = StreetSections.plan([source], nodes, resolveStreetDesign(), () => 'residential');
+  const legacyPlan = StreetSections.plan([source], nodes, resolveStreetDesign(datumStreetDesign), () => 'residential');
   const explicitPlan = StreetSections.plan([source], nodes, resolveStreetDesign({
-    ...resolveStreetDesign(),
+    ...datumStreetDesign,
     sidewalkProfiles: [{
       id: 'paved-two', curb: 0.2, border: 0, furnishing: 0.5, walking: 1.5, frontage: 0,
       edge: { curbRise: 0.2, gutter: { width: 0.3, lip: { width: 0.02, height: 0.02, side: 'road' } } },

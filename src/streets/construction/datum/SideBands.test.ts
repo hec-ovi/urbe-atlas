@@ -5,6 +5,7 @@ import { resolveStreetDesign } from '../Design';
 import { StreetCorridors } from '../StreetCorridors';
 import { StreetSections } from '../StreetSections';
 import { GradeDatum, type GradeDatumInput } from './index';
+import { datumStreetDesign } from './fixtures/design';
 
 function request(explicit = true): GradeDatumInput {
   const positions: Vec2[] = [[20, 60], [60, 60], [100, 60], [60, 20]];
@@ -17,7 +18,7 @@ function request(explicit = true): GradeDatumInput {
     { id: 'stem', class: 'street' as const, from: 'n3', to: 'n1', path: [positions[3], positions[1]] },
   ];
   const design = resolveStreetDesign(explicit ? {
-    ...resolveStreetDesign(),
+    ...datumStreetDesign,
     sidewalkProfiles: [2, 4].map(paved => ({
       id: `paved-${paved}`, curb: 0.2, border: 0, furnishing: 0.5, walking: paved - 0.5, frontage: 0,
       edge: { curbRise: paved === 2 ? 0.2 : 0.3,
@@ -27,7 +28,7 @@ function request(explicit = true): GradeDatumInput {
       { district: 'residential', street: 'paved-2', road: 'paved-2' },
       { district: 'commercial', street: 'paved-4', road: 'paved-4' },
     ],
-  } : undefined);
+  } : datumStreetDesign);
   const planned = StreetSections.plan(sources, nodes, design, point => point[1] > 60 ? 'commercial' : 'residential');
   const edges: StreetEdge[] = planned.edges.map(edge => ({
     ...edge, districtIds: [], level: 5,
