@@ -1,5 +1,7 @@
 # Box map
 
+- src/streets/layout/medians: constructs selected reserved avenue islands with 2 m paved centers, rounded ends, curb/gutter and ornament anchors. Input/output: `src/streets/layout/medians/schema.ts`. src/streets/layout/medians/CONTRACT.md. Depends on layout, module records and geometry; reserves no traffic lanes.
+
 - src/streets/layout/diagonal-candidates: independent straight corridor proposals between authored rectangle faces, with complete mouth clearance and allowed-land coverage. Input/output: `src/streets/layout/diagonal-candidates/schema.ts`. src/streets/layout/diagonal-candidates/CONTRACT.md. Depends on Atlas coordinates/errors and exact source partition; applies no city changes.
 
 - src/streets/layout/reservations: links source and district frontage dimensions, native parking and protected infrastructure to exact saved ground owners. Input/output: `src/streets/layout/reservations/schema.ts`. src/streets/layout/reservations/CONTRACT.md. Depends on layout, modules, Atlas blueprint and geometry.
