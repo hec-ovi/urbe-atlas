@@ -9,6 +9,7 @@ Data shapes: [schema.ts](schema.ts). Producer shapes: [producer-schema.ts](produ
 - `PavingPlanner.validateDesign(input: unknown): PavingDesign` validates settings before city generation and returns an owned copy of the declared fields. It needs no graph or district geometry. `plan` additionally checks overrides against published district IDs.
 - `PavingPlanner.plan(input)` in [PavingPlanner.ts](PavingPlanner.ts) takes standalone ground polygons, published street graph and runs, district boundaries, explicit paving settings and optional station bay footprints. This legacy polygon entry preserves each supplied binary source independently. It returns replacement ground and paving data; roadway, block and open records pass through unchanged.
 - `PavingPlanner.planShared(input)` takes the same construction settings plus `PavingGroundSource`: the caller's opaque exact partition, original city boundary, authored coordinate scale, editable semantic owner IDs and excluded owner IDs. It refines existing ownership, verifies the final partition and publishes sole ground polygons once. Curb and sidewalk retain source levels. No land is added outside the existing source domain.
+- Both producer entries accept curb-only street sections. Explicit gutter geometry and module construction require their own construction format and fail before refinement. Generated cities publish modules; they do not invoke these fitted-paving entries.
 - `PavingPlanner.validatePublished(city): void` takes serialized public city fields from `PublishedPavingInput`. It validates fitted construction references and proves that final ground polygons cover `meta.boundary` minus published water surfaces exactly once. It takes no original source polygons or certificate.
 
 - Caller `PavingDesign` selects finish families, numeric layouts and district overrides. Atlas imports no material assets. A layout's module dimensions are cell pitches, including joints; nominal body dimensions are pitch minus joint.
@@ -66,7 +67,7 @@ For a grouped module, apply this expansion to each base quad using base pitches 
 ## Errors
 
 - `E_INVALID_PARAMS`: malformed layouts, duplicate layout/module/override IDs, missing references, invalid dimensions, incompatible base stations or incomplete integer grouping settings.
-- `E_INVARIANT`: incoherent graph/run references, malformed source geometry or levels, duplicate district or station-bay ownership, ground already carrying fitted construction, or a persisted fitted artifact failing its coverage, semantic, reference or cell checks.
+- `E_INVARIANT`: unsupported explicit gutter or module construction, incoherent graph/run references, malformed source geometry or levels, duplicate district or station-bay ownership, ground already carrying fitted construction, or a persisted fitted artifact failing its coverage, semantic, reference or cell checks.
 
 ## Dependencies
 

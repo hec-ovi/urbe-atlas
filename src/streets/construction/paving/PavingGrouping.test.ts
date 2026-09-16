@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import type { GroundSurface, Polygon, StreetEdge, StreetNode, Vec2 } from '../../../../schema/blueprint';
 import { SourcePartition } from '../../../geom/partition/SourcePartition';
-import { resolveStreetDesign } from '../Design';
 import { StreetSections } from '../StreetSections';
 import { PavingPlanner } from './PavingPlanner';
+import { legacyStreetDesign } from './fixtures/legacyStreetDesign';
 import type { PublishedPavingInput, SharedPavingInput } from './producer-schema';
 import type { PavingDesign, PavingModule } from './schema';
 
@@ -25,8 +25,8 @@ function source(width: number, side: 'left' | 'right'): SharedPavingInput {
   const edge: StreetEdge = { id: 'e0', from: 'n0', to: 'n1', path: nodes.map(node => node.position),
     class: 'street', width: 7, sidewalk: { left: 0, right: 0 }, districtIds: [], level: 0,
     elevationProfile: [{ distance: 0, level: 0 }, { distance: 12, level: 0 }] };
-  const planned = StreetSections.plan([edge], nodes, resolveStreetDesign({ ...resolveStreetDesign(), sidewalkProfiles: [{ id: 'walk',
-    curb: 0.15, border: 0, furnishing: 0, walking: width, frontage: 0 }] }), () => 'downtown');
+  const planned = StreetSections.plan([edge], nodes, legacyStreetDesign({
+    curb: 0.15, border: 0, furnishing: 0, walking: width, frontage: 0 }), () => 'downtown');
   const near = side === 'left' ? 3650 : -3650;
   const far = near + (side === 'left' ? 1 : -1) * width * 1000;
   const boundary = rect(0, Math.min(near, far) / 1000, 12, Math.max(near, far) / 1000);

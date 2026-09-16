@@ -48,6 +48,10 @@ function validateContext(input: Omit<PavingInput, 'ground'>, design: PavingDesig
   }
   if (!input.streets.construction) throw invariantFailure('paving requires published street construction');
   validateStreetSections({ streets: input.streets });
+  if (input.streets.construction.modules || input.streets.edges.some(edge => edge.crossSection
+    && (edge.crossSection.sidewalks.left.geometry || edge.crossSection.sidewalks.right.geometry))) {
+    throw invariantFailure('fitted paving requires curb-only street sections without module construction');
+  }
   const bayIds = new Set<string>();
   for (const bay of input.stationBays ?? []) {
     const key = `${bay.stationId}:${bay.entranceIndex}`;

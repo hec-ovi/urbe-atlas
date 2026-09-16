@@ -40,7 +40,7 @@
 
 - test/runtime: native event-loop turns between completed tests. test/runtime/CONTRACT.md. Depends on Vitest's public runner and Node timers; selected by vite.config.ts.
 
-- src/streets/construction/paving: shared-source fitted slabs, integer group offsets, curb stations and saved ownership validation. src/streets/construction/paving/CONTRACT.md. Depends on street construction, crossing construction, exact partition and published coverage; finish settings come from the caller.
+- src/streets/construction/paving: curb-only fitted slabs, integer group offsets, curb stations and saved ownership validation. src/streets/construction/paving/CONTRACT.md. Depends on street construction, crossing construction, exact partition and published coverage; finish settings come from the caller.
 
 - src/geom: polygon operations, exact contacts, complete coverage and numeric-view diagnostics. src/geom/CONTRACT.md. Depends on root Atlas coordinates, source-partition support enclosures and the existing integer clipping library.
 - atlas (root): city blueprint from shared street modules, buildable parcels, transit, checked ground and sparse furniture fitted to paved land. CONTRACT.md, schemas in schema/, generator in src/, saved source street reservations and independent diagonal candidates, optional stage progress in `schema/progress.ts`, reusable CLI at dist/cli.mjs. Depends on street layout/modules, geometry, crossing construction and highway envelopes; mirrors the Interior core-feasibility and Exterior floor-constant contracts.

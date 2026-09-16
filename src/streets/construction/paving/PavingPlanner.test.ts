@@ -10,6 +10,7 @@ import { resolveStreetDesign } from '../Design';
 import { StreetSections } from '../StreetSections';
 import { StreetCorridors } from '../StreetCorridors';
 import { PavingPlanner } from './PavingPlanner';
+import { legacyStreetDesign } from './fixtures/legacyStreetDesign';
 import type { PavingInput, PavingOutput, PublishedPavingInput, SharedPavingInput } from './producer-schema';
 import type { PavingDesign, PavingFrame, PavingModule } from './schema';
 
@@ -60,7 +61,7 @@ function input(paths: Vec2[][] = [[[0, 0], [24, 0]]]): PavingInput {
     return { id: `e${index}`, from: endpoints[0].id, to: endpoints[1].id, path, class: 'street', width: 7,
       sidewalk: { left: 0, right: 0 }, districtIds: ['d0'], level: 0, elevationProfile: [{ distance: 0, level: 0 }, { distance: length, level: 0 }] };
   });
-  const planned = StreetSections.plan(edges, nodes, resolveStreetDesign(), () => 'downtown');
+  const planned = StreetSections.plan(edges, nodes, legacyStreetDesign(), () => 'downtown');
   return { streets: { nodes, edges: planned.edges, crossings: [], construction: { version: '1.0.0', runs: planned.runs } },
     districts: [{ id: 'd0', boundary: rect(-100, -100, 100, 100) }], design: design(),
     ground: [ground(rect(0, 3.5, 24, 3.65), 'curb'), ground(rect(0, 3.65, 24, 10)), ground(rect(0, -3.5, 24, 3.5), 'roadway')] };
@@ -382,13 +383,20 @@ describe('fitted paving producer contract', () => {
     }
   });
 
-  it('consumes a generated public Atlas city without inventing ground', () => {
+  it('rejects explicit gutter and module geometry before fitting legacy paving', () => {
+    const source = input();
+    const planned = StreetSections.plan(source.streets.edges, source.streets.nodes, resolveStreetDesign(), () => 'downtown');
+    source.streets.edges = planned.edges;
+    source.streets.construction.runs = planned.runs;
+    const unsupported = { code: 'E_INVARIANT',
+      message: 'fitted paving requires curb-only street sections without module construction' };
+    expect(() => PavingPlanner.plan(source)).toThrowError(expect.objectContaining(unsupported));
+    expect(() => PavingPlanner.planShared(shared(source, rect(0, -3.5, 24, 10))))
+      .toThrowError(expect.objectContaining(unsupported));
     const city = generateCity({ seed: 'urbe-tiny', size: { width: 400, depth: 400 }, maxFloors: 6,
       features: { highways: false, trains: false, subways: false }, pavingDesign: groupedDesign() });
-    expect(city.streets.construction?.paving?.version).toBe('1.1.0');
-    expect(city.volumetric.ground.filter(owner => owner.construction?.part.kind === 'grid').length).toBeGreaterThan(10);
-    for (const moduleId of ['slab', 'large']) expect(city.volumetric.ground.some(owner =>
-      owner.construction?.part.kind === 'grid' && owner.construction.part.moduleId === moduleId)).toBe(true);
-    PavingPlanner.validatePublished(JSON.parse(JSON.stringify(city)));
+    expect(() => PavingPlanner.plan({ streets: { ...city.streets, construction: city.streets.construction! },
+      ground: city.volumetric.ground, districts: city.districts, design: groupedDesign() }))
+      .toThrowError(expect.objectContaining(unsupported));
   }, 120_000);
 });
