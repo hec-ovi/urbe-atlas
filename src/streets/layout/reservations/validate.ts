@@ -29,7 +29,9 @@ export function validateReservations(value: StreetReservations, city: Reservatio
   const blocks = indexed(city.blocks, 'block'), parcels = indexed(city.parcels, 'parcel'), edges = indexed(city.streets.edges, 'edge');
   const nodes = new Set(city.streets.nodes.map(node => node.id));
   for (const owner of owners.values()) {
-    if (!['block', 'perimeter', 'underpass', 'roadway', 'station'].includes(owner.kind)) fail('unknown street owner kind');
+    if (!['block', 'perimeter', 'underpass', 'roadway', 'station', 'median'].includes(owner.kind)) fail('unknown street owner kind');
+    if (owner.kind === 'median' && (!district || !city.modules.frontages?.some(front => front.id === owner.id && front.kind === 'median')
+      || owner.interiors.length || owner.excludedParcelIds.length)) fail('invalid median owner', { ownerId: owner.id });
     if (!owner.groundIndices.length) fail('street owner has no ground', { ownerId: owner.id });
     const block = blocks.get(owner.id);
     if (owner.kind === 'block' && (!block || !same([...block.parcelIds].sort(), [...owner.excludedParcelIds].sort()))) {
@@ -60,7 +62,7 @@ export function validateReservations(value: StreetReservations, city: Reservatio
     const length = dx * frontage.inward[1] - dz * frontage.inward[0];
     if (Math.abs(Math.hypot(...frontage.inward) - 1) > 1e-9 || Math.abs(dx * frontage.inward[0] + dz * frontage.inward[1]) > 0.002
       || length <= 0 || frontage.stationRange[0] !== 0 || Math.abs(frontage.stationRange[1] - length) > 1e-8
-      || !Number.isFinite(frontage.moduleStationOffset) || !(district ? [4.2] : [2, 4, 6]).includes(frontage.pavedWidth)
+      || !Number.isFinite(frontage.moduleStationOffset) || !(owner!.kind === 'median' ? [2] : district ? [4.2] : [2, 4, 6]).includes(frontage.pavedWidth)
       || frontage.curbWidth !== 0.2 || frontage.gutterWidth !== (district ? 0.5 : 0.3)) fail('invalid street frontage frame', { frontageId: frontage.id });
     const source = owner!.groundIndices.map(index => ground[index]);
     if (!Number.isFinite(frontage.roadTop) || frontage.pavedTop - frontage.roadTop !== 0.2

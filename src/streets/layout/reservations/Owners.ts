@@ -8,6 +8,7 @@ export class Owners {
     const layouts = new Map(input.layoutBlocks.map(block => [block.id, block]));
     const underpasses = new Set(input.planning.protected.map(value => value.ownerId));
     const frontages = new Set(input.modules.frontages?.map(value => value.id));
+    const medians = new Set(input.modules.frontages?.filter(value => value.kind === 'median').map(value => value.id));
     for (const [index, ground] of input.volumetric.ground.entries()) {
       if (!['roadway', 'sidewalk', 'curb', 'gutter'].includes(ground.surface)) continue;
       const id = ground.moduleBlockId ?? (ground.surface === 'roadway' ? 'roadway' : 'station-bays');
@@ -15,7 +16,7 @@ export class Owners {
       if (!owner) {
         const block = blocks.get(id), layout = layouts.get(id);
         if (ground.moduleBlockId && !block && !frontages.has(id)) throw invariantFailure('street ground has no source owner', { index, id });
-        owner = { id, kind: underpasses.has(id) ? 'underpass' : block ? 'block' : frontages.has(id) ? 'perimeter'
+        owner = { id, kind: medians.has(id) ? 'median' : underpasses.has(id) ? 'underpass' : block ? 'block' : frontages.has(id) ? 'perimeter'
           : ground.surface === 'roadway' ? 'roadway' : 'station', groundIndices: [], excludedParcelIds: block?.parcelIds ?? [],
           interiors: layout ? layout.interiors ?? [layout.interior] : [],
           finish: input.modules.placements.find(placement => placement.blockId === id)?.finish ?? null };

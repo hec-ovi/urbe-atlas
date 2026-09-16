@@ -18,7 +18,7 @@ export interface ReservationInput extends ReservationCity {
 
 export interface StreetOwner {
   id: string;
-  kind: 'block' | 'perimeter' | 'underpass' | 'roadway' | 'station';
+  kind: 'block' | 'perimeter' | 'underpass' | 'roadway' | 'station' | 'median';
   /** Indices in the exact saved volumetric.ground array; each selected index belongs to one owner. */
   groundIndices: number[];
   excludedParcelIds: string[];
