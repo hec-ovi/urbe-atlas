@@ -15,7 +15,7 @@ import { AvenueMedians } from './streets/layout/medians/AvenueMedians';
 
 /** Connects district choices to the dimensioned street layout. */
 export class CityLayout {
-  static plan(params: ResolvedParams, districtAt: (point: Vec2) => { id: string; kind: DistrictKind; tier?: WealthTier }, water: Polygon[], districtCenters?: Vec2[]) {
+  static plan(params: ResolvedParams, districtAt: (point: Vec2) => { id: string; kind: DistrictKind; tier?: WealthTier; center?: Vec2; coreRadius?: number }, water: Polygon[], districtCenters?: Vec2[]) {
     const design = params.streetDesign;
     const plan = GridLayout.plan({ seed: String(params.seed), size: params.size, profiles: design.profiles, highway: params.features.highways,
       moduleFormat: design.moduleFormat, districtCenters,
@@ -31,9 +31,11 @@ export class CityLayout {
           : design.sidewalkProfiles[Math.min(index, design.sidewalkProfiles.length - 1)];
         const finishId = params.pavingDesign?.districtLayouts.find(value => value.districtId === district.id)?.layoutId
           ?? params.pavingDesign?.defaultLayoutId;
+        const central = district.center && district.coreRadius !== undefined
+          && Math.hypot(point[0] - district.center[0], point[1] - district.center[1]) <= district.coreRadius;
         const finish = params.pavingDesign?.layouts.find(value => value.id === finishId)?.familyId
           ?? (design.moduleFormat !== 'district' ? 'maintained' : district.kind === 'industrial' ? 'industrial-yellow'
-            : district.tier === 'high_rich' ? 'luxury-blue' : district.tier === 'rich' ? 'luxury-red' : 'ordinary');
+            : district.tier === 'high_rich' || district.tier === 'rich' && central ? 'luxury-blue' : district.tier === 'rich' ? 'luxury-red' : 'ordinary');
         return { profile, finish };
       },
     });

@@ -1,5 +1,7 @@
 # Changelog
 
+0.7.1: central luxury blocks use blue with red on surrounding rich blocks.
+
 0.7.0: blueprint 0.24.0 uses uniform district sidewalk modules, whole-block finishes, 2 m parking and separately reserved ornamental avenue medians. Source street designs retain their dimensions.
 
 0.6.2: native parking sides reserve their full 3.5 m walking strip on the actual rear sidewalk, retaining physical geometry and highway structures.

@@ -93,7 +93,9 @@ export function generateCity(input: AtlasParams, onProgress?: ProgressObserver):
   progress(2, 'Placing street modules');
   const layout = CityLayout.plan(params, point => {
     const index = districtOfPoint(point);
-    return { id: `d${index}`, kind: planned[index].kind, tier: planned[index].tier };
+    const box = bounds(cells[index]);
+    return { id: `d${index}`, kind: planned[index].kind, tier: planned[index].tier, center: planned[index].center,
+      coreRadius: Math.min(box.max[0] - box.min[0], box.max[1] - box.min[1]) * 0.4 };
   }, waterSurfaces, planned.map(district => district.center));
   const graph = { nodes: layout.nodes, edges: layout.edges };
   const streetPlan = { edges: layout.edges, runs: layout.runs };

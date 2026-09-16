@@ -2,7 +2,7 @@
 
 Purpose: deterministically generates the 2D city blueprint (districts, streets with sidewalks, typed parcels with 3D envelopes, transit and optional hydrology) from a seed and parameters.
 
-Status: package v0.7.0, blueprint v0.24.0, architecture 1.0.0. Breaking changes go through the orchestrator.
+Status: package v0.7.1, blueprint v0.24.0, architecture 1.0.0. Breaking changes go through the orchestrator.
 
 ## Conventions
 - Units: meters. Ground plane XZ, +Y up. 2D points are `[x, z]`; heights along +Y.
@@ -118,3 +118,5 @@ Closed set, thrown as `AtlasError { code, message, details? }` ([schema/blueprin
 - [Exterior](../exterior/CONTRACT.md): the mirrored [floor constants and generation policy](../exterior/schemas/floor-constants.json) constrain envelope floor heights.
 
 Atlas imports no sibling runtime data. These compatibility edges keep every generated parcel buildable by the published building contracts.
+
+Luxury block palettes use blue in high-rich districts and the central 40 percent-radius area of rich districts, with red on surrounding rich blocks. The complete block receives one palette.

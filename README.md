@@ -24,7 +24,7 @@ Generator flags: `--size N`, `--irregularity X`, `--max-floors N`, `--no-highway
 
 ## Out
 
-Package 0.7.0 publishes blueprint 0.24.0. District street construction uses uniform 4.2 m sidewalk paving, 2 m-deep parking and blue, red or yellow block finishes. Selected central avenues add 3.4 m ornamental medians outside the traffic lanes. Frontage/corner supports link to the saved ground array, native parking footprints and protected station/highway references. [Reservation contract](src/streets/layout/reservations/CONTRACT.md).
+Package 0.7.1 publishes blueprint 0.24.0. District street construction uses uniform 4.2 m sidewalk paving, 2 m-deep parking and blue, red or yellow block finishes. Selected central avenues add 3.4 m ornamental medians outside the traffic lanes. Frontage/corner supports link to the saved ground array, native parking footprints and protected station/highway references. [Reservation contract](src/streets/layout/reservations/CONTRACT.md).
 
 One JSON blueprint (`schema/blueprint.ts`):
 

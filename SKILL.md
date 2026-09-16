@@ -29,7 +29,7 @@ Only `seed` is required.
 
 ## Response
 
-Package 0.7.0 returns blueprint 0.24.0. Default district streets use uniform 4.2 m paving, 0.2 m curbs, 0.5 m gutters and 2 m-deep parking. Whole-block finishes and road district styles are explicit. Selected central avenues reserve 3.4 m ornamental islands separately from traffic lanes.
+Package 0.7.1 returns blueprint 0.24.0. Default district streets use uniform 4.2 m paving, 0.2 m curbs, 0.5 m gutters and 2 m-deep parking. Whole-block finishes and road district styles are explicit. Selected central avenues reserve 3.4 m ornamental islands separately from traffic lanes.
 
 `streets.diagonalCandidates` contains independent straight corridor proposals with terminal/intermediate face clearance and separate actual construction and padded reservation widths. Candidates change no graph, parcels or meshes.
 
