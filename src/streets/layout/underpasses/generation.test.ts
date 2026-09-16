@@ -5,10 +5,12 @@ import type { AtlasParams } from '../../../../schema/params';
 import type { Polygon } from '../../../../schema/blueprint';
 import { difference, intersection } from '../../../geom/clip';
 import { area } from '../../../geom/polygon';
+import { resolveStreetDesign } from '../../construction/Design';
 
 const settings = (seed: string, size: number, maximum: number): AtlasParams => ({
   seed, size: { width: size, depth: size }, districtCount: [1, maximum], maxFloors: 40,
   features: { highways: true, subways: true, alleys: false },
+  streetDesign: resolveStreetDesign(),
 });
 
 it.each([

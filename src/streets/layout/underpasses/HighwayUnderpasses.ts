@@ -4,7 +4,7 @@ import { ModuleGround } from '../../construction/modules/ModuleGround';
 import { UnderpassModule } from '../../construction/modules/underpass';
 import { GradeDatum } from '../../construction/datum';
 import { highwayEnvelopes } from '../../construction/highway';
-import { difference, intersection, union } from '../../../geom/clip';
+import { difference, intersection, snap, union } from '../../../geom/clip';
 import { PolygonIndex } from '../../../geom/PolygonIndex';
 import { invariantFailure, unsatisfiable } from '../../../errors';
 import { UnderpassPlanning } from './UnderpassPlanning';
@@ -16,8 +16,15 @@ export class HighwayUnderpasses {
   static apply(plan: GridLayoutPlan, settings: UnderpassSettings): UnderpassBlockGround {
     const additions: UnderpassBlockGround = new Map();
     if (!plan.edges.some(edge => edge.class === 'highway')) return additions;
+    const format = plan.modules.format ?? 'source', curbWidth = 0.2, gutterWidth = format === 'district' ? 0.5 : 0.3;
+    const rim = snap(curbWidth + gutterWidth);
     const edges = new Map(plan.edges.map(edge => [edge.id, edge]));
-    const corners = new Map(plan.modules.placements.filter(placement => placement.moduleId.startsWith('corner:'))
+    const sourceCorners = new Map(plan.planning.corners.filter(corner => corner.kind === 'arc')
+      .map(corner => [placementKey(corner.placement.origin, corner.placement.turn), corner]));
+    const corners = new Map(plan.modules.placements.filter(placement => {
+      const source = sourceCorners.get(placementKey(placement.origin, placement.turn));
+      return source?.ownerId === placement.blockId && source.placement.moduleId === placement.moduleId;
+    })
       .map(placement => [placementKey(placement.origin, placement.turn), placement]));
     const blocks = new Map(plan.blocks.map(block => [block.id, block]));
     const obstacles = GradeDatum.clearanceFootprints({
@@ -48,8 +55,8 @@ export class HighwayUnderpasses {
       }
       const forward: QuarterTurn = directions[0][0] !== 0 ? 0 : 1;
       for (const turn of [forward, (forward + 2) % 4] as QuarterTurn[]) {
-        const half = highway[0].width / 2 + 0.5;
-        const offset = grade[0].width / 2 + 0.5;
+        const half = highway[0].width / 2 + rim;
+        const offset = grade[0].width / 2 + rim;
         const startPoint = turnPoint([-half, offset], node.position, turn);
         const endPoint = turnPoint([half, offset], node.position, turn);
         const first = corners.get(placementKey(startPoint, ((turn + 1) % 4) as QuarterTurn));
@@ -57,15 +64,15 @@ export class HighwayUnderpasses {
         if (!first || !last || removed.has(first) || removed.has(last)) {
           throw invariantFailure('highway underpass has no paired corner owners', { nodeId: node.id, turn });
         }
-        const [startWidth, startReturn] = cornerDimensions(first);
-        const [endReturn, endWidth] = cornerDimensions(last);
-        const key = [startWidth, endWidth, startReturn, endReturn, highway[0].width].join(':');
+        const [startWidth, startReturn] = cornerDimensions(first, plan.planning, format);
+        const [endReturn, endWidth] = cornerDimensions(last, plan.planning, format);
+        const key = [format, startWidth, endWidth, startReturn, endReturn, highway[0].width].join(':');
         let module = modules.get(key);
         if (!module) {
-          module = UnderpassModule.build({ startWidth, endWidth, startReturn, endReturn, span: highway[0].width });
+          module = UnderpassModule.build({ format, startWidth, endWidth, startReturn, endReturn, span: highway[0].width });
           modules.set(key, module);
         }
-        const origin = turnPoint([-startReturn, 0], startPoint, turn);
+        const origin = turnPoint([-startReturn, 0], first.origin, turn);
         const boundary = module.boundary.map(point => turnPoint(point, origin, turn));
         if (difference([boundary], [settings.boundary]).length || intersection([boundary], obstructed.near(boundary)).length) {
           throw unsatisfiable('highway underpass cannot fit city land and pedestrian clearance', { nodeId: node.id, turn });
@@ -75,7 +82,8 @@ export class HighwayUnderpasses {
           count: 1, step: 2, finish: first.finish };
         UnderpassPlanning.replace(plan, { ownerId: id, nodeId: node.id, first, last, origin, turn,
           gradeEdgeIds: grade.map(edge => edge.id), highwayEdgeIds: highway.map(edge => edge.id),
-          length: startReturn + highway[0].width + 1 + endReturn, width: Math.min(startWidth, endWidth), startReturn, endReturn });
+          length: snap(startReturn + highway[0].width + rim * 2 + endReturn), width: Math.min(startWidth, endWidth),
+          startReturn, endReturn, curbWidth, gutterWidth });
         definitions.set(module.definition.id, module.definition);
         placements.push(placement);
         frontages.push({ id, boundary });

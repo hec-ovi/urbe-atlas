@@ -2,12 +2,14 @@ import type { Vec2 } from '../../../../schema/blueprint';
 import type { ModulePlacement, QuarterTurn } from '../../construction/modules/schema';
 import type { GridLayoutPlan } from '../schema';
 import { invariantFailure } from '../../../errors';
+import { snap } from '../../../geom/clip';
 import { placementKey, turnPoint } from './Placement';
 
 interface UnderpassSupport {
   ownerId: string; nodeId: string; gradeEdgeIds: string[]; highwayEdgeIds: string[];
   first: ModulePlacement; last: ModulePlacement; origin: Vec2; turn: QuarterTurn;
   length: number; width: number; startReturn: number; endReturn: number;
+  curbWidth: number; gutterWidth: number;
 }
 
 /** Keeps original owner handoffs when the two corner templates become one underpass. */
@@ -31,11 +33,13 @@ export class UnderpassPlanning {
       const start = turnPoint(from, input.origin, input.turn), end = turnPoint(to, input.origin, input.turn);
       plan.planning.frontages.push({ id: `frontage:${input.ownerId}:${name}`, ownerId: input.ownerId, start, end,
         inward: turnPoint(inward, [0, 0], input.turn), pavedWidth: input.width, edgeIds,
+        curbWidth: input.curbWidth, gutterWidth: input.gutterWidth,
         moduleStationOrigin: [...start], moduleStationEnd: [...end], cornerIds: [null, null] });
     };
-    add('grade', [0, -0.5], [input.length, -0.5], [0, 1], input.gradeEdgeIds);
-    add('highway', [input.length - input.endReturn - 0.5, input.width + 0.5],
-      [input.startReturn + 0.5, input.width + 0.5], [0, -1], input.highwayEdgeIds);
+    const rim = snap(input.curbWidth + input.gutterWidth);
+    add('grade', [0, -rim], [input.length, -rim], [0, 1], input.gradeEdgeIds);
+    add('highway', [snap(input.length - input.endReturn - rim), snap(input.width + rim)],
+      [snap(input.startReturn + rim), snap(input.width + rim)], [0, -1], input.highwayEdgeIds);
     plan.planning.protected.push({ kind: 'underpass', ownerId: input.ownerId, nodeId: input.nodeId,
       edgeIds: [...input.gradeEdgeIds, ...input.highwayEdgeIds], replacedCornerIds: [...ids] });
   }
