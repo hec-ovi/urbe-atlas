@@ -2,9 +2,12 @@
 
 Purpose: assigns continuous street cross sections and reserves each side's space before parcels.
 
+The district module format uses 4 m of panels, a 0.2 m frontage separator, a 0.2 m curb and a 0.5 m gutter on every block side, reserving 4.9 m per side. An avenue's optional `median.width` reserves the complete center strip between two opposite lane pairs, including its edging.
+
 ## In
 
 - `resolveStreetDesign(input)`: optional numeric profile settings, [schema/design.ts](schema/design.ts).
+- `districtStreetDesign()`: no arguments, returns district numeric settings, [schema/design.ts](schema/design.ts). `moduleFormat` selects source or district modules; omission selects source.
 - `StreetSections.plan(edges, nodes, design, districtAt)`: planar graph edges and nodes from the Atlas root contract, resolved profiles and a point-to-district-kind query.
 - `StreetCorridors(edges)`: published street edges, including their cross sections.
 - `StreetCorridors.roadwayFor(edge)` returns only that edge's canonical roadway polygons, byte-identical to its constructor map and reservation export. It computes no pedestrian bands; zero carriageway width returns `[]`.
@@ -27,7 +30,7 @@ Published `StreetConstruction.reservations` optionally carries the [street reser
 - Units are metres. Left/right refer to the directed edge path. Positive lane offset is left. Legacy side bands run from road to building: curb, border, furnishing, walking, frontage. Explicit geometry publishes gutter-lip and gutter intervals before those bands.
 - New generation assigns 1 or 2 lanes to `street`, and exactly 4 lanes to `road` (avenue). Directions are explicit. A through-run preserves lane order, widths and travel direction when source edges reverse. Highway edges omit cross sections and keep the Atlas highway structure contract. Alleys have no lanes or curb and retain 3 to 5 m of pedestrian space.
 - Default profiles are a one-way 4 m street, a 2-lane 7 m street and a 4-lane 14 m avenue. Default paved sidewalks are 2, 4 and 6 m wide, with a 0.20 m curb width/rise, 0.30 m gutter and 0.02 m road-facing lip width/height. Total side reservations are 2.5, 4.5 and 6.5 m.
-- A carriageway equals its lane widths plus shoulders. Legacy side width equals its band widths. Explicit side width equals `geometry.totalWidth`, including gutter and curb outside the paved span. The per-edge scalar fields repeat these totals.
+- A carriageway equals its lane widths plus shoulders and optional median width. Medians require four avenue lanes in opposite pairs and retain their width throughout a run. Lane offsets include the median without shrinking lanes. Legacy side width equals its band widths. Explicit side width equals `geometry.totalWidth`, including gutter and curb outside the paved span. The per-edge scalar fields repeat these totals.
 - Identical graph and settings produce identical output. Width hierarchy is assigned to complete through-runs, independent of graph-edge fragmentation.
 - Corridors reserve the full left and right pedestrian widths before parcel generation. Roadway ownership takes precedence where corridors meet at a junction.
 - Optional `sidewalkAssignments` names a sidewalk profile per district and street class. Each side resolves its district independently; unspecified classes retain ranked selection. Walking width excludes all other bands. Building forecourts are not part of these reservations.
@@ -49,3 +52,4 @@ Published `StreetConstruction.reservations` optionally carries the [street reser
 ## Dependencies
 
 - [Atlas](../../../CONTRACT.md): graph, district kinds, geometry grid and error vocabulary.
+- [Street modules](modules/CONTRACT.md): source and district construction formats.

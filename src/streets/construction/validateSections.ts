@@ -19,6 +19,7 @@ export function validateStreetSections(city: { streets: { construction?: StreetC
     let node: string | undefined;
     let width: number | undefined;
     let runLanes: LaneDesign[] | undefined;
+    let runMedianWidth: number | undefined;
     for (const member of run.edges) {
       const edge = edges.get(member.edgeId);
       if (!edge || owned.has(member.edgeId)) fail(`run ${run.id} has a missing or repeated edge ${member.edgeId}`);
@@ -36,7 +37,15 @@ export function validateStreetSections(city: { streets: { construction?: StreetC
       if (edge.class !== 'alley' && section.lanes.length === 0) fail(`edge ${edge.id} has no motor lanes`);
       if (edge.class === 'alley' && section.lanes.length !== 0) fail(`edge ${edge.id} assigns motor lanes to an alley`);
       let at = edge.width / 2 - section.shoulders.left;
-      for (const lane of section.lanes) {
+      if (section.median !== undefined && (!section.median || !Number.isFinite(section.median.width) || section.median.width <= 0
+        || edge.class !== 'road' || section.lanes.length !== 4
+        || section.lanes[0].direction !== section.lanes[1].direction || section.lanes[2].direction !== section.lanes[3].direction
+        || section.lanes[0].direction === section.lanes[2].direction)) fail(`edge ${edge.id} has an invalid median reservation`);
+      const medianWidth = section.median?.width ?? 0;
+      if (runMedianWidth !== undefined && !equal(runMedianWidth, medianWidth)) fail(`run ${run.id} changes median width`);
+      runMedianWidth = medianWidth;
+      for (const [index, lane] of section.lanes.entries()) {
+        if (index === section.lanes.length / 2) at -= section.median?.width ?? 0;
         if (!Number.isFinite(lane.width) || lane.width <= 0 || (lane.direction !== 'forward' && lane.direction !== 'backward')) fail(`edge ${edge.id} has invalid motor lanes`);
         if (!equal(lane.offset, at - lane.width / 2)) fail(`edge ${edge.id} has inconsistent lane offsets`);
         at -= lane.width;

@@ -9,6 +9,7 @@ import { length as pathLength, offsetAt } from '../../geom/polyline';
 import { alleySideWidth, HIGHWAY_WIDTH } from '../widths';
 import { LEVELS } from '../../levels';
 import { resolveSidewalkGeometry } from './SidewalkGeometry';
+import { laneSections } from './LaneSections';
 
 export class StreetSections {
   static plan(
@@ -66,14 +67,10 @@ export class StreetSections {
         const laneDesign = profile ? member.forward ? profile.lanes : [...profile.lanes].reverse().map((lane) => ({
           width: lane.width, direction: lane.direction === 'forward' ? 'backward' as const : 'forward' as const,
         })) : [];
-        let at = width / 2 - shoulders.left;
-        const lanes = laneDesign.map((lane) => {
-          const offset = at - lane.width / 2;
-          at -= lane.width;
-          return { ...lane, offset };
-        });
+        const lanes = laneSections({ lanes: laneDesign, shoulders, median: profile?.median });
         sections.set(edge.id, {
           runId: run.id, profileId: run.profileId, lanes, shoulders,
+          ...(profile?.median ? { median: { ...profile.median } } : {}),
           sidewalks: { left: side(1), right: side(-1) },
         });
       }
@@ -84,8 +81,7 @@ export class StreetSections {
         districtIds: [], level: LEVELS.highway, elevationProfile: [],
       };
       const crossSection = sections.get(edge.id)!;
-      const width = crossSection.lanes.reduce((sum, lane) => sum + lane.width, 0)
-        + crossSection.shoulders.left + crossSection.shoulders.right;
+      const width = roadwayTotal(crossSection);
       return {
         ...edge, width, crossSection,
         sidewalk: {

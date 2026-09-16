@@ -11,6 +11,8 @@ export interface StreetCrossSection {
   profileId: string;
   lanes: (LaneDesign & { offset: number })[];
   shoulders: { left: number; right: number };
+  /** Complete center reservation, including edging, between opposite avenue lane pairs. */
+  median?: { width: number };
   sidewalks: {
     left: SidewalkSectionRecord;
     right: SidewalkSectionRecord;

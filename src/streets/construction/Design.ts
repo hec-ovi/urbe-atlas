@@ -11,8 +11,8 @@ export function sidewalkTotal(bands: SidewalkBands & { edge?: SidewalkEdgeGeomet
   return resolveSidewalkGeometry(bands, bands.edge).totalWidth;
 }
 
-export function roadwayTotal(profile: RoadProfile): number {
-  return profile.shoulders.left + profile.shoulders.right + profile.lanes.reduce((sum, lane) => sum + lane.width, 0);
+export function roadwayTotal(profile: Pick<RoadProfile, 'lanes' | 'shoulders' | 'median'>): number {
+  return profile.shoulders.left + profile.shoulders.right + profile.lanes.reduce((sum, lane) => sum + lane.width, 0) + (profile.median?.width ?? 0);
 }
 
 export function resolveStreetDesign(input?: StreetDesign): StreetDesign {
@@ -31,6 +31,7 @@ export function resolveStreetDesign(input?: StreetDesign): StreetDesign {
   const value = input === undefined ? defaults : input;
   if (!record(value) || !Array.isArray(value.profiles) || value.profiles.length === 0
     || !Array.isArray(value.sidewalkProfiles) || value.sidewalkProfiles.length === 0) fail('must contain road and sidewalk profiles');
+  if (value.moduleFormat !== undefined && value.moduleFormat !== 'source' && value.moduleFormat !== 'district') fail('moduleFormat must be source or district');
   const roadIds = new Set<string>();
   for (const [index, profile] of value.profiles.entries()) {
     const field = `profiles[${index}]`;
@@ -47,6 +48,11 @@ export function resolveStreetDesign(input?: StreetDesign): StreetDesign {
     if (profile.classes.includes('road') && profile.lanes.length !== 4) fail(`${field} (${profile.id}): avenues (road) require exactly 4 lanes; use street for 1 or 2 lanes`);
     if (profile.classes.includes('street') && profile.lanes.length !== 1 && profile.lanes.length !== 2) fail(`${field} (${profile.id}): streets require 1 or 2 lanes; use road for a 4-lane avenue`);
     if (!record(profile.shoulders) || !nonnegative(profile.shoulders.left) || !nonnegative(profile.shoulders.right)) fail(`${field}.shoulders must be nonnegative metres`);
+    if (profile.median !== undefined && (!record(profile.median) || !positive(profile.median.width)
+      || profile.lanes.length !== 4 || profile.lanes[0].direction !== profile.lanes[1].direction
+      || profile.lanes[2].direction !== profile.lanes[3].direction || profile.lanes[0].direction === profile.lanes[2].direction)) {
+      fail(`${field}.median requires a positive width between two opposite pairs of avenue lanes`);
+    }
   }
   for (const kind of ['street', 'road']) {
     if (!value.profiles.some((profile: RoadProfile) => (profile.classes as string[]).includes(kind))) fail(`profiles must include ${kind}`);
@@ -89,8 +95,10 @@ export function resolveStreetDesign(input?: StreetDesign): StreetDesign {
   const crossings = value.crossings === undefined ? { pedestrianClearance: 2.5 } : value.crossings;
   if (!record(crossings) || !positive(crossings.pedestrianClearance)) fail('crossings.pedestrianClearance must be positive metres');
   return {
+    ...(value.moduleFormat === undefined ? {} : { moduleFormat: value.moduleFormat }),
     profiles: value.profiles.map((profile: RoadProfile) => ({
       id: profile.id, classes: [...profile.classes], lanes: profile.lanes.map((lane) => ({ ...lane })), shoulders: { ...profile.shoulders },
+      ...(profile.median ? { median: { ...profile.median } } : {}),
     })).sort((a: RoadProfile, b: RoadProfile) => roadwayTotal(a) - roadwayTotal(b) || a.id.localeCompare(b.id)),
     sidewalkProfiles: value.sidewalkProfiles.map((profile: SidewalkProfile) => ({ ...profile,
       ...(profile.edge === undefined ? {} : { edge: resolveSidewalkGeometry(profile, profile.edge).edge }),

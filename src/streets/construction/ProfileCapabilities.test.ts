@@ -44,6 +44,7 @@ describe('explicit street profiles', () => {
     expect(resolveStreetDesign({ ...resolveStreetDesign(), crossings: { pedestrianClearance: 3 } }).crossings).toEqual({ pedestrianClearance: 3 });
     const base = resolveStreetDesign();
     for (const changes of [
+      { moduleFormat: 'unknown' },
       { crossings: null }, { crossings: { pedestrianClearance: 0 } }, { crossings: { pedestrianClearance: Infinity } },
       { sidewalkAssignments: [{ district: 'residential', street: 'missing' }] },
       { sidewalkAssignments: [{ district: 'residential' }] },

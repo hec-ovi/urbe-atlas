@@ -11,7 +11,10 @@ const profile = (width: number): SidewalkProfile => ({
 });
 
 function plan(profiles: SidewalkProfile[]) {
-  const design = resolveStreetDesign({ ...resolveStreetDesign(), sidewalkProfiles: profiles,
+  const defaults = resolveStreetDesign();
+  const design = resolveStreetDesign({ ...defaults,
+    profiles: defaults.profiles.filter((profile) => !profile.classes.includes('street') || profile.lanes.length === 2),
+    sidewalkProfiles: profiles,
     sidewalkAssignments: [{ district: 'residential', street: profiles[0].id }, { district: 'commercial', street: profiles.at(-1)!.id }],
   });
   return StreetSections.plan([
@@ -63,7 +66,7 @@ describe('explicit sidewalk edge geometry', () => {
       const value = profile(2); change(value);
       expect(() => plan([value])).toThrowError(expect.objectContaining({ code: 'E_INVALID_PARAMS' }));
     }
-    const legacy = resolveStreetDesign().sidewalkProfiles[0];
+    const legacy: SidewalkProfile = { id: 'legacy', curb: 0.15, border: 0.35, furnishing: 0.5, walking: 1.5, frontage: 0.5 };
     const output = plan([legacy]);
     expect(output.edges[0].sidewalk).toEqual({ left: 3, right: 3 });
     expect(output.edges[0].crossSection!.sidewalks.left).toEqual({ profileId: legacy.id, bands: {

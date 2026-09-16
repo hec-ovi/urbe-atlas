@@ -1,4 +1,5 @@
 import type { DistrictKind } from '../../../../schema/params';
+import type { ModuleFormat } from '../modules/schema';
 
 /** Numeric street construction settings, independent of material catalogs. */
 export interface LaneDesign {
@@ -13,6 +14,8 @@ export interface RoadProfile {
   /** Ordered left to right across the directed path. */
   lanes: LaneDesign[];
   shoulders: { left: number; right: number };
+  /** Complete center reservation, including edging, between opposite avenue lane pairs. */
+  median?: { width: number };
 }
 
 export interface SidewalkBands {
@@ -38,6 +41,7 @@ export interface SidewalkEdgeGeometry {
 }
 
 export interface StreetDesign {
+  moduleFormat?: ModuleFormat;
   profiles: RoadProfile[];
   sidewalkProfiles: SidewalkProfile[];
   /** Each directed side selects its district's profile independently. */
