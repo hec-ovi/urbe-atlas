@@ -27,9 +27,9 @@ export interface AtlasParams {
   irregularity?: number;
   /** Building footprints on the shared city grid, or explicit lot-following shapes. Default rectangle. */
   footprintShape?: FootprintShape;
-  /** Numeric road and sidewalk profiles, resolved before parcels. Defaults to the construction catalog. */
+  /** Numeric road and sidewalk profiles, resolved before parcels. Defaults to district modules with 4.2 m paving. */
   streetDesign?: StreetDesign;
-  /** Default candidates. Applied diagonal streets require explicit legacy-applied compatibility mode. */
+  /** Default candidates. Applied diagonal streets require legacy-applied mode and source streetDesign. */
   diagonals?: DiagonalMode;
   /** Full reserved-mouth clearance from each original rectangle corner, default 3 m. */
   diagonalCornerClearance?: number;

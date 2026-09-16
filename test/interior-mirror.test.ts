@@ -21,7 +21,7 @@ describe('interior core feasibility mirror', () => {
   it('derives the hosting rectangles CONTRACT.md states', () => {
     expect(WALKUP_RECT).toEqual([11.14, 9.74]);
     expect(WALKUP_TWO_STAIRS_RECT).toEqual([17.64, 9.74]);
-    expect(COMPACT_RECT).toEqual([12.14, 13.74]);
+    expect(COMPACT_RECT).toEqual([13.14, 13.74]);
     expect(STANDARD_RECT).toEqual([20.14, 9.74]);
   });
 });

@@ -51,8 +51,8 @@ function exhaustive(outline: Polygon, required: HostingProfile, frame: BuildingG
           const width = (right - u) * frame.spacing, depth = (top - v) * frame.spacing;
           const short = Math.min(width, depth), long = Math.max(width, depth);
           if (short < required.band || short < 9.74 || long < 11.14) continue;
-          if (width * depth > 460 && long < 17.64 && !(short >= 12.14 && long >= 13.74)) continue;
-          if (required.heavy && (short < 12.14 || long < 13.74)) continue;
+          if (width * depth > 460 && long < 17.64 && !(short >= 13.14 && long >= 13.74)) continue;
+          if (required.heavy && (short < 13.14 || long < 13.74)) continue;
           const cells = (right - u) * (top - v);
           if (best && (best.cells - cells || best.short - short || u - best.u || v - best.v || best.width - width) >= 0) continue;
           const footprint = [[u, v], [right, v], [right, top], [u, top]]

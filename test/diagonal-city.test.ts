@@ -1,5 +1,6 @@
 import { expect, it } from 'vitest';
 import { generateCity } from '../src';
+import { resolveStreetDesign } from '../src/streets/construction/Design';
 
 it('publishes normal candidates while keeping the off-mode city graph, rectangles and native handoff intact', () => {
   const params = { seed: 'urbe', size: { width: 1000, depth: 1000 }, features: { subways: false } };
@@ -34,7 +35,7 @@ it('rejects invalid public diagonal settings before generation', () => {
 });
 
 it('reproduces applied cuts only through the explicit compatibility mode', () => {
-  const city = generateCity({ seed: 'urbe', diagonals: 'legacy-applied', size: { width: 1000, depth: 1000 },
+  const city = generateCity({ seed: 'urbe', diagonals: 'legacy-applied', streetDesign: resolveStreetDesign(), size: { width: 1000, depth: 1000 },
     features: { highways: false, trains: false, subways: false } });
   const cuts = city.streets.edges.filter(edge => edge.path[0][0] !== edge.path[1][0] && edge.path[0][1] !== edge.path[1][1]);
   expect(cuts).toHaveLength(2);

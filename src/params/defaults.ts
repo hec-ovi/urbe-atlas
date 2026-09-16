@@ -4,6 +4,7 @@ import { validateHydrologyParams } from '../hydro/Hydrology';
 import type { HydrologyParams } from '../hydro/types';
 import type { StreetDesign } from '../streets/construction/schema/design';
 import { resolveStreetDesign } from '../streets/construction/Design';
+import { districtStreetDesign } from '../streets/construction/DistrictDesign';
 import { PavingPlanner } from '../streets/construction/paving/PavingPlanner';
 import type { PavingDesign } from '../streets/construction/paving/schema';
 import type { LandmarkFloors } from '../landmarks/schema';
@@ -74,7 +75,7 @@ export function resolveParams(input: AtlasParams): ResolvedParams {
   if (footprintShape !== 'rectangle' && footprintShape !== 'parcel') {
     throw invalidParams('footprintShape must be rectangle or parcel', { field: 'footprintShape' });
   }
-  const streetDesign = resolveStreetDesign(input.streetDesign);
+  const streetDesign = resolveStreetDesign(input.streetDesign ?? districtStreetDesign());
   const diagonals = input.diagonals === undefined ? 'candidates' : input.diagonals;
   if (!['candidates', 'off', 'legacy-applied'].includes(diagonals)) {
     throw invalidParams('diagonals must be candidates, off or legacy-applied', { field: 'diagonals' });

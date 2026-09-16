@@ -1,6 +1,7 @@
 import { expect, it } from 'vitest';
 import type { AtlasParams } from '../schema/params';
 import { generateCity } from '../src';
+import { districtStreetDesign } from '../src/streets/construction/DistrictDesign';
 import { CityConstructionSupport } from '../src/CityConstructionSupport';
 import { resolveStreetDesign } from '../src/streets/construction/Design';
 
@@ -40,4 +41,18 @@ it('rejects fractional carriageway widths before constructing city geometry', ()
     details: { field: 'streetDesign.profiles', profileId: 'one-way', supportedFormat: 'modules' },
   }));
   expect(JSON.stringify(input)).toBe(saved);
+});
+
+it('accepts district modules and rejects off-grid roads or sidewalk bands before geometry', () => {
+  const design = districtStreetDesign();
+  const saved = JSON.stringify(design);
+  expect(CityConstructionSupport.assert(design)).toBeUndefined();
+  expect(JSON.stringify(design)).toBe(saved);
+  for (const field of ['road', 'sidewalk'] as const) {
+    const changed = structuredClone(design);
+    if (field === 'road') changed.profiles[0].lanes[0].width += 0.1;
+    else changed.sidewalkProfiles[0].frontage += 0.1;
+    expect(() => generateCity({ seed: 'district-profile-invalid', streetDesign: changed }))
+      .toThrowError(expect.objectContaining({ code: 'E_INVALID_PARAMS' }));
+  }
 });

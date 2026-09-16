@@ -50,6 +50,9 @@ export interface StreetRun {
 
 export interface StreetConstruction {
   version: '1.0.0';
+  medians?: import('../../layout/medians/schema').AvenueMedian[];
+  /** Original source owners removed where water intersects a complete block. IDs precede retained-block renumbering. */
+  waterExcludedBlocks?: { ownerId: string; boundary: import('../../../../schema/blueprint').Polygon }[];
   runs: StreetRun[];
   /** Shared physical panel, curb, gutter, corner and furniture pieces. */
   modules?: ModuleConstruction;

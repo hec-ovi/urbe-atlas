@@ -28,7 +28,7 @@ function fixture(paved = 4, transform: (point: Vec2) => Vec2 = point => point): 
   ];
   for (const path of paths) path.path = path.path.map(transform);
   for (const node of nodes) node.position = transform(node.position);
-  const design = resolveStreetDesign({ ...resolveStreetDesign(), sidewalkProfiles: [{
+  const design = resolveStreetDesign({ ...resolveStreetDesign(), profiles: resolveStreetDesign().profiles.filter(profile => profile.id !== 'one-way'), sidewalkProfiles: [{
     id: 'paved', curb: 0.2, border: 0, furnishing: 0, walking: paved, frontage: 0,
     edge: { curbRise: 0.2, gutter: { width: 0.3, lip: { width: 0.02, height: 0.02, side: 'road' } } },
   }] });

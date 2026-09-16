@@ -23,7 +23,8 @@ export function checkCrossings(bp: CityBlueprint): void {
       supports: bp.streets.highwayStructures.flatMap(structure => structure.supports
         .map(support => ({ structureEdgeIds: structure.edgeIds, support }))),
     }).flatMap(owner => owner.polygons);
-    CityCrossings.validate({ nodes: bp.streets.nodes, edges: bp.streets.edges, ground: bp.volumetric.ground, obstacles },
+    CityCrossings.validate({ nodes: bp.streets.nodes, edges: bp.streets.edges, ground: bp.volumetric.ground, obstacles,
+      landExclusions: { water: bp.hydrology?.bodies.flatMap(body => body.surfaces) ?? [], blocks: construction.waterExcludedBlocks ?? [] } },
       { crossings: bp.streets.crossings, junctions: construction.junctions });
     return;
   }

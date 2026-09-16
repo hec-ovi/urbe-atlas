@@ -211,6 +211,8 @@ export interface StreetEdge {
   /** Exact grade lane offsets and independent functional sidewalk bands. Highways omit this. */
   crossSection?: StreetCrossSection;
   districtIds: string[];
+  /** District road-material family; curb and sidewalk palettes remain block-owned. */
+  districtStyle?: 'luxury' | 'industrial' | 'ordinary';
   /** Flat or maximum carriageway height: 0 at grade, 8 on a highway deck (src/levels.ts). */
   level: number;
   /** Exact carriageway height knots relative to this edge's own path direction. */
@@ -275,7 +277,7 @@ export interface Parcel {
 /**
  * 3D envelope for downstream building generation.
  * Every parcel footprint hosts the core rectangle its type needs, derived from
- * interior's core feasibility: the compact elevator core (12.14 x 13.74 m) for
+ * interior's core feasibility: the compact elevator core (13.14 x 13.74 m) for
  * offices, corpo, hotel, hospital, mall and factory, the walkup core
  * (11.14 x 9.74 m) for the rest. maxFloors stays within what the hosted core
  * allows (4 with one stair, 6 with two, unlimited with an elevator core) and

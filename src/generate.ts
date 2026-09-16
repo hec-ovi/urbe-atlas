@@ -45,7 +45,7 @@ import { applyLandmarkFloors } from './landmarks';
 import { planHydrology, withHydrologyStructures } from './hydro/Hydrology';
 import { planArchitecture } from './architecture/Architecture';
 
-export const BLUEPRINT_VERSION = '0.23.0';
+export const BLUEPRINT_VERSION = '0.24.0';
 export const HYDROLOGY_BLUEPRINT_VERSION = BLUEPRINT_VERSION;
 
 const SUBDIVISION: Record<DistrictKind, SubdivisionConfig> = {
@@ -93,8 +93,8 @@ export function generateCity(input: AtlasParams, onProgress?: ProgressObserver):
   progress(2, 'Placing street modules');
   const layout = CityLayout.plan(params, point => {
     const index = districtOfPoint(point);
-    return { id: `d${index}`, kind: planned[index].kind };
-  }, waterSurfaces);
+    return { id: `d${index}`, kind: planned[index].kind, tier: planned[index].tier };
+  }, waterSurfaces, planned.map(district => district.center));
   const graph = { nodes: layout.nodes, edges: layout.edges };
   const streetPlan = { edges: layout.edges, runs: layout.runs };
   progress(3, 'Constructing street surfaces');
@@ -109,6 +109,8 @@ export function generateCity(input: AtlasParams, onProgress?: ProgressObserver):
     return {
       ...e,
       districtIds,
+      ...(layout.modules.format === 'district' ? { districtStyle: planned[di].kind === 'industrial' ? 'industrial' as const
+        : planned[di].tier === 'rich' || planned[di].tier === 'high_rich' ? 'luxury' as const : 'ordinary' as const } : {}),
     };
   });
   applyHighwayElevationProfiles(streetEdges);
@@ -312,7 +314,8 @@ export function generateCity(input: AtlasParams, onProgress?: ProgressObserver):
     clearHeight: params.streetDesign.crossings!.pedestrianClearance,
   }).flatMap((owner) => owner.polygons);
   progress(8, 'Proving pedestrian crossings');
-  const crossingPlan = CityCrossings.plan({ nodes: streetNodes, edges: streetEdges, ground, obstacles: crossingObstacles });
+  const crossingPlan = CityCrossings.plan({ nodes: streetNodes, edges: streetEdges, ground, obstacles: crossingObstacles,
+    landExclusions: { water: waterSurfaces, blocks: layout.waterExcludedBlocks } });
   const crossings = crossingPlan.crossings;
   const signals = Signals.build(streetNodes, streetEdges, crossingPlan.junctions);
 
@@ -389,6 +392,8 @@ export function generateCity(input: AtlasParams, onProgress?: ProgressObserver):
       diagonalCandidates: layout.diagonalCandidates,
       construction: {
         version: '1.0.0', runs: streetPlan.runs, modules: layout.modules, reservations,
+        ...(layout.medians.length ? { medians: layout.medians } : {}),
+        ...(layout.waterExcludedBlocks.length ? { waterExcludedBlocks: layout.waterExcludedBlocks } : {}),
         planningReservations,
         junctions: crossingPlan.junctions,
       } },

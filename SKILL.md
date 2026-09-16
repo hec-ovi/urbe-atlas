@@ -1,6 +1,6 @@
 # Atlas skill
 
-Atlas plans a city from a seed and a few parameters: districts, streets with their lanes and sidewalks, blocks, typed parcels with building volumes, highways, subways, and the paths cars and people follow. It builds no surfaces and calls no LLM. The same request always returns the same city.
+Atlas plans a city from a seed and a few parameters: districts, streets with their lanes and sidewalks, blocks, typed parcels with building volumes, highways, subways, and the paths cars and people follow. It publishes physical street modules and calls no LLM. The same request always returns the same city.
 
 ## Call it
 
@@ -16,7 +16,7 @@ Only `seed` is required.
 | --- | --- | --- |
 | `seed` | required | String or number. |
 | `size` | `{ width: 1000, depth: 1000 }` | City extent in meters. |
-| `diagonals` | `candidates` | Independent corridor proposals; `off` omits them, explicit `legacy-applied` constructs local cuts. |
+| `diagonals` | `candidates` | Independent corridor proposals; `off` omits them, explicit `legacy-applied` with a source street design constructs local cuts. |
 | `diagonalCornerClearance` | 3 | Metres from every complete reserved mouth to original rectangle corners. |
 | `districtCount` | scales with area | `[min, max]` districts. |
 | `maxFloors` | 40 | Global floor cap. |
@@ -28,6 +28,8 @@ Only `seed` is required.
 `streetDesign`, `pavingDesign`, `footprintShape`, `landmarkFloors` and `irregularity` are advanced; see CONTRACT.md.
 
 ## Response
+
+Package 0.7.0 returns blueprint 0.24.0. Default district streets use uniform 4.2 m paving, 0.2 m curbs, 0.5 m gutters and 2 m-deep parking. Whole-block finishes and road district styles are explicit. Selected central avenues reserve 3.4 m ornamental islands separately from traffic lanes.
 
 `streets.diagonalCandidates` contains independent straight corridor proposals with terminal/intermediate face clearance and separate actual construction and padded reservation widths. Candidates change no graph, parcels or meshes.
 

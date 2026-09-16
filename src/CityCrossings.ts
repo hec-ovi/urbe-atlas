@@ -23,8 +23,6 @@ export interface CityCrossingInput {
 const WIDTH = 3;
 const HALF = WIDTH / 2;
 const PAINT_CLEARANCE = 0.05;
-// The fixed 2 m corner ends after the 0.3 m gutter and 0.2 m curb reservation.
-const CORNER_CLEARANCE = 2.5;
 
 /** Direct crossing placement for grid streets and declared-angle block cuts. */
 export class CityCrossings {
@@ -74,7 +72,10 @@ export class CityCrossings {
             const sine = Math.abs(direction[0] * frame.direction[1] - direction[1] * frame.direction[0]);
             if (sine < 1e-10) return 0;
             const cosine = Math.abs(direction[0] * frame.direction[0] + direction[1] * frame.direction[1]);
-            return (other.width / 2 + CORNER_CLEARANCE + cosine * lateral) / sine;
+            const rim = Math.max(...Object.values(other.crossSection?.sidewalks ?? {}).map(side =>
+              side.bands.curb + (side.geometry?.edge.gutter.width ?? 0.3)), 0.5);
+            const radius = Object.values(other.crossSection?.sidewalks ?? {}).some(side => Math.abs((side.geometry?.pavedWidth ?? 0) - 4.2) < 1e-8) ? 4.2 : 2;
+            return (other.width / 2 + radius + rim + cosine * lateral) / sine;
           });
           const offset = Math.max(0, ...offsets) + HALF;
           const starts = edge.from === node.id;

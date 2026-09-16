@@ -26,9 +26,9 @@ const MIN_FLOOR_HEIGHT: Record<ParcelType, number> = {
 const HEAVY_TYPES = new Set<ParcelType>(['offices', 'corpo', 'hotel', 'hospital', 'mall', 'factory']);
 const WALKUP = [11.14, 9.74];
 const WALKUP_TWO_STAIRS = [17.64, 9.74];
-const COMPACT = [12.14, 13.74];
+const COMPACT = [13.14, 13.74];
 const STANDARD = [20.14, 9.74];
-const minBand = (type: ParcelType): number => (HEAVY_TYPES.has(type) ? 12.14 : 9.74);
+const minBand = (type: ParcelType): number => (HEAVY_TYPES.has(type) ? 13.14 : 9.74);
 
 let cached: CityBlueprint | null = null;
 const defaultCity = (): CityBlueprint => (cached ??= generateCity({ seed: 'contract' }));
