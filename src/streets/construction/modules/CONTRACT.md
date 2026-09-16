@@ -10,6 +10,8 @@ Builds shared sidewalk, curb, gutter, corner, parking and guardrail prisms with 
 - `construction()` returns owned copies of definitions, placements, parking and perimeter owners, [ModuleConstruction](schema.ts).
 - `ModuleGround.cover(construction)` returns [ModuleGroundRegion](schema.ts) planning outlines by owner, surface and level. Physical prisms own rendering and collision. Supporting beds join once per template; straight runs retain rectangular covers. `partitionedBeds` preserves already disjoint bed outlines.
 
+External frontage owners may declare `kind: 'median'` for a separately reserved avenue island. Its producer owns the dimensioned definition and frontage supports; the kit does not infer islands from road width.
+
 ## Formats and dimensions
 
 | Measurement | Source | District |

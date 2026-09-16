@@ -51,7 +51,7 @@ export interface ModuleConstruction {
   frontages?: ModuleFrontage[];
 }
 
-export interface ModuleFrontage { id: string; boundary: Polygon; planning?: ModuleBlockPlan }
+export interface ModuleFrontage { id: string; boundary: Polygon; planning?: ModuleBlockPlan; kind?: 'median' }
 
 export interface PerimeterModuleInput {
   id: string;
