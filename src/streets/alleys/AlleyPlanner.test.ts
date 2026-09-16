@@ -63,10 +63,13 @@ describe('alley source attachment', () => {
   it('requires eligible, domain-contained terminals on both sides before accepting a candidate', () => {
     expect(plan({ edges: edges.slice(0, 2), domain })).toEqual([]);
     expect(plan({ edges: edges.map((edge) => ({ ...edge, class: 'highway' })), domain })).toEqual([]);
+    const boundaryHeight = 125 + domain.clearance;
     const narrowerDomain = StreetDomain.reserve({
-      boundary: [[0, 0], [240, 0], [240, 140], [0, 140]],
+      boundary: [[0, 0], [240, 0], [240, boundaryHeight], [0, boundaryHeight]],
       design: resolveStreetDesign(), highways: false, alleys: true,
     });
+    expect(narrowerDomain.covers(block)).toBe(true);
+    expect(narrowerDomain.covers(edges[3].path)).toBe(false);
     expect(plan({ edges, domain: narrowerDomain })).toEqual([]);
   });
 });
