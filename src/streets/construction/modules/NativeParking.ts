@@ -2,6 +2,7 @@ import type { Polygon, Vec2 } from '../../../../schema/blueprint';
 import { intersection, offset } from '../../../geom/clip';
 import { DIMENSIONS as D, prism, rectangle } from './Geometry';
 import type { ModuleDefinition, ModulePrism } from './schema';
+import { measure, moduleId, moduleSizing } from './Format';
 
 /** Source parking dimensions, with two metres of support beyond each diagonal end. */
 export const NATIVE_PARKING = { slotLength: 6, depth: 2.5, endRun: 2, apron: 2 } as const;
@@ -9,30 +10,32 @@ export const NATIVE_PARKING = { slotLength: 6, depth: 2.5, endRun: 2, apron: 2 }
 export class NativeParking {
   static length(slots: number): number { return slots * NATIVE_PARKING.slotLength + NATIVE_PARKING.endRun * 2; }
 
-  static footprint(slots: number): Polygon {
+  static footprint(slots: number, sizing = moduleSizing()): Polygon {
     const end = this.length(slots);
-    return [[0, -0.5], [end, -0.5], [end - 2, 2], [2, 2]];
+    const rim = measure(sizing.curb + sizing.gutter), rear = measure(sizing.parkingDepth - rim);
+    return [[0, -rim], [end, -rim], [end - 2, rear], [2, rear]];
   }
 
-  static build(slots: number): ModuleDefinition {
+  static build(slots: number, sizing = moduleSizing(), panelWidth = 6): ModuleDefinition {
     const length = this.length(slots) + 4;
-    const road: Polygon = [[0, -0.5], [2, -0.5], [4, 2], [length - 4, 2], [length - 2, -0.5], [length, -0.5]];
-    const curbFront = this.parallel(road, D.gutter), pavedFront = this.parallel(road, D.gutter + D.curb);
+    const rim = measure(sizing.curb + sizing.gutter), rear = measure(sizing.parkingDepth - rim), width = measure(panelWidth + sizing.separator);
+    const road: Polygon = [[0, -rim], [2, -rim], [4, rear], [length - 4, rear], [length - 2, -rim], [length, -rim]];
+    const curbFront = this.parallel(road, sizing.gutter), pavedFront = this.parallel(road, rim);
     const band = (first: Polygon, last: Polygon): Polygon => [...first, ...[...last].reverse()];
     const gutter = band(road, curbFront), curb = band(curbFront, pavedFront);
-    const paved: Polygon = [...pavedFront, [length, 6], [0, 6]];
+    const paved: Polygon = [...pavedFront, [length, width], [0, width]];
     const parts: ModulePrism[] = [
-      prism('roadway', this.footprint(slots).map(([x, z]) => [x + 2, z]), -0.2, 0),
+      prism('roadway', this.footprint(slots, sizing).map(([x, z]) => [x + 2, z]), -0.2, 0),
       prism('joint', gutter, -0.03, -0.008), prism('gutter', gutter, -0.008, 0),
       prism('joint', curb, -0.03, D.bedTop), prism('curb', curb, D.bedTop, D.pavedTop),
       prism('joint', paved, 0, D.bedTop),
     ];
     // The saved module remains a complete physical compatibility surface. Streets owns native panel fitting.
-    for (let x = 0; x < length; x++) for (let z = 0; z < 6; z++) {
+    for (let x = 0; x < length; x++) for (let z = 0; z < width; z++) {
       const cells = intersection([paved], [rectangle(x, z, 1, 1)]);
       for (const body of offset(cells, -D.joint / 2)) parts.push(prism('panel', body, D.bedTop, D.pavedTop));
     }
-    return { id: `parking-native:6:${slots}`, partitionedBeds: true, parts };
+    return { id: moduleId(`parking-native:${panelWidth}:${slots}`, sizing), partitionedBeds: true, parts };
   }
 
   /** Shared authored offset vertices, never independently clipped on each side of a band. */

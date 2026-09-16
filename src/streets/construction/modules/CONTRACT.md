@@ -1,26 +1,47 @@
 # Street modules
 
-Builds reusable sidewalk panels, curb groups, gutters, rounded corners and guardrails from whole metre dimensions.
+Builds shared sidewalk, curb, gutter, corner, parking and guardrail prisms with quarter-turn placements.
 
 ## Input and output
 
-`StreetModuleKit.block(input)` takes [BlockModuleInput](schema.ts) and returns [ModuleBlock](schema.ts). `construction()` returns the shared definitions and placements in [ModuleConstruction](schema.ts).
+- `new StreetModuleKit(format?)` takes [ModuleFormat](schema.ts), default `source`.
+- `block(input)` takes [BlockModuleInput](schema.ts), returns [ModuleBlock](schema.ts).
+- `perimeter(input)` takes [PerimeterModuleInput](schema.ts), returns [ModuleFrontage](schema.ts).
+- `construction()` returns owned copies of definitions, placements, parking and perimeter owners, [ModuleConstruction](schema.ts).
+- `ModuleGround.cover(construction)` returns [ModuleGroundRegion](schema.ts) planning outlines by owner, surface and level. Physical prisms own rendering and collision. Supporting beds join once per template; straight runs retain rectangular covers. `partitionedBeds` preserves already disjoint bed outlines.
 
-`ModuleGround.cover(construction)` returns [ModuleGroundRegion](schema.ts) planning outlines by block, surface and level. Each template's supporting beds are joined once on the geometry grid; straight runs retain continuous rectangular covers. A definition with `partitionedBeds: true` already supplies disjoint hole-free beds; its cover preserves those physical bed boundaries directly. These outlines serve land and walking checks. Rendering and collision consume the physical prisms, including recessed joints and raised gutter lips.
+## Formats and dimensions
 
-Block dimensions count whole 1 m panels. South, east, north and west sidewalk widths are 2, 4 or 6 m. Straight construction repeats a 2 m group: two panel stations, one curb and one gutter span. Corners use fixed 2 m radius pieces with panel seams on the same local grid. Only corner pieces have shaped terminals. All placements use quarter turns.
+| Measurement | Source | District |
+| --- | --- | --- |
+| Panel band | 2, 4 or 6 m | 4 m on every side |
+| Inner separator | None | 0.2 m |
+| Curb width and height | 0.2 m | 0.2 m |
+| Gutter width | 0.3 m | 0.5 m |
+| Native parking slot | 6 x 2.5 m | 6 x 2 m |
+| Native parking walking width | 3.5 m | 2.2 m, including separator |
 
-Each definition contains physical prisms with metre UV coordinates. Panel bodies leave 12 mm joints above a recessed bed. Corner joints preserve the shared inner and outer facets of the supporting beds. Paved height is 20 cm; curb width is 20 cm, gutter width 30 cm and its road-facing lip is 2 cm wide and high. Repeated placements share geometry. Optional guardrail groups specify a side, even station and 1 to 3 repeated 2 m rails. They stand in the outer panel row and leave the first and last 6 m of each straight run clear. Parking and caller reservations suppress intersecting groups. The layout caller selects their sparse distribution.
+Block `panels` are even integer counts including corner reservations. District physical paved dimensions equal these counts plus 0.4 m per axis. Each district straight side is 4.2 m wide; the buildable rectangle remains `panels - 8 m` on both axes. Curb and gutter add 0.7 m outside each district paved edge. Straight spans retain complete 2 m repeats.
 
-Block output supplies the buildable rectangle and complete outer bounds, including curb and gutter. Its `planning` records retain the original road-facing tangent endpoints, inward directions, paved widths, source module station origins/ends and corner arcs with their placement identities. Frontage stations increase from start to end; parking stations increase from moduleStationOrigin in that same direction. These records describe construction supports, not another ground owner. Geometry construction is independent of material selection. Repeated calls with identical inputs produce identical data. Invalid panel counts, widths or dimensions throw `E_INVALID_PARAMS`.
+Source straight groups use 1 m panels; `centerDouble` adds a 2 x 2 m middle panel on 4/6 m sides. District groups always use four 1 m panels next to the curb, one 2 x 2 m inner panel, then the separator. Corner radius is 2 m. Panel bodies leave 12 mm joints above a recessed bed. Paving is 0.2 m high; gutter lips are 0.02 m wide and high. UV coordinates are local metres. Definitions contain complete physical prisms; material selection belongs to consumers.
 
-Parking with no profile replaces complete straight groups on 4/6 m sidewalks. Each bay has 1 to 3 slots of 4 by 2 m, plus a fixed 2 m return at each end. Starts are even panel stations, at least 6 m from either corner reservation. Curbs, gutter beds and lips follow the same rectangular cut; at least 2 m of paved walking width remains. Published parking records contain the station range, slot count and footprints. Bays cannot overlap each other or caller reservations, and they suppress guardrails. The caller controls their frequency.
+`construction().format` is `district` for district construction; omission identifies source construction. District frontage plans publish paved, curb and gutter widths. Every block plan includes directed road-facing tangents, inward vectors, original module station endpoints and corner support with placement identity. Parking stations increase from `moduleStationOrigin` toward `moduleStationEnd`. Planning support adds no ground ownership.
 
-Parking with `profile: 'native'` requires a 6 m paved side. It names its authored frontage and publishes 6 by 2.5 m slots, a diagonal-ended footprint with 2 m longitudinal ends, and 3.5 m clear walking width. Two-metre support aprons extend beyond both ends; the complete support stays 6 m clear of corners and caller reservations. Rails avoid this support. Physical roadway and planning cover use the exact same footprint, with no painted dividers. Curb and gutter bands share authored 1 mm offset vertices. Native panel fitting belongs to Streets; the saved module retains complete physical paving for module consumers. Existing unprofiled parking remains readable.
+## Parking and guardrails
 
-`StreetModuleKit.perimeter(input)` takes [PerimeterModuleInput](schema.ts) and returns a frontage owner. It surrounds a rectangular roadway with complete 2/4/6 m sidewalks. Road spans are whole metres; two-metre straight groups finish with a one-metre group when needed. The four shared outer corner pieces use full panels, fixed half-panel terminals and formed curb caps. The frontage retains four directed road-facing spans and explicit corner support boundaries tied to their source placements. Frontage placements reference their frontage ID through `blockId`; `frontages` supplies its enclosing boundary.
+Native parking requires a 6 m source or 4 m district panel band. Each bay has 1 to 3 slots, 2 m diagonal ends and 2 m support aprons beyond both ends. Starts are even stations, at least 8 m from the straight-run origin. Complete support stays 6 m clear of corners, caller reservations and other bays. Records publish frontage identity, slot footprints, bay footprint, support interval and walking clearance. Curbs and gutters use shared authored 1 mm offset vertices; road geometry and planning use the same footprint. Streets owns native panel fitting; modules retain complete compatibility paving.
+
+Source parking without `profile` uses 4 x 2 m slots on 4/6 m sides with 2 m rectangular returns and at least 2 m walking width. Starts are even stations, at least 6 m from either corner reservation. District parking requires `profile: 'native'`.
+
+Guardrail groups contain 1 to 3 repeated 2 m rails, occupy the outer panel row and stay 6 m clear of either straight-run end. Parking support and caller reservations suppress intersecting groups. Callers select parking and guardrail frequency.
+
+## Perimeter and validity
+
+Perimeters enclose a roadway rectangle. Source spans are whole metres. District spans use 0.2 m increments with endpoint coordinates on the 1 mm grid. Spans are at least 4 m. Two-metre groups end with a fitted terminal group when needed; outer corners use fitted panels and formed curb caps. Placements reference the frontage owner through `blockId`.
+
+Identical input produces identical output. Unsupported format, dimensions, reservations, duplicate owner IDs or parking throw `E_INVALID_PARAMS` before geometry is published. Sub-grid district perimeter input is rejected.
 
 ## Dependencies
 
-- [Atlas](../../../../CONTRACT.md): coordinates in metres and error vocabulary.
-- [Geometry](../../../geom/CONTRACT.md): joins the small template covers on the authored millimetre grid.
+- [Atlas](../../../../CONTRACT.md): metre coordinates, polygon schemas and errors.
+- [Geometry](../../../geom/CONTRACT.md): joins and fits template covers on the authored millimetre grid.

@@ -1,12 +1,13 @@
 import { invalidParams } from '../../../errors';
 import { corner } from './Corner';
 import { rectangle, transform } from './Geometry';
-import type { BlockModuleInput, ModuleBlock, ModuleConstruction, ModuleDefinition, ModuleFrontage, ModuleParking, ModulePlacement, PerimeterModuleInput, QuarterTurn } from './schema';
+import type { BlockModuleInput, ModuleBlock, ModuleConstruction, ModuleDefinition, ModuleFormat, ModuleFrontage, ModuleParking, ModulePlacement, PerimeterModuleInput, QuarterTurn } from './schema';
 import { guardrail, straight } from './Straight';
 import { parking, parkingSupport } from './Parking';
 import { NativeParking } from './NativeParking';
 import { ModulePlanning } from './ModulePlanning';
 import { perimeterCorner } from './Perimeter';
+import { measure, moduleId, moduleSizing, onGrid, type ModuleSizing } from './Format';
 
 export class StreetModuleKit {
   private readonly definitions = new Map<string, ModuleDefinition>();
@@ -14,32 +15,46 @@ export class StreetModuleKit {
   private readonly blockIds = new Set<string>();
   private readonly parking: ModuleParking[] = [];
   private readonly frontages: ModuleFrontage[] = [];
+  private readonly sizing: Readonly<ModuleSizing>;
+
+  constructor(format: ModuleFormat = 'source') { this.sizing = moduleSizing(format); }
 
   perimeter(input: PerimeterModuleInput): ModuleFrontage {
-    const { min, max } = input.bounds;
-    const width = max[0] - min[0], depth = max[1] - min[1];
+    const sizing = this.sizing, rim = measure(sizing.curb + sizing.gutter);
+    const spans = [input.bounds.max[0] - input.bounds.min[0], input.bounds.max[1] - input.bounds.min[1]];
     if (!input.id || this.blockIds.has(input.id) || !input.finish || ![2, 4, 6].includes(input.width)
-      || ![...min, ...max].every(Number.isFinite) || ![width, depth].every(value => Number.isSafeInteger(value) && value >= 4)) {
-      throw invalidParams('perimeter requires whole metre roadway spans and 2/4/6 m sidewalks');
+      || (sizing.format === 'district' && input.width !== 4)
+      || ![...input.bounds.min, ...input.bounds.max].every(value => sizing.format === 'district' ? onGrid(value, 0.001) : Number.isFinite(value))
+      || !spans.every(value => value >= 4 && (sizing.format === 'district' ? onGrid(value, 0.2) : Number.isSafeInteger(value)))) {
+      throw invalidParams(sizing.format === 'district'
+        ? 'district perimeter requires 0.2 m roadway spans, millimetre-grid bounds and 4 m panels'
+        : 'perimeter requires whole metre roadway spans and 2/4/6 m sidewalks');
     }
+    if (sizing.format === 'district') input = { ...input, bounds: {
+      min: input.bounds.min.map(measure) as [number, number], max: input.bounds.max.map(measure) as [number, number],
+    } };
+    const { min, max } = input.bounds;
+    const [width, depth] = sizing.format === 'district' ? spans.map(measure) : spans;
     const add = (definition: ModuleDefinition, origin: [number, number], turn: QuarterTurn, count = 1) => {
       if (!this.definitions.has(definition.id)) this.definitions.set(definition.id, definition);
       this.placements.push({ moduleId: definition.id, blockId: input.id, origin, turn, count, step: 2, finish: input.finish });
     };
-    const origins: [number, number][] = [[max[0], min[1] - 0.5], [max[0] + 0.5, max[1]],
-      [min[0], max[1] + 0.5], [min[0] - 0.5, min[1]]];
+    const origins: [number, number][] = [[max[0], min[1] - rim], [max[0] + rim, max[1]],
+      [min[0], max[1] + rim], [min[0] - rim, min[1]]];
     const corners: [number, number][] = [[min[0], min[1]], [max[0], min[1]], [max[0], max[1]], [min[0], max[1]]];
-    const straightDefinition = straight(input.width, true);
-    const cornerDefinition = perimeterCorner(input.width);
+    const straightDefinition = straight(input.width, true, 2, sizing);
+    const cornerDefinition = perimeterCorner(input.width, sizing);
     for (let side = 0; side < 4; side++) {
       const length = side % 2 ? depth : width;
       const turn = ((side + 2) % 4) as QuarterTurn;
       add(straightDefinition, origins[side], turn, Math.floor(length / 2));
-      if (length % 2) add(straight(input.width, false, 1), transform([length - 1, 0], origins[side], turn), turn);
+      const remainder = measure(length % 2);
+      if (remainder) add(straight(input.width, false, remainder, sizing), transform([length - remainder, 0], origins[side], turn), turn);
       add(cornerDefinition, corners[side], side as QuarterTurn);
     }
-    const out = { id: input.id, planning: ModulePlanning.perimeter(input), boundary: rectangle(min[0] - input.width - 0.5, min[1] - input.width - 0.5,
-      width + input.width * 2 + 1, depth + input.width * 2 + 1) };
+    const margin = measure(input.width + sizing.separator + rim);
+    const out = { id: input.id, planning: ModulePlanning.perimeter(input, sizing), boundary: rectangle(min[0] - margin, min[1] - margin,
+      width + margin * 2, depth + margin * 2) };
     this.blockIds.add(input.id);
     this.frontages.push(out);
     return structuredClone(out);
@@ -47,11 +62,12 @@ export class StreetModuleKit {
 
   block(input: BlockModuleInput): ModuleBlock {
     this.validate(input);
-    const [width, depth] = input.panels;
-    const [south, east, north, west] = input.sidewalks;
+    const sizing = this.sizing, rim = measure(sizing.curb + sizing.gutter);
+    const [width, depth] = input.panels.map(value => measure(value + sizing.separator * 2));
+    const [south, east, north, west] = input.sidewalks.map(value => measure(value + sizing.separator));
     const localOrigins = [[west, 0], [width, south], [width - east, depth], [0, depth - north]] as const;
     const cornerOrigins = [[0, 0], [width, 0], [width, depth], [0, depth]] as const;
-    const lengths = [width - west - east, depth - south - north];
+    const lengths = [measure(width - west - east), measure(depth - south - north)];
     const placed: ModulePlacement[] = [];
     const use = (definition: ModuleDefinition, origin: [number, number], turn: QuarterTurn, count = 1, step = 2) => {
       if (count === 0) return;
@@ -65,27 +81,27 @@ export class StreetModuleKit {
       const length = lengths[side % 2];
       const sidewalk = input.sidewalks[side];
       const preceding = input.sidewalks[(side + 3) % 4];
-      const straightId = `straight:${sidewalk}:${input.centerDouble ? 'middle' : 'unit'}`;
-      const cornerId = `corner:${preceding}:${sidewalk}`;
+      const straightId = moduleId(`straight:${sidewalk}:${input.centerDouble ? 'middle' : 'unit'}`, sizing);
+      const cornerId = moduleId(`corner:${preceding}:${sidewalk}`, sizing);
       const bays = (input.parking ?? []).filter(bay => bay.side === side).sort((a, b) => a.start - b.start);
-      const straightDefinition = this.definitions.get(straightId) ?? straight(sidewalk, input.centerDouble ?? false);
+      const straightDefinition = this.definitions.get(straightId) ?? straight(sidewalk, input.centerDouble ?? false, 2, sizing);
       let station = 0;
       for (const bay of bays) {
         const native = bay.profile === 'native';
         const support = parkingSupport(bay);
         const supportStart = support.start;
         use(straightDefinition, transform([station, 0], origin, turn), turn, (supportStart - station) / 2);
-        const id = native ? `parking-native:6:${bay.slots}` : `parking:${sidewalk}:${bay.slots}:${input.centerDouble ? 'middle' : 'unit'}`;
-        const definition = this.definitions.get(id) ?? (native ? NativeParking.build(bay.slots)
+        const id = native ? moduleId(`parking-native:${sidewalk}:${bay.slots}`, sizing) : `parking:${sidewalk}:${bay.slots}:${input.centerDouble ? 'middle' : 'unit'}`;
+        const definition = this.definitions.get(id) ?? (native ? NativeParking.build(bay.slots, sizing, sidewalk)
           : parking(sidewalk, bay.slots, input.centerDouble ?? false));
         use(definition, transform([supportStart, 0], origin, turn), turn);
         const end = bay.start + (native ? NativeParking.length(bay.slots) : 4 + bay.slots * 4);
         station = support.end;
         const identity = { blockId: input.id, side: turn, start: bay.start, end, slotCount: bay.slots };
-        this.parking.push(native ? { ...identity, profile: 'native', frontageId: ModulePlanning.frontageId(input.id, side), slotLength: 6, width: 2.5, endRun: 2,
-          footprint: NativeParking.footprint(bay.slots).map(([x, z]) => transform([x + bay.start, z], origin, turn)),
-          support, walkingClearance: sidewalk - 2.5,
-          slots: Array.from({ length: bay.slots }, (_, slot) => rectangle(bay.start + 2 + slot * 6, -0.5, 6, 2.5)
+        this.parking.push(native ? { ...identity, profile: 'native', frontageId: ModulePlanning.frontageId(input.id, side), slotLength: 6, width: sizing.parkingDepth, endRun: 2,
+          footprint: NativeParking.footprint(bay.slots, sizing).map(([x, z]) => transform([x + bay.start, z], origin, turn)),
+          support, walkingClearance: measure(sidewalk + sizing.separator - sizing.parkingDepth),
+          slots: Array.from({ length: bay.slots }, (_, slot) => rectangle(bay.start + 2 + slot * 6, -rim, 6, sizing.parkingDepth)
             .map(p => transform(p, origin, turn))),
         } : { ...identity, slotLength: 4, width: 2,
           slots: Array.from({ length: bay.slots }, (_, slot) => rectangle(bay.start + 2 + slot * 4, -0.5, 4, 2)
@@ -93,7 +109,7 @@ export class StreetModuleKit {
         });
       }
       use(straightDefinition, transform([station, 0], origin, turn), turn, (length - station) / 2);
-      use(this.definitions.get(cornerId) ?? corner(preceding, sidewalk), cornerOrigin, turn);
+      use(this.definitions.get(cornerId) ?? corner(preceding, sidewalk, sizing), cornerOrigin, turn);
       for (const rail of input.guardrails ?? []) {
         if (rail.side !== side) continue;
         const end = rail.start + rail.segments * 2;
@@ -106,14 +122,15 @@ export class StreetModuleKit {
     this.placements.push(...placed);
     return {
       id: input.id,
-      outer: rectangle(input.origin[0] - 0.5, input.origin[1] - 0.5, width + 1, depth + 1),
+      outer: rectangle(input.origin[0] - rim, input.origin[1] - rim, measure(width + rim * 2), measure(depth + rim * 2)),
       interior: rectangle(input.origin[0] + west, input.origin[1] + south, lengths[0], lengths[1]),
-      placements: structuredClone(placed), planning: ModulePlanning.block(input),
+      placements: structuredClone(placed), planning: ModulePlanning.block(input, sizing),
     };
   }
 
   construction(): ModuleConstruction {
     return structuredClone({ version: '1.0.0', definitions: [...this.definitions.values()], placements: this.placements,
+      ...(this.sizing.format === 'district' ? { format: 'district' as const } : {}),
       ...(this.parking.length ? { parking: this.parking } : {}),
       ...(this.frontages.length ? { frontages: this.frontages } : {}),
     });
@@ -127,6 +144,7 @@ export class StreetModuleKit {
       || !Array.isArray(input.panels) || input.panels.length !== 2 || !input.panels.every(n => Number.isSafeInteger(n) && n > 0 && n % 2 === 0)
       || !Array.isArray(input.sidewalks) || input.sidewalks.length !== 4 || !input.sidewalks.every(n => [2, 4, 6].includes(n))
       || (input.centerDouble !== undefined && typeof input.centerDouble !== 'boolean')) fail();
+    if (this.sizing.format === 'district' && input.sidewalks.some(width => width !== 4)) fail();
     if (input.panels[0] <= input.sidewalks[1] + input.sidewalks[3]
       || input.panels[1] <= input.sidewalks[0] + input.sidewalks[2]) fail();
     if (input.reserved !== undefined && (!Array.isArray(input.reserved) || input.reserved.length !== 4
@@ -147,7 +165,8 @@ export class StreetModuleKit {
         if (!bay || ![0, 1, 2, 3].includes(bay.side) || ![1, 2, 3].includes(bay.slots)
           || !Number.isSafeInteger(bay.start) || bay.start < (bay.profile ? 8 : 6) || bay.start % 2 !== 0
           || (bay.profile !== undefined && bay.profile !== 'native')
-          || (bay.profile === 'native' ? input.sidewalks[bay.side] !== 6 : input.sidewalks[bay.side] < 4)) fail();
+          || (this.sizing.format === 'district' && bay.profile !== 'native')
+          || (bay.profile === 'native' ? input.sidewalks[bay.side] !== (this.sizing.format === 'district' ? 4 : 6) : input.sidewalks[bay.side] < 4)) fail();
         const side = bay.side;
         const length = input.panels[side % 2] - input.sidewalks[(side + 1) % 4] - input.sidewalks[(side + 3) % 4];
         const { start, end } = parkingSupport(bay);
