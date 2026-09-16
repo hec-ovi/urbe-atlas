@@ -18,7 +18,7 @@ Entry point: [index.ts](index.ts). Data: [schema.ts](schema.ts).
 - Runs end only at highway termini or forks. Closed rings have no ramps. Each highway edge belongs to one run; edges in a run agree on width and level.
 - The shared construction dimensions remain 1 m deck thickness, 60 m terminal ramps, 30 m maximum support pitch, 2 m square supports and 1 m building clearance. A short run uses the same proportionally shortened ramps as the Atlas root contract.
 - Supplied edge profiles span their complete paths and agree with the run's height function at their knots and every run breakpoint inside the edge. Reversing an edge preserves the physical height. Redundant edge-boundary knots do not add run breakpoints. No envelope or support operation changes input edges or profiles.
-- Supports stand beneath the flat deck. Placement advances in path order, moving laterally or shortening the previous pitch when obstacles intervene. Supports are snapped to the 1 mm grid and do not intersect an obstacle.
+- Supports stand beneath the flat deck. Placement advances in path order, moving laterally or shortening the previous pitch at obstacle contact stations. Contact candidates include the complete square footprint and neighbouring millimetre stations; exact polygon checks decide clearance. Supports are snapped to the 1 mm grid and do not intersect an obstacle.
 - Identical inputs produce identical output. Support completion depends on the supplied envelope, including its deck thickness, rather than recomputing ramps or heights.
 
 ## Errors

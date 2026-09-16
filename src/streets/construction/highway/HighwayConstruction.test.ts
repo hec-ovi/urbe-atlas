@@ -80,6 +80,23 @@ describe('staged highway construction', () => {
     expect(supportHighwayEnvelopes(envelopes)).toEqual(highwayStructures(edges));
   });
 
+  it('fits the full support pitch across a district avenue and both underpass sidewalks', () => {
+    const crossing: Polygon = [[101.7, -8], [129.3, -8], [129.3, 8], [101.7, 8]];
+    const envelopes = highwayEnvelopes([graphEdge()]);
+    const structures = supportHighwayEnvelopes(envelopes, [crossing]);
+    expect(structures[0].supports.map(support => support.position)).toEqual([
+      [75, 0], [100.7, 0], [130.7, 0], [160.7, 0],
+    ]);
+    let previous = envelopes[0].ramps.start;
+    for (const support of structures[0].supports) {
+      expect(support.position[0] - previous).toBeLessThanOrEqual(HIGHWAY_DECK.supportPitch);
+      expect(area(support.footprint)).toBe(4);
+      expect(intersection([support.footprint], [crossing])).toEqual([]);
+      previous = support.position[0];
+    }
+    expect(supportHighwayEnvelopes(envelopes, [crossing])).toEqual(structures);
+  });
+
   it('rejects an assigned profile that omits a ramp breakpoint', () => {
     const edges = assignedEdges();
     edges[0].elevationProfile.splice(1, 1);

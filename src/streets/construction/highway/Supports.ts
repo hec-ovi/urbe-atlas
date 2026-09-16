@@ -6,9 +6,9 @@ import { directionAt, length as pathLength, pointAt } from '../../../geom/polyli
 import { add, scale } from '../../../geom/vec';
 import { LEVELS } from '../../../levels';
 import { HIGHWAY_DECK } from './dimensions';
+import { lateralOffsets, supportStations } from './SupportStations';
+import type { SupportObstacle } from './SupportStations';
 import type { HighwayEnvelope } from './schema';
-
-type Obstacle = { polygon: Polygon; box: ReturnType<typeof bounds> };
 
 /** Adds columns to the supplied envelope without altering its construction plan. */
 export function supportHighwayEnvelopes(
@@ -27,9 +27,10 @@ export function supportHighwayEnvelopes(
       // the maximum supported span while avoiding the intervening obstacle.
       let along = targetAlong;
       let support = clearSupportAt(envelope, along, obstacles);
-      while (!support && along > previousAlong + 1) {
-        along -= 1;
+      if (!support) for (const candidate of supportStations(envelope, previousAlong, targetAlong, obstacles)) {
+        along = candidate;
         support = clearSupportAt(envelope, along, obstacles);
+        if (support) break;
       }
       if (!support) {
         throw invariantFailure(`highway ${envelope.edgeIds[0]} cannot place a support clear of grade infrastructure`);
@@ -45,13 +46,12 @@ export function supportHighwayEnvelopes(
 function clearSupportAt(
   envelope: HighwayEnvelope,
   along: number,
-  obstacles: readonly Obstacle[],
+  obstacles: readonly SupportObstacle[],
 ): HighwayStructure['supports'][number] | null {
   const center = pointAt(envelope.path, along);
   const direction = directionAt(envelope.path, along);
   const side: Vec2 = [-direction[1], direction[0]];
-  const lateral = Math.max(0, envelope.width / 2 - HIGHWAY_DECK.supportSize / 2 - 0.5);
-  for (const offset of [0, lateral, -lateral]) {
+  for (const offset of lateralOffsets(envelope)) {
     const position = snapPoint(add(center, scale(side, offset)));
     const half = HIGHWAY_DECK.supportSize / 2;
     const footprint: Polygon = [
@@ -67,7 +67,7 @@ function clearSupportAt(
   return null;
 }
 
-function hitsAny(footprint: Polyline, obstacles: readonly Obstacle[]): boolean {
+function hitsAny(footprint: Polyline, obstacles: readonly SupportObstacle[]): boolean {
   const box = bounds(footprint);
   return obstacles.some((obstacle) => {
     if (obstacle.box.min[0] >= box.max[0] || obstacle.box.max[0] <= box.min[0]
