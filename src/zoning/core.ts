@@ -25,7 +25,7 @@ export const INTERIOR = {
   serviceStub: 1.2,
   margin: 0.5,
   minStripDepth: 3.0,
-  stairColumnWidth: 2.5,
+  stairColumnWidth: 3.0,
   stairTread: 0.28,
   stairLanding: 1.2,
   maxRisersPerFlight: 14,
