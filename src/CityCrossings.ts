@@ -4,12 +4,20 @@ import { invariantFailure, invalidParams, unsatisfiable } from './errors';
 import { sidewalkBand } from './streets/construction/SidewalkSection';
 import type { CrossingPlan, CrossingValidationPlan, JunctionApproach } from './streets/crossings/schema';
 
+export interface CityCrossingLandExclusions {
+  water: readonly Polygon[];
+  /** Original block identities and boundaries, before retained blocks are renumbered. */
+  blocks: readonly { ownerId: string; boundary: Polygon }[];
+}
+
 export interface CityCrossingInput {
   nodes: readonly StreetNode[];
   edges: readonly StreetEdge[];
   ground: readonly GroundSurface[];
   /** Physical footprints within the configured pedestrian headroom, including highway ramps and supports. */
   obstacles?: readonly Polygon[];
+  /** Water and complete source blocks removed by water, independent of final ground coverage. */
+  landExclusions?: CityCrossingLandExclusions;
 }
 
 const WIDTH = 3;
@@ -24,6 +32,7 @@ export class CityCrossings {
     const edges = new Map(input.edges.map(edge => [edge.id, edge]));
     const frames = new Map(input.edges.map(edge => [edge.id, new StreetFrame(edge)]));
     const ground = new CityCrossingGround(input.ground, input.obstacles ?? []);
+    const excluded = CityCrossingGround.landExclusions(input.landExclusions);
     const traffic = new CityCrossingGround(input.edges.flatMap(edge => {
       const frame = frames.get(edge.id)!;
       return edge.elevationProfile.flatMap((end, index, knots): CityCrossingRegion[] => {
@@ -72,12 +81,13 @@ export class CityCrossings {
           const distance = starts ? offset : frame.length - offset;
           const candidate = this.candidate(edge, frame, node.id, groupId, distance);
           const { approach, segment } = candidate;
+          const whole = [approach.field, ...Object.values(approach.landings), ...Object.values(approach.walkingLandings)];
+          if (!whole.every(polygon => excluded.clear(polygon))) continue;
           const evidence = { nodeId: node.id, edgeId: edge.id, distance };
           if (distance < HALF || distance > frame.length - HALF
             || occupied.get(edge.id)?.some(([a, b]) => a < approach.station[1] && b > approach.station[0])) {
             throw unsatisfiable('grid street cannot hold its complete crossing fields', evidence);
           }
-          const whole = [approach.field, ...Object.values(approach.landings), ...Object.values(approach.walkingLandings)];
           if (!ground.covers(approach.field, ['roadway'])) throw unsatisfiable('grid crossing lacks complete roadway', evidence);
           if (!Object.values(approach.landings).every(polygon => ground.covers(polygon, ['roadway', 'gutter', 'curb', 'sidewalk']))) {
             throw unsatisfiable('grid crossing lacks complete curb and gutter connectors', evidence);
@@ -92,8 +102,10 @@ export class CityCrossings {
           junction.approaches.push(approach);
           crossing.segments.push(segment);
         }
-        plan.junctions.push(junction);
-        plan.crossings.push(crossing);
+        if (junction.approaches.length) {
+          plan.junctions.push(junction);
+          plan.crossings.push(crossing);
+        }
       });
     }
     return plan;

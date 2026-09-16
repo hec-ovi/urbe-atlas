@@ -65,9 +65,35 @@ describe('dimensioned city crossing contract', () => {
       .toThrow('grid crossing lacks complete curb and gutter connectors');
   });
 
+  it('resolves shore eligibility from excluded source blocks while proving retained walking ground', () => {
+    const input = fixture(), boundary = input.blocks[0].outer;
+    const landExclusions = { water: [rect(20, 20, 4, 4)], blocks: [{ ownerId: 'source-block0', boundary }] };
+    const ground = input.ground.flatMap(region => difference([region.polygon], [boundary]).map(polygon => ({ ...region, polygon })));
+    expect(() => CityCrossings.plan({ ...input, ground })).toThrow('grid crossing lacks complete');
+    const shore = { ...input, ground, landExclusions }, plan = CityCrossings.plan(shore);
+    expect(plan.junctions).toHaveLength(1);
+    expect(plan.crossings[0].segments.map(segment => segment.edgeId)).toEqual(['e2', 'e3']);
+    CityCrossings.validate(shore, JSON.parse(JSON.stringify(plan)));
+    const punctured = ground.flatMap(region => region.surface === 'sidewalk'
+      ? difference([region.polygon], [rect(-11, -9.5, 0.05, 0.05)]).map(polygon => ({ ...region, polygon })) : [region]);
+    expect(() => CityCrossings.plan({ ...shore, ground: punctured })).toThrow('grid crossing lacks complete');
+    expect(() => CityCrossings.plan({ ...shore, landExclusions: { ...landExclusions, water: [rect(100, 100, 4, 4)] } }))
+      .toThrow('excluded block requires unique source ownership and water contact');
+  });
+
+  it('excludes water-contact approaches and leaves no empty crossing junction', () => {
+    const input = fixture(), landExclusions = { water: [rect(10, -1, 2, 2)], blocks: [] };
+    const plan = CityCrossings.plan({ ...input, landExclusions });
+    expect(plan.crossings[0].segments.map(segment => segment.edgeId)).toEqual(['e1', 'e2', 'e3']);
+    expect(CityCrossings.plan({ ...input, ground: [], landExclusions: { water: [rect(-60, -60, 120, 120)], blocks: [] } }))
+      .toEqual({ crossings: [], junctions: [] });
+    expect(() => CityCrossings.plan({ ...input, landExclusions: { water: [rect(NaN, 0, 2, 2)], blocks: [] } }))
+      .toThrow('valid source water exclusions');
+  });
+
   it('places declared-angle marking fields clear of gutters and rejects missing roadway', () => {
     const design = resolveStreetDesign();
-    const layout = GridLayout.plan({ seed: 'urbe', size: { width: 1000, depth: 1000 }, profiles: design.profiles,
+    const layout = GridLayout.plan({ seed: 'urbe', size: { width: 1000, depth: 1000 }, profiles: design.profiles, diagonals: 'legacy-applied',
       sideAt: () => ({ profile: design.sidewalkProfiles[1], finish: 'plain' }) });
     const cuts = layout.edges.filter(edge => edge.path[0][0] !== edge.path[1][0] && edge.path[0][1] !== edge.path[1][1]);
     const nodeIds = new Set(cuts.flatMap(edge => [edge.from, edge.to]));

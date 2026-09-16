@@ -1,6 +1,8 @@
 import type { GroundSurface, Polygon } from '../schema/blueprint';
+import type { CityCrossingLandExclusions } from './CityCrossings';
+import { invalidParams } from './errors';
 import { difference, intersection } from './geom/clip';
-import { bounds } from './geom/polygon';
+import { bounds, isSimpleRing } from './geom/polygon';
 
 export interface CityCrossingRegion extends GroundSurface {
   edgeId?: string;
@@ -17,6 +19,25 @@ export class CityCrossingGround {
       for (const key of this.keys(region.polygon)) this.add(this.cells, key, region);
     }
     for (const polygon of obstacles) for (const key of this.keys(polygon)) this.add(this.obstacles, key, polygon);
+  }
+
+  static landExclusions(exclusions?: CityCrossingLandExclusions): CityCrossingGround {
+    if (!exclusions) return new CityCrossingGround([], []);
+    const valid = (polygon: Polygon) => Array.isArray(polygon)
+      && polygon.every(point => Array.isArray(point) && point.length === 2 && point.every(Number.isFinite))
+      && isSimpleRing(polygon);
+    if (!Array.isArray(exclusions.water) || !exclusions.water.every(valid) || !Array.isArray(exclusions.blocks)) {
+      throw invalidParams('grid crossing requires valid source water exclusions');
+    }
+    const water = new CityCrossingGround([], exclusions.water), ids = new Set<string>();
+    for (const block of exclusions.blocks) {
+      if (!block || typeof block.ownerId !== 'string' || !block.ownerId || ids.has(block.ownerId)
+        || !valid(block.boundary) || water.clear(block.boundary)) {
+        throw invalidParams('grid crossing excluded block requires unique source ownership and water contact', { ownerId: block?.ownerId });
+      }
+      ids.add(block.ownerId);
+    }
+    return new CityCrossingGround([], [...exclusions.water, ...exclusions.blocks.map(block => block.boundary)]);
   }
 
   covers(polygon: Polygon, surfaces: readonly GroundSurface['surface'][]): boolean {
