@@ -1,5 +1,5 @@
 import type { Vec2 } from '../../../../schema/blueprint';
-import { arc, DIMENSIONS as D, rectangle, transform } from './Geometry';
+import { arc, CORNER_ANGLES, DIMENSIONS as D, rectangle, transform } from './Geometry';
 import type { BlockModuleInput, ModuleBlockPlan, ModuleCornerPlan, PerimeterModuleInput, QuarterTurn } from './schema';
 import { measure, moduleId, moduleSizing } from './Format';
 
@@ -36,12 +36,12 @@ export class ModulePlanning {
     const origins: Vec2[] = [[0, 0], [width, 0], [width, depth], [0, depth]];
     const cornerId = (side: number) => `corner:${input.id}:${side % 4}`;
     const frontageId = (side: number) => this.frontageId(input.id, side % 4);
-    const rim = measure(sizing.curb + sizing.gutter), radius = measure(D.radius + rim);
+    const rim = measure(sizing.curb + sizing.gutter), pavedRadius = sizing.format === 'district' ? 4.2 : D.radius, radius = measure(pavedRadius + rim);
     const corners = origins.map((local, side) => {
       const turn = side as QuarterTurn, origin = transform(local, input.origin, 0);
       return { kind: 'arc' as const, id: cornerId(side), ownerId: input.id, frontageIds: [frontageId((side + 3) % 4), frontageId(side)] as [string, string],
-        center: transform([D.radius, D.radius], origin, turn), radius,
-        arc: arc(radius).map(point => transform(point, origin, turn)),
+        center: transform([pavedRadius, pavedRadius], origin, turn), radius,
+        arc: arc(radius, CORNER_ANGLES, pavedRadius).map(point => transform(point, origin, turn)),
         placement: { moduleId: moduleId(`corner:${input.sidewalks[(side + 3) % 4]}:${input.sidewalks[side]}`, sizing), origin, turn } };
     });
     return { corners, frontages: origins.map((_, side) => {

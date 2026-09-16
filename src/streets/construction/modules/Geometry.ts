@@ -52,16 +52,16 @@ export function jointedBand(polygon: Polygon): Polygon {
 /** Shared corner angles include grid intersections and limit curved facets to 0.5 m. */
 export const CORNER_ANGLES = Array.from({ length: 13 }, (_, i) => Math.PI + i * Math.PI / 24);
 
-export function arc(radius: number, angles = CORNER_ANGLES): Polygon {
-  return angles.map(angle => angle === Math.PI ? [DIMENSIONS.radius - radius, DIMENSIONS.radius]
-    : angle === Math.PI * 1.5 ? [DIMENSIONS.radius, DIMENSIONS.radius - radius]
-      : [DIMENSIONS.radius + radius * Math.cos(angle), DIMENSIONS.radius + radius * Math.sin(angle)]);
+export function arc(radius: number, angles = CORNER_ANGLES, center = DIMENSIONS.radius): Polygon {
+  return angles.map(angle => angle === Math.PI ? [center - radius, center]
+    : angle === Math.PI * 1.5 ? [center, center - radius]
+      : [center + radius * Math.cos(angle), center + radius * Math.sin(angle)]);
 }
 
-export function ringPart(inner: number, outer: number, angles = CORNER_ANGLES, jointAngle = 0): Polygon {
-  const polygon = [...arc(outer, angles), ...arc(inner, angles).reverse()];
+export function ringPart(inner: number, outer: number, angles = CORNER_ANGLES, jointAngle = 0, centerRadius = DIMENSIONS.radius): Polygon {
+  const polygon = [...arc(outer, angles, centerRadius), ...arc(inner, angles, centerRadius).reverse()];
   if (!jointAngle) return polygon;
-  const center: Vec2 = [DIMENSIONS.radius, DIMENSIONS.radius];
-  const [start, end] = arc(1, [angles[0] + jointAngle, angles[angles.length - 1] - jointAngle]);
+  const center: Vec2 = [centerRadius, centerRadius];
+  const [start, end] = arc(1, [angles[0] + jointAngle, angles[angles.length - 1] - jointAngle], centerRadius);
   return halfPlane(halfPlane(polygon, center, start, 0), end, center, 0);
 }
