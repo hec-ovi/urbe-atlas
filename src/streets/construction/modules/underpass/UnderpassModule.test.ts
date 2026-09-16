@@ -81,3 +81,34 @@ it('rejects unsupported sidewalk dimensions and non-whole or unsafe spans', () =
     expect(() => UnderpassModule.build({ ...input, span })).toThrowError(expect.objectContaining({ code: 'E_INVALID_PARAMS' }));
   }
 });
+
+it('fits district corner supports and fractional panel ends within one exact physical owner', () => {
+  const input: UnderpassInput = { format: 'district', startWidth: 4.2, endWidth: 4.2, startReturn: 4.2, endReturn: 4.2, span: 14 };
+  const template = UnderpassModule.build(input), parts = template.definition.parts;
+  expect(bounds(template.boundary)).toEqual({ min: [0, -0.7], max: [23.8, 4.9] });
+  expect(UnderpassModule.build(input)).toEqual(template);
+  const cover = ModuleGround.cover({ version: '1.0.0', format: 'district', definitions: [template.definition], placements: [
+    { moduleId: template.definition.id, blockId: 'underpass', origin: [0, 0], turn: 0, count: 1, step: 0, finish: 'luxury-blue' },
+  ] });
+  const beds = cover.map(region => region.polygon);
+  expect(difference([template.boundary], beds)).toEqual([]);
+  expect(difference(beds, [template.boundary])).toEqual([]);
+  expect(beds.reduce((sum, polygon) => sum + area(polygon), 0)).toBeCloseTo(area(template.boundary), 8);
+  for (let i = 0; i < beds.length; i++) expect(intersection([beds[i]], beds.slice(i + 1))).toEqual([]);
+  const paving = cover.filter(region => region.surface === 'sidewalk').map(region => region.polygon);
+  expect(paving).toHaveLength(1);
+  expect(coversPath(paving[0], [[0, 2.1], [23.8, 2.1]])).toBe(true);
+  for (const part of parts) {
+    expect(isSimpleRing(part.polygon), part.role).toBe(true);
+    expect(area(part.polygon)).toBeGreaterThan(0);
+    expect(part.top).toBeGreaterThan(part.bottom);
+  }
+  for (const [role, surface] of Object.entries({ panel: 'sidewalk', curb: 'curb', gutter: 'gutter', 'gutter-lip': 'gutter' })) {
+    expect(difference(parts.filter(part => part.role === role).map(part => part.polygon),
+      cover.filter(region => region.surface === surface).map(region => region.polygon))).toEqual([]);
+  }
+  const gutter = parts.find(part => part.role === 'gutter' && bounds(part.polygon).max[1] === -0.2)!;
+  expect(bounds(gutter.polygon).min[1]).toBe(-0.68);
+  expect(() => UnderpassModule.build({ ...input, startWidth: 4 })).toThrowError(expect.objectContaining({ code: 'E_INVALID_PARAMS' }));
+  expect(() => UnderpassModule.build({ ...input, span: 14.1 })).toThrowError(expect.objectContaining({ code: 'E_INVALID_PARAMS' }));
+});

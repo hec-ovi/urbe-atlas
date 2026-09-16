@@ -9,7 +9,8 @@ export function panels(polygons: Polygon[]): ModulePrism[] {
   for (const rect of rectangles(polygons)) {
     for (let x = rect.x; x < rect.x + rect.width; x++) {
       for (let z = rect.z; z < rect.z + rect.depth; z++) {
-        parts.push(prism('panel', rectangle(x + half, z + half, 1 - D.joint, 1 - D.joint), D.bedTop, D.pavedTop));
+        const width = Math.min(1, rect.x + rect.width - x), depth = Math.min(1, rect.z + rect.depth - z);
+        parts.push(prism('panel', rectangle(x + half, z + half, width - D.joint, depth - D.joint), D.bedTop, D.pavedTop));
       }
     }
   }
