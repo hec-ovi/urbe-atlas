@@ -20,6 +20,7 @@ import { checkTransitClearance } from './transitClearance';
 import { checkStreetElevations } from './elevations';
 import { checkCrossings } from './crossings';
 import { checkCityHydrology } from '../hydro/CityHydrologyInvariants';
+import { checkStandardLots } from './standardLots';
 import { intersection } from '../geom/clip';
 import { validateStreetSections } from '../streets/construction/validateSections';
 import { validateStreetDomain } from '../streets/domain/validateStreetDomain';
@@ -83,6 +84,8 @@ export class Invariants {
         });
       }
     }
+
+    checkStandardLots(bp);
 
     // Footprint hosting and complete floor allocation under the active generation policy.
     validateFootprints(bp);

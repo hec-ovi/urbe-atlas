@@ -6,7 +6,7 @@ import { describe, expect, it } from 'vitest';
 import { ARCHITECTURE_VERSION, AtlasError, generateCity } from '../src';
 import { bandWidth } from '../src/geom/band';
 import { orientedBoundingBox } from '../src/geom/obb';
-import { pointInPolygon } from '../src/geom/polygon';
+import { area as polygonArea, pointInPolygon } from '../src/geom/polygon';
 import { PLANTING_CLEARANCE, PLANTING_SPACING } from '../src/streets/Planting';
 import type { CityBlueprint, ParcelType, Vec2 } from '../schema/blueprint';
 
@@ -90,6 +90,31 @@ describe('blueprint output', () => {
     expect(bp.volumetric.ground.length).toBeGreaterThan(0);
     expect(bp.stats.population).toBeGreaterThan(0);
     expect(bp.stats.perDistrict.length).toBe(bp.districts.length);
+  });
+
+  it('cuts every ordinary parcel to one published lot size and flags the landmarks', () => {
+    const bp = defaultCity();
+    const sizes = bp.meta.lotSizes!;
+    expect(sizes.length).toBeGreaterThanOrEqual(5);
+    expect(new Set(sizes.map((s) => s.id)).size).toBe(sizes.length);
+    expect(sizes.every((s) => s.width > 0 && s.depth > 0 && s.area === s.width * s.depth)).toBe(true);
+
+    const byId = new Map(sizes.map((s) => [s.id, s]));
+    const landmarks = bp.parcels.filter((p) => p.landmark);
+    expect(landmarks.length).toBeGreaterThanOrEqual(10);
+    expect(landmarks.length).toBeLessThanOrEqual(30);
+    for (const p of landmarks) expect(p.lotSize).toBeUndefined();
+
+    for (const p of bp.parcels) {
+      if (p.landmark) continue;
+      const size = byId.get(p.lotSize!);
+      expect(size, `${p.id} names lot size ${p.lotSize}`).toBeDefined();
+      const xs = p.lot.map((v) => v[0]), zs = p.lot.map((v) => v[1]);
+      const sides = [Math.max(...xs) - Math.min(...xs), Math.max(...zs) - Math.min(...zs)].sort((a, b) => a - b);
+      expect(sides, `${p.id} lot`).toEqual([size!.width, size!.depth].sort((a, b) => a - b));
+      // an exact rectangle, not a bounding box that happens to match
+      expect(polygonArea(p.lot), `${p.id} lot area`).toBeCloseTo(size!.area, 6);
+    }
   });
 
   it('keeps ids globally unique with the documented prefixes', () => {

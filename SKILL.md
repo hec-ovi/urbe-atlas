@@ -29,11 +29,11 @@ Only `seed` is required.
 
 ## Response
 
-Package 0.7.2 returns blueprint 0.24.0. Default district streets use uniform 4.2 m paving, 0.2 m curbs, 0.5 m gutters and 2 m-deep parking. Whole-block finishes and road district styles are explicit. Selected central avenues reserve 3.4 m ornamental islands separately from traffic lanes.
+Package 0.8.0 returns blueprint 0.25.0. Default district streets use uniform 4.2 m paving, 0.2 m curbs, 0.5 m gutters and 2 m-deep parking. Whole-block finishes and road district styles are explicit. Selected central avenues reserve 3.4 m ornamental islands separately from traffic lanes.
 
 `streets.diagonalCandidates` contains independent straight corridor proposals with terminal/intermediate face clearance and separate actual construction and padded reservation widths. Candidates change no graph, parcels or meshes.
 
-A `CityBlueprint`: `meta`, `districts`, `streets` (node and edge graph), `architecture` (movement plan), `blocks`, `parcels`, `transit`, optional `hydrology`, `volumetric` and `stats`. Parcels carry type, wealth tier, lot, rectangular footprint, street access and height envelope. The movement plan carries each street's reserved widths, driving lanes and walking lanes, the legal turns at every node, crossings with their signal phases, and the ramps up to highway decks. Full shapes: CONTRACT.md and `schema/`.
+A `CityBlueprint`: `meta`, `districts`, `streets` (node and edge graph), `architecture` (movement plan), `blocks`, `parcels`, `transit`, optional `hydrology`, `volumetric` and `stats`. Parcels carry type, wealth tier, lot, rectangular footprint, street access and height envelope. An ordinary parcel also names its `lotSize`, one of the six rectangles in `meta.lotSizes`; a `landmark` parcel keeps its own plot instead. The movement plan carries each street's reserved widths, driving lanes and walking lanes, the legal turns at every node, crossings with their signal phases, and the ramps up to highway decks. Full shapes: CONTRACT.md and `schema/`.
 
 ## Errors
 

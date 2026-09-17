@@ -24,7 +24,7 @@ Generator flags: `--size N`, `--irregularity X`, `--max-floors N`, `--no-highway
 
 ## Out
 
-Package 0.7.2 publishes blueprint 0.24.0. District street construction uses uniform 4.2 m sidewalk paving, 2 m-deep parking and blue, red or yellow block finishes. Selected central avenues add 3.4 m ornamental medians outside the traffic lanes. Frontage/corner supports link to the saved ground array, native parking footprints and protected station/highway references. [Reservation contract](src/streets/layout/reservations/CONTRACT.md).
+Package 0.8.0 publishes blueprint 0.25.0. District street construction uses uniform 4.2 m sidewalk paving, 2 m-deep parking and blue, red or yellow block finishes. Selected central avenues add 3.4 m ornamental medians outside the traffic lanes. Frontage/corner supports link to the saved ground array, native parking footprints and protected station/highway references. [Reservation contract](src/streets/layout/reservations/CONTRACT.md).
 
 One JSON blueprint (`schema/blueprint.ts`):
 
@@ -33,6 +33,7 @@ One JSON blueprint (`schema/blueprint.ts`):
 - **blocks** with continuous sidewalk rings, a 0.2 m curb, 0.5 m gutter, 2 x 2 m inner panels and 1 x 1 m outer panels, and rounded curb corners at intersections, and **parcels** typed residential through coffee shop, tiered poor to high rich, each with a lot, a footprint that hosts the core rectangle its type needs, derived from interior's core feasibility (13.14 x 13.74 m for elevator types such as offices and hotels, 11.14 x 9.74 m for the rest), a street access point and a 3D envelope whose floors stay within what that core allows
 - **transit**: connected subway lines, platforms and reserved street-level entrance bays. Each entrance has a shaft and a continuous 3D route through switchback stairs and a level passage to its platform.
 - **hydrology**, when requested: exact water-surface polygons, shoreline paths and construction bands, water material keys, and typed bridge or tunnel contacts where a street or railway crosses the water. Land, buildings and station entrances stay outside the reserved water.
+- **standard lot sizes** in `meta.lotSizes`: six rectangles from 16 x 32 m to 56 x 56 m. Every block is subdivided into rows of those sizes, every ordinary parcel names the one it is, and the land a row cannot fill stays open area. 10 to 30 parcels per city are flagged landmarks on their own merged plot, for the hospital, the police station and the singular towers.
 - **volumetric**: one prism per parcel plus ground cover polygons, for map rendering; the preview traces floor elevations on each prism without generating hidden caps between floors
 - **stats**: population estimate and parcel counts per type and per district
 
@@ -44,7 +45,7 @@ Saved examples live in `samples/`; each records its blueprint version.
 
 ## How it works
 
-Rows and columns determine the main street intersections directly. Road widths and whole panel counts determine square and elongated rectangular blocks. Independent 30/45 degree corridor candidates preserve those rectangles. `diagonals` defaults to `candidates`; `off` omits proposals and explicit `legacy-applied` with a source street design reproduces constructed local cuts. Full reserved mouths keep 3 m from original face corners by default. Shared panel, curb, gutter, corner, parking and guardrail modules define the street geometry; the generator subdivides the remaining building land and validates the result. The preview renders repeated modules with instanced geometry.
+Rows and columns determine the main street intersections directly. Road widths and whole panel counts determine square and elongated rectangular blocks. Independent 30/45 degree corridor candidates preserve those rectangles. `diagonals` defaults to `candidates`; `off` omits proposals and explicit `legacy-applied` with a source street design reproduces constructed local cuts. Full reserved mouths keep 3 m from original face corners by default. Shared panel, curb, gutter, corner, parking and guardrail modules define the street geometry; the generator cuts the remaining building land into standard lots and validates the result. The preview renders repeated modules with instanced geometry.
 
 [The box map](docs/INDEX.md) lists the contracts. [Generation measurements](docs/PERFORMANCE.md) record complete-city CPU time, memory and the test conditions.
 

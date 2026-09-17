@@ -70,8 +70,23 @@ export interface BlueprintMeta {
   gridAngle: number;
   /** Shared building construction grid. Present on generated worlds; optional when reading older artifacts. */
   buildingGrid?: BuildingGrid;
+  /**
+   * The catalog every ordinary parcel's lot is cut to, so one building kit per
+   * (type, tier, size) serves the whole city. Present on generated worlds;
+   * optional when reading older artifacts.
+   */
+  lotSizes?: StandardLotSize[];
   /** Irregular outer city boundary. */
   boundary: Polygon;
+}
+
+/** One standard lot rectangle. `width` is the street frontage, `depth` runs back from the street. */
+export interface StandardLotSize {
+  id: string;
+  width: number;
+  depth: number;
+  /** width * depth, m2. */
+  area: number;
 }
 
 export interface BuildingGrid {
@@ -272,6 +287,13 @@ export interface Parcel {
   /** Street access: the entrance connects to this edge's sidewalk at this point. */
   access: { edgeId: string; point: Vec2 };
   envelope: Envelope;
+  /**
+   * Ordinary parcel: the `meta.lotSizes` entry its lot is exactly, in either
+   * orientation. Absent on a landmark parcel.
+   */
+  lotSize?: string;
+  /** Landmark parcel: a one-of-a-kind building on its own lot shape, built bespoke. */
+  landmark?: true;
 }
 
 /**

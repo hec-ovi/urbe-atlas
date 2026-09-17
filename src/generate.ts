@@ -9,7 +9,7 @@ import type {
   StreetEdge,
   Vec2,
 } from '../schema/blueprint';
-import type { AtlasParams, DistrictKind } from '../schema/params';
+import type { AtlasParams } from '../schema/params';
 import type { ProgressObserver } from '../schema/progress';
 import { Rng } from './core/rng';
 import { resolveParams } from './params/defaults';
@@ -29,7 +29,7 @@ import { CityFurniture } from './CityFurniture';
 import { StreetCorridors } from './streets/construction/StreetCorridors';
 import { Buildability } from './blocks/Buildability';
 import { FootprintHost } from './zoning/FootprintHost';
-import { Subdivision, SubdivisionConfig } from './blocks/Subdivision';
+import { StandardLots, STANDARD_LOT_SIZES, type BlockCells, type StandardLotCell } from './blocks/StandardLots';
 import { Zoning, LotInput } from './zoning/Zoning';
 import { hostingProfiles } from './zoning/profiles';
 import type { FootprintPolicy } from './zoning/FootprintPolicy';
@@ -45,16 +45,8 @@ import { applyLandmarkFloors } from './landmarks';
 import { planHydrology, withHydrologyStructures } from './hydro/Hydrology';
 import { planArchitecture } from './architecture/Architecture';
 
-export const BLUEPRINT_VERSION = '0.24.0';
+export const BLUEPRINT_VERSION = '0.25.0';
 export const HYDROLOGY_BLUEPRINT_VERSION = BLUEPRINT_VERSION;
-
-const SUBDIVISION: Record<DistrictKind, SubdivisionConfig> = {
-  downtown: { minLotArea: 500, maxLotArea: 2600, chanceNoDivide: 0.12 },
-  commercial: { minLotArea: 400, maxLotArea: 3200, chanceNoDivide: 0.12 },
-  residential: { minLotArea: 260, maxLotArea: 1300, chanceNoDivide: 0.12 },
-  industrial: { minLotArea: 1500, maxLotArea: 9000, chanceNoDivide: 0.2 },
-  mixed: { minLotArea: 300, maxLotArea: 1900, chanceNoDivide: 0.12 },
-};
 
 export function generateCity(input: AtlasParams, onProgress?: ProgressObserver): CityBlueprint {
   const progress = (completed: number, phase: string) => onProgress?.({ completed, total: 13, phase });
@@ -136,6 +128,8 @@ export function generateCity(input: AtlasParams, onProgress?: ProgressObserver):
     polygon: Polygon;
     blockIndex: number;
     districtIndex: number;
+    /** Standard catalog size, absent on a landmark lot. */
+    sizeId?: string;
   }
   const rawLots: RawLot[] = [];
   const blockOpenAreas: Polygon[][] = builtBlocks.map(() => []);
@@ -169,24 +163,38 @@ export function generateCity(input: AtlasParams, onProgress?: ProgressObserver):
   }) : undefined;
   const subwayBayPaving = subwayPlan?.subwayStations.flatMap((station) => station.entranceBays?.map((bay) => bay.footprint) ?? []) ?? [];
   const infrastructureNoBuild = union([...existingInfrastructure, ...subwayBayPaving]);
+  // --- standard lots: every block is tiled with catalog sizes, leftovers stay open ---
+  const blockCells: BlockCells[] = [];
   builtBlocks.forEach((block, blockIndex) => {
-    const districtIndex = blockDistrict[blockIndex];
-    const cfg = SUBDIVISION[planned[districtIndex].kind];
+    const kind = planned[blockDistrict[blockIndex]].kind;
     const rng = lotRng.fork(blockIndex);
     const landInterior = waterSurfaces.length > 0 ? difference(block.interior, waterSurfaces) : block.interior;
     const reserved = intersection(landInterior, infrastructureNoBuild);
     blockOpenAreas[blockIndex].push(...reserved);
+    const cells: StandardLotCell[] = [];
     for (const interior of difference(landInterior, infrastructureNoBuild)) {
       // a block reachable only via highways gets no parcels: open ground instead
       if (sidewalkedEdges[blockIndex].length === 0) {
         blockOpenAreas[blockIndex].push(interior);
         continue;
       }
-      const { lots, openAreas } = Subdivision.subdivide(interior, interior, cfg, rng);
-      for (const lot of lots) rawLots.push({ polygon: lot, blockIndex, districtIndex });
-      blockOpenAreas[blockIndex].push(...openAreas);
+      const plan = StandardLots.plan(interior, kind, rng);
+      const base = cells.length ? Math.max(...cells.map(value => value.row)) + 1 : 0;
+      cells.push(...plan.cells.map(value => ({ ...value, row: value.row + base })));
+      blockOpenAreas[blockIndex].push(...plan.openAreas);
     }
+    blockCells.push({ blockIndex, cells });
   });
+  const landmarks = StandardLots.landmarks(blockCells, Rng.from(seed, 'landmark-lots'));
+  for (const { blockIndex, cells } of blockCells) {
+    const districtIndex = blockDistrict[blockIndex];
+    const landmark = landmarks.get(blockIndex);
+    if (landmark) rawLots.push({ polygon: landmark.polygon, blockIndex, districtIndex });
+    const absorbed = new Set(landmark?.cells);
+    for (const value of cells) {
+      if (!absorbed.has(value)) rawLots.push({ polygon: value.polygon, blockIndex, districtIndex, sizeId: value.sizeId });
+    }
+  }
   if (rawLots.length === 0) throw unsatisfiable('no buildable parcels produced; enlarge size');
 
   const blockHasRoad: boolean[] = builtBlocks.map((b) =>
@@ -261,6 +269,7 @@ export function generateCity(input: AtlasParams, onProgress?: ProgressObserver):
       footprint,
       access: { edgeId: bestEdge, point: accessPoint },
       envelope,
+      ...(raw.sizeId ? { lotSize: raw.sizeId } : { landmark: true as const }),
     };
   });
 
@@ -387,6 +396,7 @@ export function generateCity(input: AtlasParams, onProgress?: ProgressObserver):
       units: 'meters',
       gridAngle,
       buildingGrid,
+      lotSizes: STANDARD_LOT_SIZES.map(size => ({ ...size })),
       boundary,
     },
     districts,
