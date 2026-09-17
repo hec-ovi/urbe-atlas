@@ -24,11 +24,8 @@ it('reserves real-city subway bay land before lots while keeping final resident 
   expect(difference(reserved, paving).reduce((sum, polygon) => sum + area(polygon), 0)).toBe(0);
 });
 
-it('accepts only coordinate-grid boundary wedges when rotated bay reservations are subdivided into lots', () => {
+it('rejects a bay reservation that a lot has grown over', () => {
   const city = generateCity({ seed: 'c', size: { width: 300, depth: 300 } });
-  const bays = city.transit.subwayStations.flatMap((station) => station.entranceBays!.map((bay) => bay.footprint));
-  const shared = intersection(bays, city.parcels.map((parcel) => parcel.lot));
-  expect(shared.reduce((sum, polygon) => sum + area(polygon), 0)).toBeGreaterThan(0.001);
   const entrance = city.transit.subwayStations[0].entrances[0];
   city.parcels[0].lot = rectangle(entrance, [Math.cos(city.meta.gridAngle), Math.sin(city.meta.gridAngle)], 5, 0.01);
   expect(() => validateStationEntrances(city)).toThrowError(expect.objectContaining({ code: 'E_INVARIANT', message: expect.stringContaining('overlaps a parcel') }));

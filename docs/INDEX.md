@@ -14,9 +14,9 @@
 
 - src/streets/construction/modules/diagonal: local 30/45 degree block-cut templates with authored frontage supports, complete panels and rounded junction returns. Input/output: `src/streets/construction/modules/diagonal/schema.ts`. src/streets/construction/modules/diagonal/CONTRACT.md. Depends on street modules and geometry.
 
-- src/streets/layout: rectangular street grid sized in complete panel groups, with uniform district blocks, selected central avenue median reservations, an interior highway, outer sidewalks and whole-module parking. Input/output: `src/streets/layout/schema.ts`. src/streets/layout/CONTRACT.md. Depends on street construction dimensions, street modules and Atlas seed streams.
+- src/streets/layout: rectangular street grid sized in complete panel groups, with uniform district blocks, selected central avenue median reservations, an interior highway, outer sidewalks that stop at excluded land, and whole-module parking. Input/output: `src/streets/layout/schema.ts`. src/streets/layout/CONTRACT.md. Depends on street construction dimensions, street modules and Atlas seed streams.
 
-- src/streets/construction/modules: dimensioned panels, curbs, gutters, corners and parking, with source and district construction formats on shared 2 m stations. Input/output: `src/streets/construction/modules/schema.ts`. src/streets/construction/modules/CONTRACT.md. Depends on Atlas coordinates, errors and geometry; construction and renderers consume its repeated placements.
+- src/streets/construction/modules: dimensioned panels, curbs, gutters, corners and parking, with source and district construction formats on shared 2 m stations; the perimeter ring skips every unit standing on excluded land. Input/output: `src/streets/construction/modules/schema.ts`. src/streets/construction/modules/CONTRACT.md. Depends on Atlas coordinates, errors and geometry; construction and renderers consume its repeated placements.
 
 - src/cities: backend blueprint jobs with stage progress and worker cancellation, persistent city catalog and workspace form documents. Input/output: `src/cities/schema.ts`, forms: `src/cities/forms/schema.ts`. src/cities/CONTRACT.md. Depends on the root generator; the preview server mounts its HTTP handler.
 

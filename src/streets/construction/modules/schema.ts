@@ -59,6 +59,8 @@ export interface PerimeterModuleInput {
   bounds: { min: Vec2; max: Vec2 };
   width: SidewalkWidth;
   finish: string;
+  /** Land the ring must not stand on (water). Every unit meeting it is left unplaced. */
+  exclusions?: Polygon[];
 }
 
 interface ParkingIdentity {
@@ -112,7 +114,8 @@ export interface ModuleFrontagePlan {
   moduleStationOrigin: Vec2;
   /** End of the original straight module run, before its next corner support. */
   moduleStationEnd?: Vec2;
-  cornerIds: [string, string];
+  /** Null marks a straight handoff where no corner module stands. */
+  cornerIds: [string | null, string | null];
 }
 
 interface CornerIdentity {

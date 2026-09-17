@@ -39,7 +39,9 @@ export function checkCityHydrology(blueprint: CityBlueprint): void {
       if (wetArea - coveredArea > OVERLAP_AREA) fail(`highway support on ${structure.edgeIds.join(',')} overlaps water without its exact bridge reservation`);
     }
   }
-  for (const ground of blueprint.volumetric.ground) clearPolygons(`${ground.surface} ground`, [ground.polygon], water);
+  for (const ground of blueprint.volumetric.ground) {
+    clearPolygons(`${ground.surface} ground`, [ground.polygon], water, ground.moduleBlockId ? { moduleBlockId: ground.moduleBlockId } : {});
+  }
 
   const corridors = blueprint.streets.construction ? new StreetCorridors(blueprint.streets.edges).byEdge : undefined;
   const crossings: HydrologyCrossingInput[] = [
@@ -69,8 +71,9 @@ function signature(structure: WaterStructure): string {
   ]);
 }
 
-function clearPolygons(label: string, subject: Polygon[], water: Polygon[]): void {
-  if (overlaps(subject, water)) fail(`${label} overlaps water`);
+function clearPolygons(label: string, subject: Polygon[], water: Polygon[], details: Record<string, unknown> = {}): void {
+  const wet = intersection(subject, water).reduce((total, polygon) => total + area(polygon), 0);
+  if (wet > OVERLAP_AREA) fail(`${label} overlaps water`, { ...details, wetArea: wet });
 }
 
 function clearPoint(label: string, point: Vec2, water: Polygon[]): void {
@@ -81,6 +84,6 @@ function overlaps(subject: Polygon[], water: Polygon[]): boolean {
   return intersection(subject, water).reduce((total, polygon) => total + area(polygon), 0) > OVERLAP_AREA;
 }
 
-function fail(message: string): never {
-  throw new AtlasError('E_INVARIANT', message);
+function fail(message: string, details?: Record<string, unknown>): never {
+  throw new AtlasError('E_INVARIANT', message, details);
 }

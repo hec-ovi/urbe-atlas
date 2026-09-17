@@ -31,8 +31,8 @@ export interface GridLayoutInput {
   /** Clearance of every complete reserved mouth from original face corners, default 3 m. */
   diagonalCornerClearance?: number;
   sideAt: (point: Vec2, streetClass: 'street' | 'road') => { profile: SidewalkProfile; finish: string };
-  /** Complete outer sidewalks with a shared profile and finish. */
-  perimeter?: { profile: SidewalkProfile; finish: string };
+  /** Complete outer sidewalks with a shared profile and finish. `exclusions` (water) stop the ring at the shoreline. */
+  perimeter?: { profile: SidewalkProfile; finish: string; exclusions?: Polygon[] };
 }
 
 export interface GridLayoutBlock extends Omit<ModuleBlock, 'placements'> {

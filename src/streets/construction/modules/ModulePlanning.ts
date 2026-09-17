@@ -1,33 +1,43 @@
 import type { Vec2 } from '../../../../schema/blueprint';
 import { arc, CORNER_ANGLES, DIMENSIONS as D, rectangle, transform } from './Geometry';
-import type { BlockModuleInput, ModuleBlockPlan, ModuleCornerPlan, PerimeterModuleInput, QuarterTurn } from './schema';
+import type { BlockModuleInput, ModuleBlockPlan, ModuleCornerPlan, ModuleFrontagePlan, PerimeterModuleInput, QuarterTurn } from './schema';
+import { perimeterSections, type PerimeterSide } from './Perimeter';
 import { measure, moduleId, moduleSizing } from './Format';
 
 /** Records the same source corners and station frames used by the module kit. */
 export class ModulePlanning {
   static frontageId(ownerId: string, side: number): string { return `frontage:${ownerId}:${side}`; }
 
-  static perimeter(input: PerimeterModuleInput, sizing = moduleSizing()): ModuleBlockPlan {
+  static perimeter(input: PerimeterModuleInput, sizing = moduleSizing(), sections = perimeterSections(input, sizing)): ModuleBlockPlan {
     const width = measure(input.width + sizing.separator), rim = measure(sizing.curb + sizing.gutter);
-    const { min, max } = input.bounds;
-    const corners: Vec2[] = [[min[0], min[1]], [max[0], min[1]], [max[0], max[1]], [min[0], max[1]]];
     const cornerId = (side: number) => `corner:${input.id}:${side % 4}`;
-    const frontageId = (side: number) => this.frontageId(input.id, side % 4);
-    const fronts: [Vec2, Vec2][] = [[corners[1], corners[0]], [corners[2], corners[1]], [corners[3], corners[2]], [corners[0], corners[3]]];
+    // A side cut by water carries one frontage per dry stretch; an uncut side keeps its single original id.
+    const frontageId = (side: PerimeterSide, run: number) =>
+      side.runs.length > 1 ? `${this.frontageId(input.id, side.side)}:${run}` : this.frontageId(input.id, side.side);
+    const at = (side: PerimeterSide, station: number): Vec2 => station === 0 ? [...side.start]
+      : station === side.length ? [...side.end]
+        : [measure(side.start[0] + Math.sign(side.end[0] - side.start[0]) * station),
+          measure(side.start[1] + Math.sign(side.end[1] - side.start[1]) * station)];
     return {
-      frontages: fronts.map(([start, end], side) => {
-        const turn = ((side + 2) % 4) as QuarterTurn;
-        return { id: frontageId(side), ownerId: input.id, side: side as QuarterTurn, start: [...start], end: [...end],
-          inward: transform([0, 1], [0, 0], turn), pavedWidth: width,
-          ...(sizing.format === 'district' ? { curbWidth: sizing.curb, gutterWidth: sizing.gutter } : {}), moduleStationOrigin: [...start], moduleStationEnd: [...end],
-          cornerIds: [cornerId(side + 1), cornerId(side)] };
-      }),
-      corners: corners.map((origin, side): ModuleCornerPlan => ({ kind: 'explicit', id: cornerId(side), ownerId: input.id,
-        frontageIds: [frontageId(side), frontageId((side + 3) % 4)],
-        boundary: rectangle(-width - rim, -width - rim, width + rim, width + rim)
-          .map(point => transform(point, origin, side as QuarterTurn)),
-        placement: { moduleId: moduleId(`perimeter-corner:${input.width}`, sizing), origin: [...origin], turn: side as QuarterTurn },
+      frontages: sections.sides.flatMap(side => side.runs.map((run, index): ModuleFrontagePlan => {
+        const start = at(side, run.start), end = at(side, run.end);
+        return { id: frontageId(side, index), ownerId: input.id, side: side.side, start, end,
+          inward: transform([0, 1], [0, 0], side.turn), pavedWidth: width,
+          ...(sizing.format === 'district' ? { curbWidth: sizing.curb, gutterWidth: sizing.gutter } : {}),
+          moduleStationOrigin: [...start], moduleStationEnd: [...end],
+          cornerIds: [run.start === 0 && sections.corners[(side.side + 1) % 4].placed ? cornerId(side.side + 1) : null,
+            run.end === side.length && sections.corners[side.side].placed ? cornerId(side.side) : null] };
       })),
+      corners: sections.corners.flatMap(({ origin, placed }, side): ModuleCornerPlan[] => {
+        if (!placed) return [];
+        const ending = sections.sides[side], starting = sections.sides[(side + 3) % 4];
+        return [{ kind: 'explicit', id: cornerId(side), ownerId: input.id,
+          frontageIds: [frontageId(ending, ending.runs.length - 1), frontageId(starting, 0)],
+          boundary: rectangle(-width - rim, -width - rim, width + rim, width + rim)
+            .map(point => transform(point, origin, side as QuarterTurn)),
+          placement: { moduleId: moduleId(`perimeter-corner:${input.width}`, sizing), origin: [...origin], turn: side as QuarterTurn },
+        }];
+      }),
     };
   }
 

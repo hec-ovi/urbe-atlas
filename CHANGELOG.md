@@ -1,5 +1,7 @@
 # Changelog
 
+0.7.2: the outer sidewalk ring stops at any shoreline that reaches the city boundary. Ring units and corners standing in water are not placed, a side cut by water publishes one frontage per remaining stretch, and the vacated land becomes open ground.
+
 0.7.1: central luxury blocks use blue with red on surrounding rich blocks.
 
 0.7.0: blueprint 0.24.0 uses uniform district sidewalk modules, whole-block finishes, 2 m parking and separately reserved ornamental avenue medians. Source street designs retain their dimensions.

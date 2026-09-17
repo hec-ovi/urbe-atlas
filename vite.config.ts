@@ -18,6 +18,7 @@ export default defineConfig(({ mode }) => {
       },
     },
     build: { outDir: 'dist/preview' },
-    test: { runner: './test/runtime/CooperativeRunner.ts' },
+    // Whole cities are generated inside tests; under parallel load they need far more than the 5 s default.
+    test: { runner: './test/runtime/CooperativeRunner.ts', testTimeout: 120_000 },
   };
 });

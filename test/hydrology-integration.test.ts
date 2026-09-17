@@ -1,10 +1,12 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { AtlasError, generateCity, BLUEPRINT_VERSION } from '../src';
 import { intersection } from '../src/geom/clip';
 import { area, isSimpleRing } from '../src/geom/polygon';
-import type { CityBlueprint, HydrologyType } from '../src';
+import type { AtlasParams, CityBlueprint, HydrologyType } from '../src';
 
 const TYPES: HydrologyType[] = ['lagoon', 'river', 'sea-coast'];
+const coastParams = (): AtlasParams => JSON.parse(readFileSync(new URL('./fixtures/coast-city.params.json', import.meta.url), 'utf8'));
 
 describe('city hydrology integration', () => {
   it.each(TYPES)('generates one coherent %s city from the public API', (type) => {
@@ -34,11 +36,35 @@ describe('city hydrology integration', () => {
     expect('hydrology' in city.meta.params).toBe(false);
   });
 
+  // generateCity validates its own ground against water, so reaching the end is the land-clearance proof.
+  it('stops the perimeter ring at a shoreline that reaches the city boundary', () => {
+    // the sea takes the whole south edge of this 3 x 1.2 km coast: that side loses its ring, the dry sides keep theirs
+    expect(ring(generateCity(coastParams()))).toEqual({ regions: 18, frontages: 3, corners: 2 });
+
+    // a river reaching two opposite edges cuts those sides in half instead of removing them
+    expect(ring(generateCity({ seed: 'wide-river', size: { width: 2000, depth: 900 }, hydrology: { type: 'river' } })))
+      .toEqual({ regions: 42, frontages: 6, corners: 4 });
+
+    // water clear of the boundary leaves the ring whole
+    expect(ring(generateCity({ seed: 'edge-lagoon', size: { width: 1400, depth: 1400 }, hydrology: { type: 'lagoon' } })))
+      .toEqual({ regions: 36, frontages: 4, corners: 4 });
+  });
+
   it('fails closed through generateCity for invalid and unsatisfiable water inputs', () => {
     expect(code(() => generateCity({ seed: 'bad-water', hydrology: { type: 'ocean' as HydrologyType } }))).toBe('E_INVALID_PARAMS');
     expect(code(() => generateCity({ seed: 'small-water', size: { width: 400, depth: 400 }, hydrology: { type: 'lagoon' } }))).toBe('E_UNSATISFIABLE');
   });
 });
+
+/** What survives of the city's outer sidewalk ring. */
+function ring(city: CityBlueprint): { regions: number; frontages: number; corners: number } {
+  const reservations = city.streets.construction!.reservations!;
+  return {
+    regions: city.volumetric.ground.filter((ground) => ground.moduleBlockId === 'fringe').length,
+    frontages: reservations.frontages.filter((frontage) => frontage.ownerId === 'fringe').length,
+    corners: reservations.corners.filter((corner) => corner.ownerId === 'fringe').length,
+  };
+}
 
 function expectLandClear(city: CityBlueprint): void {
   const water = city.hydrology!.bodies.flatMap((body) => body.surfaces);

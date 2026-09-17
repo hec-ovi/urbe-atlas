@@ -6,7 +6,7 @@ import { guardrail, straight } from './Straight';
 import { parking, parkingSupport } from './Parking';
 import { NativeParking } from './NativeParking';
 import { ModulePlanning } from './ModulePlanning';
-import { perimeterCorner } from './Perimeter';
+import { perimeterCorner, perimeterSections } from './Perimeter';
 import { measure, moduleId, moduleSizing, onGrid, type ModuleSizing } from './Format';
 
 export class StreetModuleKit {
@@ -24,6 +24,7 @@ export class StreetModuleKit {
     const spans = [input.bounds.max[0] - input.bounds.min[0], input.bounds.max[1] - input.bounds.min[1]];
     if (!input.id || this.blockIds.has(input.id) || !input.finish || ![2, 4, 6].includes(input.width)
       || (sizing.format === 'district' && input.width !== 4)
+      || (input.exclusions !== undefined && !Array.isArray(input.exclusions))
       || ![...input.bounds.min, ...input.bounds.max].every(value => sizing.format === 'district' ? onGrid(value, 0.001) : Number.isFinite(value))
       || !spans.every(value => value >= 4 && (sizing.format === 'district' ? onGrid(value, 0.2) : Number.isSafeInteger(value)))) {
       throw invalidParams(sizing.format === 'district'
@@ -33,27 +34,24 @@ export class StreetModuleKit {
     if (sizing.format === 'district') input = { ...input, bounds: {
       min: input.bounds.min.map(measure) as [number, number], max: input.bounds.max.map(measure) as [number, number],
     } };
-    const { min, max } = input.bounds;
+    const { min } = input.bounds;
     const [width, depth] = sizing.format === 'district' ? spans.map(measure) : spans;
     const add = (definition: ModuleDefinition, origin: [number, number], turn: QuarterTurn, count = 1) => {
       if (!this.definitions.has(definition.id)) this.definitions.set(definition.id, definition);
       this.placements.push({ moduleId: definition.id, blockId: input.id, origin, turn, count, step: 2, finish: input.finish });
     };
-    const origins: [number, number][] = [[max[0], min[1] - rim], [max[0] + rim, max[1]],
-      [min[0], max[1] + rim], [min[0] - rim, min[1]]];
-    const corners: [number, number][] = [[min[0], min[1]], [max[0], min[1]], [max[0], max[1]], [min[0], max[1]]];
+    const sections = perimeterSections(input, sizing);
     const straightDefinition = straight(input.width, true, 2, sizing);
     const cornerDefinition = perimeterCorner(input.width, sizing);
-    for (let side = 0; side < 4; side++) {
-      const length = side % 2 ? depth : width;
-      const turn = ((side + 2) % 4) as QuarterTurn;
-      add(straightDefinition, origins[side], turn, Math.floor(length / 2));
-      const remainder = measure(length % 2);
-      if (remainder) add(straight(input.width, false, remainder, sizing), transform([length - remainder, 0], origins[side], turn), turn);
-      add(cornerDefinition, corners[side], side as QuarterTurn);
+    for (const side of sections.sides) {
+      for (const run of side.runs) {
+        if (run.units) add(straightDefinition, transform([run.start, 0], side.origin, side.turn), side.turn, run.units);
+        if (run.tail) add(straight(input.width, false, run.tail, sizing), transform([run.end - run.tail, 0], side.origin, side.turn), side.turn);
+      }
+      if (sections.corners[side.side].placed) add(cornerDefinition, [...sections.corners[side.side].origin], side.side);
     }
     const margin = measure(input.width + sizing.separator + rim);
-    const out = { id: input.id, planning: ModulePlanning.perimeter(input, sizing), boundary: rectangle(min[0] - margin, min[1] - margin,
+    const out = { id: input.id, planning: ModulePlanning.perimeter(input, sizing, sections), boundary: rectangle(min[0] - margin, min[1] - margin,
       width + margin * 2, depth + margin * 2) };
     this.blockIds.add(input.id);
     this.frontages.push(out);

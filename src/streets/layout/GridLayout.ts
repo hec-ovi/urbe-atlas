@@ -153,7 +153,8 @@ export class GridLayout {
     const bounds = { min: [x.min, z.min] as Vec2, max: [x.max, z.max] as Vec2 };
     if (input.perimeter) {
       const perimeter = kit.perimeter({ id: 'fringe', bounds,
-        width: measure(sideSection(input.perimeter.profile).geometry!.pavedWidth - sizing.separator) as SidewalkWidth, finish: input.perimeter.finish });
+        width: measure(sideSection(input.perimeter.profile).geometry!.pavedWidth - sizing.separator) as SidewalkWidth, finish: input.perimeter.finish,
+        ...(input.perimeter.exclusions?.length ? { exclusions: input.perimeter.exclusions } : {}) });
       LayoutPlanning.add(planning, perimeter.planning!, [horizontal[0], vertical.at(-1)!, horizontal.at(-1)!, vertical[0]]
         .map(edges => edges.map(edge => edge.id)));
     }

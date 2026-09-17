@@ -52,13 +52,13 @@ export function jointedBand(polygon: Polygon): Polygon {
 /** Shared corner angles include grid intersections and limit curved facets to 0.5 m. */
 export const CORNER_ANGLES = Array.from({ length: 13 }, (_, i) => Math.PI + i * Math.PI / 24);
 
-export function arc(radius: number, angles = CORNER_ANGLES, center = DIMENSIONS.radius): Polygon {
+export function arc(radius: number, angles = CORNER_ANGLES, center: number = DIMENSIONS.radius): Polygon {
   return angles.map(angle => angle === Math.PI ? [center - radius, center]
     : angle === Math.PI * 1.5 ? [center, center - radius]
       : [center + radius * Math.cos(angle), center + radius * Math.sin(angle)]);
 }
 
-export function ringPart(inner: number, outer: number, angles = CORNER_ANGLES, jointAngle = 0, centerRadius = DIMENSIONS.radius): Polygon {
+export function ringPart(inner: number, outer: number, angles = CORNER_ANGLES, jointAngle = 0, centerRadius: number = DIMENSIONS.radius): Polygon {
   const polygon = [...arc(outer, angles, centerRadius), ...arc(inner, angles, centerRadius).reverse()];
   if (!jointAngle) return polygon;
   const center: Vec2 = [centerRadius, centerRadius];

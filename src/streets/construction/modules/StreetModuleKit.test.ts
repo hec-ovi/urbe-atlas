@@ -3,6 +3,7 @@ import { StreetModuleKit } from './StreetModuleKit';
 import { ModuleGround } from './ModuleGround';
 import type { BlockModuleInput, ModuleConstruction } from './schema';
 import type { Polygon, Vec2 } from '../../../../schema/blueprint';
+import { intersection } from '../../../geom/clip';
 
 const input: BlockModuleInput = {
   id: 'b0', origin: [10, 20], panels: [40, 32], sidewalks: [2, 4, 6, 4], finish: 'maintained', guardrails: [{ side: 0, start: 6, segments: 2 }, { side: 1, start: 6, segments: 1 }],
@@ -190,5 +191,25 @@ describe('StreetModuleKit public construction', () => {
     }
     expect(construction.placements.filter(placement => placement.moduleId.endsWith(':1'))).toHaveLength(4);
     expect(() => kit.perimeter({ id: 'bad', bounds: { min: [0, 0], max: [10.5, 20] }, width: 4, finish: 'maintained' })).toThrow(/whole metre/);
+  });
+
+  it('stops the outer sidewalk at excluded land instead of crossing it', () => {
+    const bounds = { min: [10, 20] as Vec2, max: [110, 100] as Vec2 };
+    // one bay over the middle of the south side, reaching past the ring's outer edge
+    const kit = new StreetModuleKit();
+    const frontage = kit.perimeter({ id: 'fringe', bounds, width: 4, finish: 'maintained',
+      exclusions: [[[50, 10], [70, 10], [70, 22], [50, 22]]] });
+    const cover = ModuleGround.cover(kit.construction());
+    expect(cover.every(region => intersection([region.polygon], [[[50, 10], [70, 10], [70, 22], [50, 22]]]).length === 0)).toBe(true);
+    const south = frontage.planning!.frontages.filter(front => front.side === 0);
+    expect(south.map(front => [front.start, front.end])).toEqual([[[110, 20], [70, 20]], [[50, 20], [10, 20]]]);
+    expect(south.map(front => front.cornerIds)).toEqual([['corner:fringe:1', null], [null, 'corner:fringe:0']]);
+    expect(frontage.planning!.corners.map(corner => corner.id)).toEqual(['corner:fringe:0', 'corner:fringe:1', 'corner:fringe:2', 'corner:fringe:3']);
+
+    // a corner standing in excluded land goes with the units beside it
+    const cut = new StreetModuleKit().perimeter({ id: 'fringe', bounds, width: 4, finish: 'maintained',
+      exclusions: [[[0, 0], [30, 0], [30, 30], [0, 30]]] });
+    expect(cut.planning!.corners.map(corner => corner.id)).toEqual(['corner:fringe:1', 'corner:fringe:2', 'corner:fringe:3']);
+    expect(cut.planning!.frontages.filter(front => front.side === 0).map(front => front.start[0])).toEqual([110]);
   });
 });

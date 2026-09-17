@@ -1,0 +1,220 @@
+{
+  "seed": "city-ddd3gu13h9a5r",
+  "size": {
+    "width": 3000,
+    "depth": 1200
+  },
+  "irregularity": 0,
+  "footprintShape": "rectangle",
+  "streetDesign": {
+    "moduleFormat": "district",
+    "profiles": [
+      {
+        "id": "one-way",
+        "classes": [
+          "street"
+        ],
+        "lanes": [
+          {
+            "direction": "forward",
+            "width": 4
+          }
+        ],
+        "shoulders": {
+          "left": 0,
+          "right": 0
+        }
+      },
+      {
+        "id": "local",
+        "classes": [
+          "street"
+        ],
+        "lanes": [
+          {
+            "direction": "backward",
+            "width": 3.5
+          },
+          {
+            "direction": "forward",
+            "width": 3.5
+          }
+        ],
+        "shoulders": {
+          "left": 0,
+          "right": 0
+        }
+      },
+      {
+        "id": "avenue",
+        "classes": [
+          "road"
+        ],
+        "lanes": [
+          {
+            "direction": "backward",
+            "width": 3.5
+          },
+          {
+            "direction": "backward",
+            "width": 3.5
+          },
+          {
+            "direction": "forward",
+            "width": 3.5
+          },
+          {
+            "direction": "forward",
+            "width": 3.5
+          }
+        ],
+        "shoulders": {
+          "left": 0,
+          "right": 0
+        }
+      }
+    ],
+    "sidewalkProfiles": [
+      {
+        "id": "district",
+        "curb": 0.2,
+        "border": 1,
+        "furnishing": 1,
+        "walking": 2,
+        "frontage": 0.2,
+        "edge": {
+          "curbRise": 0.2,
+          "gutter": {
+            "width": 0.5,
+            "lip": {
+              "width": 0.02,
+              "height": 0.02,
+              "side": "road"
+            }
+          }
+        }
+      }
+    ],
+    "crossings": {
+      "pedestrianClearance": 2.5
+    }
+  },
+  "diagonals": "candidates",
+  "diagonalCornerClearance": 3,
+  "pavingDesign": {
+    "defaultLayoutId": "metre-slabs",
+    "districtLayouts": [],
+    "layouts": [
+      {
+        "id": "metre-slabs",
+        "familyId": "maintained",
+        "modules": [
+          {
+            "id": "slab",
+            "pitch": [
+              1,
+              1
+            ],
+            "joint": [
+              0.012,
+              0.012
+            ]
+          },
+          {
+            "id": "double-slab",
+            "pitch": [
+              2,
+              2
+            ],
+            "joint": [
+              0.012,
+              0.012
+            ],
+            "baseCells": [
+              2,
+              2
+            ]
+          },
+          {
+            "id": "curb",
+            "pitch": [
+              1,
+              0.2
+            ],
+            "joint": [
+              0.012,
+              0
+            ]
+          },
+          {
+            "id": "border",
+            "pitch": [
+              1,
+              1
+            ],
+            "joint": [
+              0.012,
+              0
+            ]
+          }
+        ],
+        "bands": {
+          "curb": {
+            "moduleId": "curb",
+            "borderWidth": 0
+          },
+          "border": {
+            "moduleId": "border",
+            "borderWidth": 0
+          },
+          "furnishing": {
+            "moduleId": "slab",
+            "borderWidth": 0
+          },
+          "walking": {
+            "moduleId": "slab",
+            "borderWidth": 0,
+            "grouping": {
+              "moduleId": "double-slab",
+              "period": [
+                4,
+                2
+              ],
+              "offset": [
+                0,
+                0
+              ]
+            }
+          },
+          "frontage": {
+            "moduleId": "slab",
+            "borderWidth": 0
+          }
+        }
+      }
+    ]
+  },
+  "districtCount": [
+    1,
+    3
+  ],
+  "maxFloors": 50,
+  "maxFloorsByDistrict": {},
+  "tierWeights": {
+    "poor": 0.2,
+    "mid": 0.3,
+    "rich": 0.5,
+    "high_rich": 0.5
+  },
+  "features": {
+    "highways": true,
+    "trains": false,
+    "subways": true,
+    "alleys": true,
+    "airTunnels": false,
+    "undergroundTunnels": false
+  },
+  "hydrology": {
+    "type": "sea-coast"
+  }
+}

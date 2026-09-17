@@ -21,7 +21,8 @@ export class CityLayout {
       moduleFormat: design.moduleFormat, districtCenters,
       diagonals: params.diagonals, diagonalCornerClearance: params.diagonalCornerClearance,
       perimeter: { profile: design.sidewalkProfiles[0], finish: params.pavingDesign?.layouts
-        .find(value => value.id === params.pavingDesign!.defaultLayoutId)?.familyId ?? (design.moduleFormat === 'district' ? 'ordinary' : 'maintained') },
+        .find(value => value.id === params.pavingDesign!.defaultLayoutId)?.familyId ?? (design.moduleFormat === 'district' ? 'ordinary' : 'maintained'),
+        ...(water.length ? { exclusions: water } : {}) },
       sideAt: (point, kind) => {
         const district = districtAt(point);
         const assigned = design.sidewalkAssignments?.find(value => value.district === district.kind)?.[kind];
