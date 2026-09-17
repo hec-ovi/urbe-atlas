@@ -1,7 +1,7 @@
 import type { AtlasParams } from '../../../schema/params';
 import type { CityRecord } from '../../cities/schema';
 import { CityGeneration } from '../components/CityGeneration';
-import type { GenerationProgress } from '../../../schema/progress';
+import { GENERATION_TOTAL, type GenerationProgress } from '../../../schema/progress';
 import { CityApi } from '../components/CityApi';
 import { el } from '../components/dom';
 
@@ -57,7 +57,7 @@ export class CityLibrary {
       this.accept(record);
       this.render();
       this.events.onStatus(describe(record));
-      onProgress(record.progress ?? { completed: 0, total: 13, phase: describe(record) });
+      onProgress(record.progress ?? { completed: 0, total: GENERATION_TOTAL, phase: describe(record) });
     }, connection);
   }
 

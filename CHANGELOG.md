@@ -1,5 +1,7 @@
 # Changelog
 
+0.8.2: `schema/progress.ts` publishes the pipeline, twelve stages with a stable id, the phase label and a plain sentence naming what each one leaves behind, plus the same plain summary of what a finished blueprint carries and what it leaves to later stages. The generation dialog reads both.
+
 0.8.1: the creation form carries the street design. Lane width per road class, the four sidewalk band widths, crossing headroom and the paving finish are editable, and the dimensions the district modules fix are stated beside them. Its values are what an omitted street design resolves to, so an untouched form generates the same city as bare defaults.
 
 0.8.0: blueprint 0.25.0 publishes `meta.lotSizes`, six standard lot rectangles from 16x32 to 56x56 m. Blocks are subdivided into rows of those sizes, every ordinary parcel carries the `lotSize` it is exactly, land no standard lot covers stays open area, and 10 to 30 parcels per city are flagged `landmark` on their own merged plot.

@@ -4,6 +4,7 @@ import { join, resolve } from 'node:path';
 import type { AtlasParams } from '../../schema/params';
 import type { CityRecord, GeneratedCity } from './schema';
 import { CityApiError } from './errors';
+import { GENERATION_TOTAL } from '../../schema/progress';
 
 export class DiskCityStore {
   private readonly records = new Map<string, CityRecord>();
@@ -81,7 +82,7 @@ export class DiskCityStore {
     const now = new Date().toISOString();
     const ready: CityRecord = {
       ...record, status: 'ready', updatedAt: now, completedAt: now,
-      progress: { completed: 13, total: 13, phase: 'City ready' },
+      progress: { completed: GENERATION_TOTAL, total: GENERATION_TOTAL, phase: 'City ready' },
       stats: result.stats, blueprintUrl: `/api/cities/${record.id}/blueprint`,
     };
     await this.save(ready);

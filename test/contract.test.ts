@@ -8,6 +8,7 @@ import { bandWidth } from '../src/geom/band';
 import { orientedBoundingBox } from '../src/geom/obb';
 import { area as polygonArea, pointInPolygon } from '../src/geom/polygon';
 import { PLANTING_CLEARANCE, PLANTING_SPACING } from '../src/streets/Planting';
+import { GENERATION_STAGES, type GenerationProgress } from '../schema/progress';
 import type { CityBlueprint, ParcelType, Vec2 } from '../schema/blueprint';
 
 const PARCEL_TYPES: ParcelType[] = [
@@ -144,6 +145,15 @@ describe('blueprint output', () => {
     expect(bp.transit.trainLines).toHaveLength(0);
     expect(bp.transit.trainStations).toHaveLength(0);
   }, 15000); // One complete 2 km generation and its invariants.
+
+  it('reports every published stage once, in order, with what it produces', () => {
+    const seen: GenerationProgress[] = [];
+    generateCity({ seed: 'progress', size: { width: 500, depth: 500 } }, (progress) => seen.push(progress));
+    expect(seen.map((step) => step.phase)).toEqual(GENERATION_STAGES.map((stage) => stage.phase));
+    expect(seen.map((step) => step.completed)).toEqual(GENERATION_STAGES.map((_, index) => index));
+    expect(seen.every((step) => step.total === GENERATION_STAGES.length)).toBe(true);
+    expect(GENERATION_STAGES.every((stage) => stage.produces.length > 0)).toBe(true);
+  });
 
   it('caps floors globally and per district kind', () => {
     const bp = generateCity({

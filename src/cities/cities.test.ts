@@ -137,7 +137,7 @@ describe('city HTTP catalog', () => {
     const first = await (await app.post({ seed: release })).json() as CityRecord;
     const progress = await eventually(async () => (await app.request(`/api/cities/${first.id}`)).json() as Promise<CityRecord>,
       record => record.progress?.completed === 3);
-    expect(progress).toMatchObject({ status: 'running', progress: { completed: 3, total: 13, phase: 'Constructing street surfaces' } });
+    expect(progress).toMatchObject({ status: 'running', progress: { completed: 3, total: 12, phase: 'Dimensioning streets' } });
     await eventually(() => access(`${release}.started`).then(() => true, () => false), Boolean);
     expect((await app.request(`/api/cities/${first.id}`, { method: 'DELETE' })).status).toBe(204);
     await writeFile(release, 'released after cancellation');
@@ -146,7 +146,7 @@ describe('city HTTP catalog', () => {
     await expect(access(join(dataDir, first.id))).rejects.toMatchObject({ code: 'ENOENT' });
     const second = await (await app.post({ seed: release })).json() as CityRecord;
     const ready = await status(app, second.id, 'ready');
-    expect(ready.progress).toEqual({ completed: 13, total: 13, phase: 'City ready' });
+    expect(ready.progress).toEqual({ completed: 12, total: 12, phase: 'City ready' });
   });
 
   it('imports saved blueprints with all fields intact and without invoking generation', async () => {

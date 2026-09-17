@@ -2,7 +2,7 @@
 
 Purpose: deterministically generates the 2D city blueprint (districts, streets with sidewalks, typed parcels with 3D envelopes, transit and optional hydrology) from a seed and parameters.
 
-Status: package v0.8.1, blueprint v0.25.0, architecture 1.0.0. Breaking changes go through the orchestrator.
+Status: package v0.8.2, blueprint v0.25.0, architecture 1.0.0. Breaking changes go through the orchestrator.
 
 ## Conventions
 - Units: meters. Ground plane XZ, +Y up. 2D points are `[x, z]`; heights along +Y.
@@ -13,7 +13,7 @@ Status: package v0.8.1, blueprint v0.25.0, architecture 1.0.0. Breaking changes 
 ## In
 `generateCity(params: AtlasParams, onProgress?: ProgressObserver): CityBlueprint`
 
-The optional observer receives completed pipeline stages and the current phase, [schema/progress.ts](schema/progress.ts). Counts measure completed stages, not elapsed time; serialized worker results complete the final stage. The blueprint and deterministic geometry are unchanged by observation.
+The optional observer receives completed pipeline stages and the current phase, [schema/progress.ts](schema/progress.ts). `GENERATION_STAGES` publishes the pipeline in order: each stage's stable id, the phase label reported while it runs, and a plain sentence naming what it leaves behind. A generated run reports every stage once, in that order, with `completed` equal to the stages finished before it; the last stage, writing the blueprint, completes when the caller has stored it. `GENERATION_RESULT` states in the same plain words what a finished blueprint carries and what it leaves to the stages that read it. Counts measure completed stages, not elapsed time. The blueprint and deterministic geometry are unchanged by observation.
 
 Params: [schema/params.ts](schema/params.ts). Only `seed` is required; every other field has a documented default (size, district count range, max floors global and per district kind, wealth tier weights, feature toggles for highways, subways, alleys, air and underground tunnels). `hydrology: { type }` optionally selects `lagoon`, `river`, or `sea-coast`; omission means no water and adds no output field.
 `streetDesign` supplies numeric road and sidewalk profiles, [src/streets/construction/schema/design.ts](src/streets/construction/schema/design.ts). Omission selects district modules: 1/2/4 lanes at 4/7/14 m, uniform 4.2 m paved sidewalks (4 m panels plus a 0.2 m inner separator), and an additional 0.2 m curb and 0.5 m gutter per side. Selected interior four-lane runs near district centers reserve a separate 3.4 m ornamental median. Explicit source designs retain 2/4/6 m paving and 0.3 m gutters. Explicit street profiles may have 1 or 2 lanes; avenues have 4. Profiles are selected before land subdivision. Saved blueprints retain their authored dimensions.

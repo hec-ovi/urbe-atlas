@@ -10,7 +10,7 @@ import type {
   Vec2,
 } from '../schema/blueprint';
 import type { AtlasParams } from '../schema/params';
-import type { ProgressObserver } from '../schema/progress';
+import { GENERATION_STAGES, GENERATION_TOTAL, type GenerationStageId, type ProgressObserver } from '../schema/progress';
 import { Rng } from './core/rng';
 import { resolveParams } from './params/defaults';
 import { CityConstructionSupport } from './CityConstructionSupport';
@@ -49,13 +49,16 @@ export const BLUEPRINT_VERSION = '0.25.0';
 export const HYDROLOGY_BLUEPRINT_VERSION = BLUEPRINT_VERSION;
 
 export function generateCity(input: AtlasParams, onProgress?: ProgressObserver): CityBlueprint {
-  const progress = (completed: number, phase: string) => onProgress?.({ completed, total: 13, phase });
-  progress(0, 'Checking settings');
+  const progress = (id: GenerationStageId) => {
+    const completed = GENERATION_STAGES.findIndex((stage) => stage.id === id);
+    onProgress?.({ completed, total: GENERATION_TOTAL, phase: GENERATION_STAGES[completed]!.phase });
+  };
+  progress('settings');
   const params = resolveParams(input);
   CityConstructionSupport.assert(params.streetDesign);
   const seed = String(params.seed);
 
-  progress(1, 'Planning city');
+  progress('districts');
   // --- boundary, districts, streets -------------------------------------
   const boundary: Polygon = [[0, 0], [params.size.width, 0], [params.size.width, params.size.depth], [0, params.size.depth]];
   const plannedHydrology = planHydrology({ seed, size: params.size, boundary, config: params.hydrology });
@@ -82,7 +85,7 @@ export function generateCity(input: AtlasParams, onProgress?: ProgressObserver):
     return best;
   };
 
-  progress(2, 'Placing street modules');
+  progress('grid');
   const layout = CityLayout.plan(params, point => {
     const index = districtOfPoint(point);
     const box = bounds(cells[index]);
@@ -91,7 +94,7 @@ export function generateCity(input: AtlasParams, onProgress?: ProgressObserver):
   }, waterSurfaces, planned.map(district => district.center));
   const graph = { nodes: layout.nodes, edges: layout.edges };
   const streetPlan = { edges: layout.edges, runs: layout.runs };
-  progress(3, 'Constructing street surfaces');
+  progress('streets');
   const edgeDistrict = new Map<string, number>();
   const streetEdges: StreetEdge[] = streetPlan.edges.map((e) => {
     const mid = pointAt(e.path, lineLength(e.path) / 2);
@@ -118,10 +121,10 @@ export function generateCity(input: AtlasParams, onProgress?: ProgressObserver):
   const nodeById = new Map(graph.nodes.map((node) => [node.id, node]));
   const transitRng = Rng.from(seed, 'transit');
 
-  progress(4, 'Building blocks');
+  progress('blocks');
   const builtBlocks = layout.builtBlocks;
 
-  progress(5, 'Placing buildings');
+  progress('parcels');
   // --- parcels ----------------------------------------------------------
   const lotRng = Rng.from(seed, 'parcels');
   interface RawLot {
@@ -294,7 +297,7 @@ export function generateCity(input: AtlasParams, onProgress?: ProgressObserver):
     maxFloors: d.maxFloors,
   }));
 
-  progress(6, 'Planning transit');
+  progress('transit');
   // --- transit -----------------------------------------------------------
   const population = zonedParcels.reduce((s, z) => s + z.residents, 0);
   const transit: CityBlueprint['transit'] = {
@@ -303,7 +306,7 @@ export function generateCity(input: AtlasParams, onProgress?: ProgressObserver):
     ...(subwayPlan?.subwayDemand ? { subwayDemand: subwayPlan.subwayDemand } : {}),
   };
 
-  progress(7, 'Constructing ground');
+  progress('ground');
   // --- crossings, ground, volumetric -------------------------------------
   const streetNodes = streetNodesWithConnections(graph.nodes, streetEdges);
   const subwayShafts = transit.subwayStations.flatMap((station) => station.shafts.map((shaft) => shaft.footprint));
@@ -324,7 +327,7 @@ export function generateCity(input: AtlasParams, onProgress?: ProgressObserver):
     groundTop: 0.2,
     clearHeight: params.streetDesign.crossings!.pedestrianClearance,
   }).flatMap((owner) => owner.polygons);
-  progress(8, 'Proving pedestrian crossings');
+  progress('crossings');
   const crossingPlan = CityCrossings.plan({ nodes: streetNodes, edges: streetEdges, ground, obstacles: crossingObstacles,
     landExclusions: { water: waterSurfaces, blocks: layout.waterExcludedBlocks } });
   const crossings = crossingPlan.crossings;
@@ -365,7 +368,7 @@ export function generateCity(input: AtlasParams, onProgress?: ProgressObserver):
     ...transit.subwayLines.map((line) => ({ network: 'subway' as const, refId: line.id, path: line.path, width: line.width, level: line.level })),
   ]);
 
-  progress(9, 'Assembling blueprint');
+  progress('assembly');
   // --- stats --------------------------------------------------------------
   const emptyCounts = (): Record<string, number> =>
     Object.fromEntries(
@@ -426,11 +429,10 @@ export function generateCity(input: AtlasParams, onProgress?: ProgressObserver):
     },
   };
 
-  progress(10, 'Validating city');
+  progress('validation');
   const result = params.landmarkFloors ? applyLandmarkFloors(blueprint, params.landmarkFloors) : blueprint;
   Invariants.check(result);
-  progress(11, 'Preparing shared street geometry');
-  progress(12, 'Serializing blueprint');
+  progress('storage');
   return result;
 }
 
