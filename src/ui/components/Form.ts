@@ -50,7 +50,7 @@ export class Form {
   setValues(values: Record<string, unknown>): void {
     this.values = structuredClone(this.schema.values);
     this.merge(values);
-    for (const key of ['pavingDesign', 'streetDesign', 'hydrology', 'maxFloorsByDistrict']) {
+    for (const key of ['pavingDesign', 'hydrology', 'maxFloorsByDistrict']) {
       if (!(key in values)) delete this.values[key];
     }
     this.sync();
@@ -120,13 +120,16 @@ export class Form {
       }
       case 'slider': {
         const slider = new Slider({
-          id: widget.id ?? widget.path!,
+          id: widget.id ?? readPath(widget),
           label: widget.label ?? '',
           min: widget.min ?? 0, max: widget.max ?? 1, step: widget.step ?? 1,
-          value: Number(getPath(this.values, widget.path!) ?? widget.min ?? 0),
+          value: Number(getPath(this.values, readPath(widget)) ?? widget.min ?? 0),
           exactMin: widget.exactMin, exactMax: widget.exactMax, unit: widget.unit,
           description: widget.description, integer: widget.integer,
-          onInput: () => { setPath(this.values, widget.path!, slider.value); this.changed(); },
+          onInput: () => {
+            for (const path of writePaths(widget)) setPath(this.values, path, slider.value);
+            this.changed();
+          },
         });
         this.sliders.push({ widget, slider });
         return slider.root;
@@ -270,7 +273,7 @@ export class Form {
 
   private sync(): void {
     for (const [path, input] of this.texts) input.value = String(getPath(this.values, path) ?? '');
-    for (const { widget, slider } of this.sliders) slider.value = Number(getPath(this.values, widget.path!) ?? 0);
+    for (const { widget, slider } of this.sliders) slider.value = Number(getPath(this.values, readPath(widget)) ?? 0);
     for (const [path, select] of this.selects) {
       const widget = this.schemaWidget(path);
       select.value = widget ? this.selectValue(widget) : String(getPath(this.values, path) ?? '');
@@ -291,17 +294,16 @@ export class Form {
   }
 
   private schemaWidget(path: string): FormWidget | undefined {
-    const visit = (items: FormWidget[]): FormWidget | undefined => {
-      for (const item of items) {
-        if (item.path === path) return item;
-        if (Array.isArray(item.items) && item.items[0] && typeof item.items[0] === 'object' && 'type' in item.items[0]) {
-          const found = visit(item.items as FormWidget[]);
-          if (found) return found;
-        }
-      }
-      return undefined;
-    };
-    return visit(this.schema.form);
+    return this.allWidgets().find((widget) => widget.path === path);
+  }
+
+  private allWidgets(): FormWidget[] {
+    const collect = (items: FormWidget[]): FormWidget[] => items.flatMap((item) => [
+      item,
+      ...(Array.isArray(item.items) && item.items[0] && typeof item.items[0] === 'object' && 'type' in item.items[0]
+        ? collect(item.items as FormWidget[]) : []),
+    ]);
+    return collect(this.schema.form);
   }
 
   private changed(): void {
@@ -331,6 +333,16 @@ export class Form {
       if (value < min) return { element: slider.number, message: `${widget.label} must be greater than zero.` };
       if (value > max) return { element: slider.number, message: `${widget.label} must be at most ${max}.` };
       if (widget.integer && !Number.isInteger(value)) return { element: slider.number, message: `${widget.label} must be a whole number.` };
+      if (widget.multipleOf && !onGrid(value, widget.multipleOf)) {
+        return { element: slider.number, message: `${widget.label} must be a multiple of ${widget.multipleOf}${widget.unit ? ` ${widget.unit}` : ''}.` };
+      }
+    }
+    for (const { total } of this.allWidgets()) {
+      if (!total) continue;
+      const sum = total.paths.reduce((value, path) => value + Number(getPath(this.values, path) ?? 0), 0);
+      if (Math.abs(sum - total.equals) < 1e-9) continue;
+      const slider = this.sliders.find((item) => total.paths.includes(readPath(item.widget)));
+      return { element: slider?.slider.number ?? this.root, message: total.message };
     }
     const minDistricts = Number(getPath(this.values, 'districtCount.0'));
     const maxDistricts = Number(getPath(this.values, 'districtCount.1'));
@@ -369,4 +381,18 @@ export class Form {
 
 function plain(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
+/** A control reads one value and writes it to every path it owns. */
+function readPath(widget: FormWidget): string {
+  return widget.path ?? widget.paths![0]!;
+}
+
+function writePaths(widget: FormWidget): string[] {
+  return widget.paths ?? [widget.path!];
+}
+
+function onGrid(value: number, step: number): boolean {
+  const steps = value / step;
+  return Math.abs(steps - Math.round(steps)) < 1e-6;
 }

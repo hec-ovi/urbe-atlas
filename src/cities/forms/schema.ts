@@ -34,6 +34,8 @@ export interface FormWidget {
   type: string;
   id?: string;
   path?: string;
+  /** Every value path one control writes, for a setting stored once per lane or per side. */
+  paths?: string[];
   label?: string;
   text?: string;
   eyebrow?: string;
@@ -45,6 +47,10 @@ export interface FormWidget {
   exactMin?: number;
   exactMax?: number;
   step?: number;
+  /** Grid the value must land on, checked against typed input as well as the slider. */
+  multipleOf?: number;
+  /** Fixed sum the listed values must reach together. */
+  total?: { paths: string[]; equals: number; message: string };
   unit?: string;
   integer?: boolean;
   required?: boolean;

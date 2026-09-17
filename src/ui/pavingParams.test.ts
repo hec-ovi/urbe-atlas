@@ -28,7 +28,6 @@ it('emits dimensioned panel defaults from every new creation choice', async () =
   expect(module(layout.bands.curb.moduleId)).toMatchObject({ pitch: [1, 0.2], joint: [0.012, 0] });
   expect(module(layout.bands.border.moduleId)).toMatchObject({ pitch: [1, 1], joint: [0.012, 0] });
   expect(parseParams(JSON.stringify(initial)).pavingDesign).toEqual(expected);
-  expect(initial.streetDesign).toBeUndefined();
 
   initial.pavingDesign!.layouts[0].modules[0].pitch[0] = 9;
   await user.click(submit);
@@ -39,7 +38,6 @@ it('emits dimensioned panel defaults from every new creation choice', async () =
     await user.click(submit);
     const params = onGenerate.mock.lastCall![0];
     expect(params.pavingDesign).toEqual(expected);
-    expect(params.streetDesign).toBeUndefined();
     expect(parseParams(JSON.stringify(params)).pavingDesign).toEqual(expected);
   }
 });

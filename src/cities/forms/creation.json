@@ -11,6 +11,31 @@
     "maxFloors": 40,
     "tierWeights": {"poor": 0.3, "mid": 0.45, "rich": 0.2, "high_rich": 0.05},
     "features": {"highways": true, "subways": true, "alleys": true, "airTunnels": true, "undergroundTunnels": true},
+    "streetDesign": {
+      "moduleFormat": "district",
+      "profiles": [
+        {"id": "one-way", "classes": ["street"], "lanes": [{"direction": "forward", "width": 4}], "shoulders": {"left": 0, "right": 0}},
+        {"id": "local", "classes": ["street"], "lanes": [{"direction": "backward", "width": 3.5}, {"direction": "forward", "width": 3.5}], "shoulders": {"left": 0, "right": 0}},
+        {
+          "id": "avenue",
+          "classes": ["road"],
+          "lanes": [{"direction": "backward", "width": 3.5}, {"direction": "backward", "width": 3.5}, {"direction": "forward", "width": 3.5}, {"direction": "forward", "width": 3.5}],
+          "shoulders": {"left": 0, "right": 0}
+        }
+      ],
+      "sidewalkProfiles": [
+        {
+          "id": "district",
+          "curb": 0.2,
+          "border": 1,
+          "furnishing": 1,
+          "walking": 2,
+          "frontage": 0.2,
+          "edge": {"curbRise": 0.2, "gutter": {"width": 0.5, "lip": {"width": 0.02, "height": 0.02, "side": "road"}}}
+        }
+      ],
+      "crossings": {"pedestrianClearance": 2.5}
+    },
     "pavingDesign": {
       "defaultLayoutId": "metre-slabs",
       "districtLayouts": [],
@@ -118,6 +143,69 @@
           "empty": "none",
           "options": [{"value": "none", "label": "None"}, {"value": "lagoon", "label": "Lagoon"}, {"value": "river", "label": "River"}, {"value": "sea-coast", "label": "Sea coast"}]
         }
+      ]
+    },
+    {
+      "type": "section",
+      "title": "Streets",
+      "items": [
+        {"type": "note", "text": "Every third row and column of the grid is an avenue; the rest are streets, and the seed picks which of the two street profiles each one takes. Lane counts come with the class: 1 or 2 lanes for a street, 4 for an avenue. Defaults give 4, 7 and 14 m of carriageway."},
+        {
+          "type": "grid",
+          "columns": 2,
+          "items": [
+            {"type": "slider", "id": "lane-narrow-street", "path": "streetDesign.profiles.0.lanes.0.width", "label": "Narrow street, 1 lane", "min": 3, "max": 8, "step": 0.2, "multipleOf": 0.2, "unit": "m"},
+            {
+              "type": "slider", "id": "lane-street", "label": "Wide street, 2 lanes", "min": 2.5, "max": 6, "step": 0.1, "multipleOf": 0.1, "unit": "m",
+              "paths": ["streetDesign.profiles.1.lanes.0.width", "streetDesign.profiles.1.lanes.1.width"]
+            },
+            {
+              "type": "slider", "id": "lane-avenue", "label": "Avenue, 4 lanes", "min": 2.5, "max": 3.5, "step": 0.1, "multipleOf": 0.1, "unit": "m",
+              "paths": [
+                "streetDesign.profiles.2.lanes.0.width", "streetDesign.profiles.2.lanes.1.width",
+                "streetDesign.profiles.2.lanes.2.width", "streetDesign.profiles.2.lanes.3.width"
+              ]
+            }
+          ]
+        },
+        {"type": "note", "text": "Avenue lanes stop at 3.5 m: the highway deck follows the avenue profile, and a wider one leaves no room for its support columns."},
+        {"type": "note", "text": "Each side of a street reserves 4.2 m of paving, divided into four bands starting at the curb. A 0.2 m curb and a 0.5 m gutter sit outside it; both are fixed by the district paving modules, as is the 4.2 m total."},
+        {
+          "type": "grid",
+          "columns": 2,
+          "total": {
+            "equals": 4.2,
+            "message": "The four sidewalk bands must add up to 4.2 m of paving.",
+            "paths": [
+              "streetDesign.sidewalkProfiles.0.border", "streetDesign.sidewalkProfiles.0.furnishing",
+              "streetDesign.sidewalkProfiles.0.walking", "streetDesign.sidewalkProfiles.0.frontage"
+            ]
+          },
+          "items": [
+            {"type": "slider", "id": "band-border", "path": "streetDesign.sidewalkProfiles.0.border", "label": "Curb border", "min": 0, "max": 4, "step": 0.1, "unit": "m"},
+            {"type": "slider", "id": "band-furnishing", "path": "streetDesign.sidewalkProfiles.0.furnishing", "label": "Furnishing", "min": 0, "max": 4, "step": 0.1, "unit": "m", "description": "Trees, lamp posts and bins stand in this band."},
+            {"type": "slider", "id": "band-walking", "path": "streetDesign.sidewalkProfiles.0.walking", "label": "Walking", "min": 0.2, "max": 4.2, "step": 0.1, "unit": "m", "description": "Where people walk and where crossings land."},
+            {"type": "slider", "id": "band-frontage", "path": "streetDesign.sidewalkProfiles.0.frontage", "label": "Frontage", "min": 0, "max": 2, "step": 0.1, "unit": "m", "description": "Separator against the building line."}
+          ]
+        },
+        {
+          "type": "grid",
+          "columns": 2,
+          "items": [
+            {"type": "slider", "id": "crossing-clearance", "path": "streetDesign.crossings.pedestrianClearance", "label": "Crossing headroom", "min": 1.5, "max": 6, "step": 0.1, "unit": "m", "description": "Height a crossing needs. Under a highway deck, an arm that cannot get it carries no crossing."},
+            {
+              "type": "select", "id": "paving-finish", "path": "pavingDesign.layouts.0.familyId", "label": "Paving finish",
+              "options": [
+                {"value": "maintained", "label": "Maintained"},
+                {"value": "ordinary", "label": "Ordinary"},
+                {"value": "luxury-blue", "label": "Luxury blue"},
+                {"value": "luxury-red", "label": "Luxury red"},
+                {"value": "industrial-yellow", "label": "Industrial yellow"}
+              ]
+            }
+          ]
+        },
+        {"type": "note", "text": "The finish is one identifier for the whole city; Materials resolves the texture. Panel pitches and joints travel with the saved parameters, and generation takes its dimensions from the district module catalog instead."}
       ]
     },
     {
