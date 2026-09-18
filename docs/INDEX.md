@@ -1,6 +1,6 @@
 # Box map
 
-Package 0.12.0, blueprint 0.26.0, architecture 1.0.0.
+Package 0.12.1, blueprint 0.26.0, architecture 1.0.0.
 
 - src/streets/layout/medians: constructs selected reserved avenue islands with 2 m paved centers, square ends, curb/gutter and ornament anchors. Input/output: `src/streets/layout/medians/schema.ts`. src/streets/layout/medians/CONTRACT.md. Depends on layout, module records and geometry; reserves no traffic lanes.
 

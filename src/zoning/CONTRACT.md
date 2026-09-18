@@ -15,7 +15,7 @@ Purpose: assigns compatible building uses and fits buildable footprints to reser
 ## Invariants
 
 - Rectangles remain inside their setback-adjusted lot and host the required core. No candidate is clipped into another shape.
-- Heavy footprints contain a 13.14 by 13.74 m compact-core rectangle, including the mirrored 3 m stair columns, grid clearance and facade lining. Whole-cell fits on the default 0.5 m grid need at least 13.5 by 14 m before setbacks.
+- Heavy footprints contain a 12.38 by 11.58 m compact-core rectangle, including the mirrored 3 m stair columns, grid clearance and facade lining. Whole-cell fits on the default 0.5 m grid need at least 12.5 by 12 m before setbacks.
 - Largest whole-cell area wins; equal areas prefer a wider short side, lower grid coordinates, then a wider extent along the first grid axis. Exact boundary fits are retained. Analytic grid-space containment checks the original inset with floating-point transform roundoff only.
 - Land outside a footprint retains its lot ownership. Footprint fitting does not modify streets, sidewalks or land-cover boundaries.
 - Identical inputs produce identical outputs.

@@ -1,6 +1,6 @@
 # Generation measurements
 
-Blueprint 0.26.0, package 0.12.0. Sample files in `samples/` at this version:
+Blueprint 0.26.0, package 0.12.1. Sample files in `samples/` at this version:
 
 | City | Seed | JSON | Blocks | Parcels | Templates |
 | --- | --- | ---: | ---: | ---: | ---: |

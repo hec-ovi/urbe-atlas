@@ -14,7 +14,7 @@ import { rectangleCoverageGap } from './rectangleCoverage';
 import { Zoning } from './Zoning';
 import type { DistrictCapacityInput } from './population-schema';
 
-const profile: HostingProfile = { setback: 0, band: 9.74, heavy: false, keep: 0 };
+const profile: HostingProfile = { setback: 0, band: 7.58, heavy: false, keep: 0 };
 const grid: BuildingGrid = { origin: [0, 0], angle: 0, spacing: 0.5 };
 const FEASIBILITY = new URL('../../../interior/schemas/core-feasibility.json', import.meta.url);
 const FLOOR_CONSTANTS = new URL('../../../exterior/schemas/floor-constants.json', import.meta.url);
@@ -24,16 +24,16 @@ describe('footprint hosting', () => {
     const inset: Polygon = [[0, 0], [20, 0], [20, 20], [0, 20]];
     expect(RectangularFootprint.fit(inset, profile, grid)).toEqual(inset);
     expect(RectangularFootprint.fit(inset, { ...profile, band: 20.5 }, grid)).toBeNull();
-    expect(RectangularFootprint.fit([[0, 0], [12, 0], [12, 24], [0, 24]], { ...profile, heavy: true }, grid)).toBeNull();
+    expect(RectangularFootprint.fit([[0, 0], [11, 0], [11, 24], [0, 24]], { ...profile, heavy: true }, grid)).toBeNull();
 
     const host = new FootprintHost({ grid });
     expect(host.fit(inset, profile)).toEqual({ footprint: inset, floorCap: Infinity });
     expect(host.fit(inset, { ...profile, setback: 1, keep: 1 })?.footprint)
       .toEqual([[1, 1], [19, 1], [19, 19], [1, 19]]);
     // a corpo lot needs the compact core plus its setback before any rectangle stands
-    expect(host.fit([[0, 0], [15, 0], [15, 16], [0, 16]], hostingProfile('corpo'))).toBeNull();
-    expect(host.fit([[0, 0], [15.5, 0], [15.5, 16], [0, 16]], hostingProfile('corpo'))).toEqual({
-      footprint: [[1, 1], [14.5, 1], [14.5, 15], [1, 15]], floorCap: Infinity,
+    expect(host.fit([[0, 0], [14, 0], [14, 14], [0, 14]], hostingProfile('corpo'))).toBeNull();
+    expect(host.fit([[0, 0], [14.5, 0], [14.5, 14], [0, 14]], hostingProfile('corpo'))).toEqual({
+      footprint: [[1, 1], [13.5, 1], [13.5, 13], [1, 13]], floorCap: Infinity,
     });
   });
 
@@ -54,12 +54,12 @@ describe('footprint hosting', () => {
 describe('mirrored building constants', () => {
   it('mirrors interior core feasibility and the published floor constants', () => {
     expect([WALKUP_RECT, WALKUP_TWO_STAIRS_RECT, COMPACT_RECT, STANDARD_RECT])
-      .toEqual([[11.14, 9.74], [17.64, 9.74], [13.14, 13.74], [20.14, 9.74]]);
-    if (!existsSync(FEASIBILITY)) return;
+      .toEqual([[10.38, 7.58], [16.88, 7.58], [12.38, 11.58], [19.38, 7.58]]);
     const { constants } = JSON.parse(readFileSync(FEASIBILITY, 'utf8'));
-    const { facadeDepth, ...plain } = INTERIOR;
-    for (const [key, value] of Object.entries(plain)) expect(constants[key], key).toBe(value);
-    expect(Math.max(...(Object.values(constants.facadeDepth) as number[])), 'facadeDepth').toBe(facadeDepth);
+    expect(INTERIOR).toEqual({
+      ...Object.fromEntries(Object.keys(INTERIOR).map((key) => [key, constants[key]])),
+      facadeDepth: Math.max(...(Object.values(constants.facadeDepth) as number[])),
+    });
 
     if (!existsSync(FLOOR_CONSTANTS)) return;
     const source = JSON.parse(readFileSync(FLOOR_CONSTANTS, 'utf8'));
@@ -122,6 +122,11 @@ function world([u, v]: Vec2, frame: BuildingGrid): Vec2 {
   return [frame.origin[0] + u * c - v * s, frame.origin[1] + u * s + v * c];
 }
 
+/** A rectangle of these sides hosts the core rectangle in one orientation or the other. */
+function hosts(rect: readonly [number, number], short: number, long: number): boolean {
+  return short >= Math.min(...rect) && long >= Math.max(...rect);
+}
+
 /** Small-grid reference enumerates every rectangle, independently of the search. */
 function exhaustive(outline: Polygon, required: HostingProfile, frame: BuildingGrid): Polygon | null {
   const box = bounds(outline.map(([x, y]) => [x / frame.spacing, y / frame.spacing]));
@@ -132,9 +137,9 @@ function exhaustive(outline: Polygon, required: HostingProfile, frame: BuildingG
         for (let top = v + 1; top <= Math.ceil(box.max[1]); top++) {
           const width = (right - u) * frame.spacing, depth = (top - v) * frame.spacing;
           const short = Math.min(width, depth), long = Math.max(width, depth);
-          if (short < required.band || short < 9.74 || long < 11.14) continue;
-          if (width * depth > 460 && long < 17.64 && !(short >= 13.14 && long >= 13.74)) continue;
-          if (required.heavy && (short < 13.14 || long < 13.74)) continue;
+          if (short < required.band || !hosts(WALKUP_RECT, short, long)) continue;
+          if (width * depth > 460 && !hosts(WALKUP_TWO_STAIRS_RECT, short, long) && !hosts(COMPACT_RECT, short, long)) continue;
+          if (required.heavy && !hosts(COMPACT_RECT, short, long)) continue;
           const cells = (right - u) * (top - v);
           if (best && (best.cells - cells || best.short - short || u - best.u || v - best.v || best.width - width) >= 0) continue;
           const footprint = [[u, v], [right, v], [right, top], [u, top]]

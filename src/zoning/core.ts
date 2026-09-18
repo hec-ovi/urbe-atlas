@@ -24,7 +24,7 @@ export const INTERIOR = {
   riserShaft: 1.2,
   serviceStub: 1.2,
   margin: 0.5,
-  minStripDepth: 3.0,
+  minStripDepth: 1.6,
   stairColumnWidth: 3.0,
   stairTread: 0.28,
   stairLanding: 1.2,
@@ -32,7 +32,7 @@ export const INTERIOR = {
   walkupMaxFloors: 6,
   twoStairsAreaOver: 460,
   twoStairsFloorsOver: 4,
-  facadeDepth: 0.62,
+  facadeDepth: 0.24,
 };
 
 /** Deepest stair shaft the recipe sizes: the longest flight allowed plus two landings, snapped up. */

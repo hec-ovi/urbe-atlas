@@ -36,11 +36,11 @@ const MIN_FLOOR_HEIGHT: Record<string, number> = {
 
 /** Core hosting rectangles, [length, depth] meters, and the band each type keeps end to end (CONTRACT.md). */
 const HEAVY_TYPES = new Set<ParcelType>(['offices', 'corpo', 'hotel', 'hospital', 'mall', 'factory']);
-const WALKUP = [11.14, 9.74];
-const WALKUP_TWO_STAIRS = [17.64, 9.74];
-const COMPACT = [13.14, 13.74];
-const STANDARD = [20.14, 9.74];
-const minBand = (type: ParcelType): number => (HEAVY_TYPES.has(type) ? 13.14 : 9.74);
+const WALKUP = [10.38, 7.58];
+const WALKUP_TWO_STAIRS = [16.88, 7.58];
+const COMPACT = [12.38, 11.58];
+const STANDARD = [19.38, 7.58];
+const minBand = (type: ParcelType): number => (HEAVY_TYPES.has(type) ? 11.58 : 7.58);
 
 let cached: CityBlueprint | null = null;
 const defaultCity = (): CityBlueprint => (cached ??= generateCity({ seed: 'contract' }));
