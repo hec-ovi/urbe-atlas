@@ -1,54 +1,68 @@
-import type { Polygon, Vec2 } from '../../../../schema/blueprint';
-import { intersection, offset } from '../../../geom/clip';
-import { DIMENSIONS as D, prism, rectangle } from './Geometry';
+import type { Polygon } from '../../../../schema/blueprint';
+import { bandBody, DIMENSIONS as D, prism, rectangle, roadLip } from './Geometry';
 import type { ModuleDefinition, ModulePrism } from './schema';
 import { measure, moduleId, moduleSizing } from './Format';
 
-/** Source parking dimensions, with two metres of support beyond each diagonal end. */
+/** Source parking dimensions, with two metres of support beyond each end of the bay. */
 export const NATIVE_PARKING = { slotLength: 6, depth: 2.5, endRun: 2, apron: 2 } as const;
 
+/**
+ * A parking bay is a rectangular notch in the sidewalk: the carriageway keeps
+ * its straight edge, the curb and gutter turn square around the bay, and the
+ * paving takes what is left.
+ */
 export class NativeParking {
   static length(slots: number): number { return slots * NATIVE_PARKING.slotLength + NATIVE_PARKING.endRun * 2; }
 
   static footprint(slots: number, sizing = moduleSizing()): Polygon {
-    const end = this.length(slots);
-    const rim = measure(sizing.curb + sizing.gutter), rear = measure(sizing.parkingDepth - rim);
-    return [[0, -rim], [end, -rim], [end - 2, rear], [2, rear]];
+    const rim = measure(sizing.curb + sizing.gutter);
+    return rectangle(0, -rim, this.length(slots), measure(sizing.parkingDepth));
   }
 
   static build(slots: number, sizing = moduleSizing(), panelWidth = 6): ModuleDefinition {
-    const length = this.length(slots) + 4;
-    const rim = measure(sizing.curb + sizing.gutter), rear = measure(sizing.parkingDepth - rim), width = measure(panelWidth + sizing.separator);
-    const road: Polygon = [[0, -rim], [2, -rim], [4, rear], [length - 4, rear], [length - 2, -rim], [length, -rim]];
-    const curbFront = this.parallel(road, sizing.gutter), pavedFront = this.parallel(road, rim);
-    const band = (first: Polygon, last: Polygon): Polygon => [...first, ...[...last].reverse()];
-    const gutter = band(road, curbFront), curb = band(curbFront, pavedFront);
-    const paved: Polygon = [...pavedFront, [length, width], [0, width]];
-    const parts: ModulePrism[] = [
-      prism('roadway', this.footprint(slots, sizing).map(([x, z]) => [x + 2, z]), -0.2, 0),
-      prism('joint', gutter, -0.03, -0.008), prism('gutter', gutter, -0.008, 0),
-      prism('joint', curb, -0.03, D.bedTop), prism('curb', curb, D.bedTop, D.pavedTop),
-      prism('joint', paved, 0, D.bedTop),
+    const apron = NATIVE_PARKING.apron, bay = this.length(slots), length = bay + apron * 2;
+    const rim = measure(sizing.curb + sizing.gutter), rear = measure(sizing.parkingDepth - rim);
+    const width = measure(panelWidth + sizing.separator), gutter = sizing.gutter;
+    // Each band runs in at its distance from the carriageway, up the end of
+    // the notch, along its back and out again: five rectangles.
+    const notch = (from: number, to: number): Polygon[] => {
+      const [low, high] = [measure(apron - to), measure(apron + bay + from)];
+      const z0 = measure(-rim + from);
+      const wall = measure(rear + to - z0);
+      return [
+        rectangle(0, z0, low, measure(to - from)),
+        rectangle(low, z0, measure(to - from), wall),
+        rectangle(measure(apron - from), measure(rear + from), measure(bay + from * 2), measure(to - from)),
+        rectangle(high, z0, measure(to - from), wall),
+        rectangle(measure(high + to - from), z0, measure(length - high - to + from), measure(to - from)),
+      ];
+    };
+    const parts: ModulePrism[] = [prism('roadway', rectangle(apron, -rim, bay, measure(sizing.parkingDepth)), -0.2, 0)];
+    notch(gutter, rim).forEach((leg) => {
+      parts.push(prism('joint', leg, -0.03, D.bedTop), prism('curb', bandBody(leg), D.bedTop, D.pavedTop));
+    });
+    notch(0, gutter).forEach((leg, index) => {
+      const alongRoad = index !== 1 && index !== 3;
+      parts.push(prism('joint', leg, -0.03, -0.008),
+        prism('gutter', alongRoad ? bandBody(leg, D.lip) : bandBody(leg), -0.008, 0));
+      if (alongRoad) parts.push(prism('gutter-lip', roadLip(leg), -0.008, D.lip));
+    });
+    const paved = [
+      rectangle(0, 0, measure(apron - rim), width),
+      rectangle(measure(apron - rim), measure(rear + rim), measure(bay + rim * 2), measure(width - rear - rim)),
+      rectangle(measure(apron + bay + rim), 0, measure(apron - rim), width),
     ];
-    // The saved module remains a complete physical compatibility surface. Streets owns native panel fitting.
-    for (let x = 0; x < length; x++) for (let z = 0; z < width; z++) {
-      const cells = intersection([paved], [rectangle(x, z, 1, 1)]);
-      for (const body of offset(cells, -D.joint / 2)) parts.push(prism('panel', body, D.bedTop, D.pavedTop));
+    for (const bed of paved) {
+      parts.push(prism('joint', bed, 0, D.bedTop));
+      const [x0, z0] = bed[0], [x1, z1] = bed[2];
+      for (let x = x0; x < x1 - 1e-9; x++) {
+        for (let z = z0; z < z1 - 1e-9; z++) {
+          const cell = rectangle(x + D.joint / 2, z + D.joint / 2,
+            measure(Math.min(1, x1 - x) - D.joint), measure(Math.min(1, z1 - z) - D.joint));
+          parts.push(prism('panel', cell, D.bedTop, D.pavedTop));
+        }
+      }
     }
     return { id: moduleId(`parking-native:${panelWidth}:${slots}`, sizing), partitionedBeds: true, parts };
-  }
-
-  /** Shared authored offset vertices, never independently clipped on each side of a band. */
-  private static parallel(path: Polygon, width: number): Polygon {
-    const normals = path.slice(1).map((point, i): Vec2 => {
-      const dx = point[0] - path[i][0], dz = point[1] - path[i][1], length = Math.hypot(dx, dz);
-      return [-dz / length, dx / length];
-    });
-    return path.map((point, i): Vec2 => {
-      const a = normals[Math.max(0, i - 1)], b = normals[Math.min(i, normals.length - 1)];
-      const gain = width / (1 + a[0] * b[0] + a[1] * b[1]);
-      return [Math.round((point[0] + (a[0] + b[0]) * gain) * 1000) / 1000,
-        Math.round((point[1] + (a[1] + b[1]) * gain) * 1000) / 1000];
-    });
   }
 }

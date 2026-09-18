@@ -101,3 +101,19 @@ export function offsetAt(line: Polyline, d: number, side: number): Vec2 {
   const dir = directionAt(line, d);
   return add(p, scale([-dir[1], dir[0]], side));
 }
+
+/** Arc distance along the line of the point on it closest to `p`. */
+export function projectArc(line: Polyline, p: Vec2): number {
+  let best = 0, bestDistance = Infinity, travelled = 0;
+  for (let i = 0; i + 1 < line.length; i++) {
+    const { point, t } = closestOnSegment(p, line[i], line[i + 1]);
+    const span = dist(line[i], line[i + 1]);
+    const d = dist(p, point);
+    if (d < bestDistance) {
+      bestDistance = d;
+      best = travelled + span * t;
+    }
+    travelled += span;
+  }
+  return best;
+}

@@ -2,21 +2,6 @@ import type { Polygon, StreetEdge, StreetNode, Vec2 } from '../../../schema/blue
 import type { RoadProfile, SidewalkProfile } from '../construction/schema/design';
 import type { StreetRun } from '../construction/schema/sections';
 import type { ModuleBlock, ModuleConstruction, ModuleFormat, ModuleFrontagePlan, ModuleCornerPlan } from '../construction/modules/schema';
-import type { SidewalkSectionRecord } from '../construction/schema/sections';
-import type { DiagonalCandidate } from './diagonal-candidates/schema';
-
-export type DiagonalMode = 'candidates' | 'off' | 'legacy-applied';
-export interface LayoutDiagonalCandidate extends Omit<DiagonalCandidate, 'constructionWidth'> {
-  roadProfile: RoadProfile;
-  sidewalks: { left: SidewalkSectionRecord; right: SidewalkSectionRecord };
-  roadWidth: number;
-  /** Road and both actual resolved sidewalk bands. */
-  constructionWidth: number;
-  /** Conservative return allowance on each side, beyond constructionWidth. */
-  reservationPadding: number;
-  /** Full width used by footprint and all mouth-clearance checks. */
-  reservationWidth: number;
-}
 
 export interface GridLayoutInput {
   moduleFormat?: ModuleFormat;
@@ -26,20 +11,14 @@ export interface GridLayoutInput {
   profiles: RoadProfile[];
   /** Reserve a seeded interior four-lane through-run before sizing blocks. Default false. */
   highway?: boolean;
-  /** Default candidates. Applied cuts require explicit legacy-applied compatibility mode. */
-  diagonals?: DiagonalMode;
-  /** Clearance of every complete reserved mouth from original face corners, default 3 m. */
-  diagonalCornerClearance?: number;
   sideAt: (point: Vec2, streetClass: 'street' | 'road') => { profile: SidewalkProfile; finish: string };
   /** Complete outer sidewalks with a shared profile and finish. `exclusions` (water) stop the ring at the shoreline. */
   perimeter?: { profile: SidewalkProfile; finish: string; exclusions?: Polygon[] };
 }
 
 export interface GridLayoutBlock extends Omit<ModuleBlock, 'placements'> {
-  /** Surrounding frontage edges and an optional internal diagonal. */
+  /** The four frontage edges around the block rectangle. */
   edgeIds: string[];
-  /** Separate buildable regions when a declared street cuts this block. */
-  interiors?: Polygon[];
 }
 
 export interface LayoutFrontage extends Omit<ModuleFrontagePlan, 'side' | 'pavedWidth' | 'cornerIds'> {
@@ -56,7 +35,6 @@ export interface LayoutPlanningData {
 }
 
 export interface GridLayoutPlan {
-  diagonalCandidates: LayoutDiagonalCandidate[];
   planning: LayoutPlanningData;
   nodes: StreetNode[];
   edges: StreetEdge[];

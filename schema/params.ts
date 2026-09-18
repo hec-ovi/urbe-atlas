@@ -9,30 +9,19 @@ export type Seed = string | number;
 export type DistrictKind = 'downtown' | 'commercial' | 'residential' | 'industrial' | 'mixed';
 
 export type WealthTier = 'poor' | 'mid' | 'rich' | 'high_rich';
-export type FootprintShape = 'rectangle' | 'parcel';
 import type { StreetDesign } from '../src/streets/construction/schema/design';
 export type { StreetDesign } from '../src/streets/construction/schema/design';
 import type { PavingDesign } from '../src/streets/construction/paving/schema';
 export type { PavingDesign } from '../src/streets/construction/paving/schema';
 import type { LandmarkFloors } from '../src/landmarks/schema';
 export type { LandmarkFloors } from '../src/landmarks/schema';
-import type { DiagonalMode } from '../src/streets/layout/schema';
-export type { DiagonalMode } from '../src/streets/layout/schema';
 
 export interface AtlasParams {
   seed: Seed;
-  /** Rectangular city extent in meters. Default { width: 1000, depth: 1000 }. */
+  /** Rectangular city extent in meters. Default { width: 3000, depth: 3000 }. */
   size?: { width: number; depth: number };
-  /** Retained for saved parameter compatibility, range 0..1. The module grid follows world X/Z axes. Default 0. */
-  irregularity?: number;
-  /** Building footprints on the shared city grid, or explicit lot-following shapes. Default rectangle. */
-  footprintShape?: FootprintShape;
   /** Numeric road and sidewalk profiles, resolved before parcels. Defaults to district modules with 4.2 m paving. */
   streetDesign?: StreetDesign;
-  /** Default candidates. Applied diagonal streets require legacy-applied mode and source streetDesign. */
-  diagonals?: DiagonalMode;
-  /** Full reserved-mouth clearance from each original rectangle corner, default 3 m. */
-  diagonalCornerClearance?: number;
   /** Optional caller-selected finish families. City geometry uses the dimensioned module catalog. */
   pavingDesign?: PavingDesign;
   /** District count range, inclusive. Default scales with area (about 2 per sqrt(km2), range 0.7x-1.3x): a village gets [1, 2-3], the default 3 km city [4, 8]. */

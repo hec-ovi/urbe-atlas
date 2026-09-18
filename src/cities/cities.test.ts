@@ -89,11 +89,11 @@ describe('city HTTP catalog', () => {
     const dataDir = await directory();
     const generator = new ControlledGenerator();
     const app = await serve({ dataDir, generator: generator.generate });
-    const response = await app.post({ seed: 'same', irregularity: 0 });
+    const response = await app.post({ seed: 'same', maxFloors: 12 });
     expect(response.status).toBe(202);
     const first = await response.json() as CityRecord;
     expect(first).toMatchObject({ source: 'generated', seed: 'same', stage: 'blueprint', status: 'queued',
-      params: { seed: 'same', irregularity: 0 } });
+      params: { seed: 'same', maxFloors: 12 } });
     expect(response.headers.get('location')).toBe(`/api/cities/${first.id}`);
     await status(app, first.id, 'running');
     // a repeated seed is its own city, and only one job runs at a time

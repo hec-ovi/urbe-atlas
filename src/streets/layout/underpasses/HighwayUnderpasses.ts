@@ -21,7 +21,7 @@ export class HighwayUnderpasses {
     const excluded = waterExcludedKeys(settings.waterExcludedCorners === undefined ? [] : settings.waterExcludedCorners, plan.planning);
     if (excluded.size && !settings.water.length) throw invariantFailure('water-excluded corners require water exclusions');
     const edges = new Map(plan.edges.map(edge => [edge.id, edge]));
-    const sourceCorners = new Map(plan.planning.corners.filter(corner => corner.kind === 'arc')
+    const sourceCorners = new Map(plan.planning.corners.filter(corner => corner.kind === 'explicit')
       .map(corner => [placementKey(corner.placement.origin, corner.placement.turn), corner]));
     const corners = new Map(plan.modules.placements.filter(placement => {
       const source = sourceCorners.get(placementKey(placement.origin, placement.turn));

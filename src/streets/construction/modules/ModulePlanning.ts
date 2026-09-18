@@ -1,5 +1,5 @@
 import type { Vec2 } from '../../../../schema/blueprint';
-import { arc, CORNER_ANGLES, DIMENSIONS as D, rectangle, transform } from './Geometry';
+import { rectangle, transform } from './Geometry';
 import type { BlockModuleInput, ModuleBlockPlan, ModuleCornerPlan, ModuleFrontagePlan, PerimeterModuleInput, QuarterTurn } from './schema';
 import { perimeterSections, type PerimeterSide } from './Perimeter';
 import { measure, moduleId, moduleSizing } from './Format';
@@ -46,24 +46,27 @@ export class ModulePlanning {
     const origins: Vec2[] = [[0, 0], [width, 0], [width, depth], [0, depth]];
     const cornerId = (side: number) => `corner:${input.id}:${side % 4}`;
     const frontageId = (side: number) => this.frontageId(input.id, side % 4);
-    const rim = measure(sizing.curb + sizing.gutter), pavedRadius = sizing.format === 'district' ? 4.2 : D.radius, radius = measure(pavedRadius + rim);
-    const corners = origins.map((local, side) => {
-      const turn = side as QuarterTurn, origin = transform(local, input.origin, 0);
-      return { kind: 'arc' as const, id: cornerId(side), ownerId: input.id, frontageIds: [frontageId((side + 3) % 4), frontageId(side)] as [string, string],
-        center: transform([pavedRadius, pavedRadius], origin, turn), radius,
-        arc: arc(radius, CORNER_ANGLES, pavedRadius).map(point => transform(point, origin, turn)),
+    const rim = measure(sizing.curb + sizing.gutter);
+    // Corner s is the square where run s-1 meets run s: its own paving plus the rim around it.
+    const size = (side: number) => ({ width: measure(input.sidewalks[(side + 3) % 4] + sizing.separator),
+      depth: measure(input.sidewalks[side % 4] + sizing.separator) });
+    const corners = origins.map((local, side): ModuleCornerPlan => {
+      const turn = side as QuarterTurn, origin = transform(local, input.origin, 0), box = size(side);
+      return { kind: 'explicit', id: cornerId(side), ownerId: input.id,
+        frontageIds: [frontageId((side + 3) % 4), frontageId(side)],
+        boundary: rectangle(-rim, -rim, measure(box.width + rim), measure(box.depth + rim))
+          .map(point => transform(point, origin, turn)),
         placement: { moduleId: moduleId(`corner:${input.sidewalks[(side + 3) % 4]}:${input.sidewalks[side]}`, sizing), origin, turn } };
     });
-    return { corners, frontages: origins.map((_, side) => {
-      const turn = side as QuarterTurn;
-      const start = corners[side].arc.at(-1)!, end = corners[(side + 1) % 4].arc[0];
-      const inward = transform([0, 1], [0, 0], turn);
-      const station = measure(input.sidewalks[(side + 3) % 4] + sizing.separator);
-      return { id: frontageId(side), ownerId: input.id, side: turn, start: [...start], end: [...end], inward,
+    return { corners, frontages: origins.map((_, side): ModuleFrontagePlan => {
+      const turn = side as QuarterTurn, origin = corners[side].placement.origin;
+      const start = transform([size(side).width, -rim], origin, turn);
+      const end = transform([measure(input.panels[side % 2] - input.sidewalks[(side + 1) % 4] + sizing.separator), -rim], origin, turn);
+      return { id: frontageId(side), ownerId: input.id, side: turn, start, end,
+        inward: transform([0, 1], [0, 0], turn),
         pavedWidth: measure(input.sidewalks[side] + sizing.separator),
         ...(sizing.format === 'district' ? { curbWidth: sizing.curb, gutterWidth: sizing.gutter } : {}),
-        moduleStationOrigin: transform([station, -rim], corners[side].placement.origin, turn),
-        moduleStationEnd: transform([measure(input.panels[side % 2] - input.sidewalks[(side + 1) % 4] + sizing.separator), -rim], corners[side].placement.origin, turn),
+        moduleStationOrigin: [...start], moduleStationEnd: [...end],
         cornerIds: [cornerId(side), cornerId(side + 1)] };
     }) };
   }

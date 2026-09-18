@@ -131,7 +131,7 @@ it('shows exact server progress in a modal, locks the workspace and opens the co
   expect(MapView.prototype.setBlueprint).toHaveBeenLastCalledWith(blueprint());
   expect(window.location.search).toBe('?city=city-1');
   const posted = JSON.parse(String(fetcher.mock.calls.find(([, init]) => init?.method === 'POST')![1]!.body));
-  expect(posted).toMatchObject({ seed: 'urbe', footprintShape: 'rectangle' });
+  expect(posted).toMatchObject({ seed: 'urbe', size: { width: 3000, depth: 3000 } });
   expect(posted).not.toHaveProperty('params');
 });
 

@@ -1,5 +1,7 @@
 # Changelog
 
+0.10.0: the plan is rectangles and blocks repeat. Blocks and lots are axis-aligned rectangles sized in whole 8 m modules, streets are straight runs between square junction boxes, and a generator invariant checks every published land and ground ring. The lot tiler is keyed by block width, depth and zone, so `meta.blockTemplates` publishes one tiling per size and zone and each block names the one it carries. The default city is 3000 x 3000 m and its plan is 7.9 MB: coordinates are published on the 1 mm grid, square corners cut the ground cover to a third, and every consumer keeps reading blueprint 0.26.0.
+
 0.9.1: tests cover the contract surface once each.
 
 0.9.0: blueprint 0.26.0 publishes plain street corridor reservations. A straight corridor ends in a square cap of plain segments, only a bend adds a fan and its step is 15 degrees, so `streets.construction.planningReservations` is 6 percent of a 1 km blueprint instead of 76, and that blueprint is 4.3 MB instead of 16.8. Corridor sweep model 2.0.0, or 2.1.0 with explicit side geometry.

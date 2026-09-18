@@ -55,7 +55,6 @@ No failure escapes a `PreviewApp` event handler.
 - Manifest contract 1.0.0 must match the displayed seed, Atlas version, complete parcel set, interior subset and floor tags. Optional manifests never widen the interior filter.
 - New forms and templates choose owned copies of the form's paving default: maintained 1 m slab cells, optional 2 m groups, 12 mm joints, 1 m curb stations, 0.2 m curb width and 1 m border panels. They also choose its street default: 1/2/4 lanes at 4/7/14 m, a 4.2 m paved sidewalk of 1 m border, 1 m furnishing, 2 m walking and a 0.2 m frontage separator, a 0.2 m curb, a 0.5 m gutter and 2.5 m of crossing headroom. That design is what an omitted one resolves to, so an untouched form generates the same city as bare defaults. Supplied paving survives form edits exactly and omitted paving remains omitted; a supplied street design is what the street controls then edit. Module geometry belongs to the producer.
 - Blueprint downloads retain all fields. Controls and panels have square corners; slider values align left and use labels without meter suffixes.
-- Parameter imports validate and preserve `diagonals` and `diagonalCornerClearance` through form edits and submission.
 
 ## Depends on
 

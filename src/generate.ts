@@ -29,7 +29,7 @@ import { CityFurniture } from './CityFurniture';
 import { StreetCorridors } from './streets/construction/StreetCorridors';
 import { Buildability } from './blocks/Buildability';
 import { FootprintHost } from './zoning/FootprintHost';
-import { StandardLots, STANDARD_LOT_SIZES, type BlockCells, type StandardLotCell } from './blocks/StandardLots';
+import { BlockTemplates, placeOpenAreas, placeTemplate, StandardLots, STANDARD_LOT_SIZES, type BlockCells } from './blocks/StandardLots';
 import { Zoning, LotInput } from './zoning/Zoning';
 import { hostingProfiles } from './zoning/profiles';
 import type { FootprintPolicy } from './zoning/FootprintPolicy';
@@ -37,6 +37,9 @@ import { INTERIOR } from './zoning/core';
 import { TransitPlanner } from './transit/TransitPlanner';
 import { Invariants } from './invariants/Invariants';
 import { bufferLine, difference, intersection, snapPoint, union } from './geom/clip';
+import { rectanglesOf } from './geom/rectangles';
+import { snapToMillimetres } from './geom/millimetres';
+import { PolygonIndex } from './geom/PolygonIndex';
 import { area, bounds, centroid, distanceToOutline, pointInPolygon } from './geom/polygon';
 import { length as lineLength, pointAt } from './geom/polyline';
 import { closestOnSegment, dist } from './geom/vec';
@@ -66,11 +69,11 @@ export function generateCity(input: AtlasParams, onProgress?: ProgressObserver):
   const planned = DistrictPlanner.plan(Rng.from(seed, 'districts'), boundary, params);
   const gridAngle = 0;
   const buildingGrid: BuildingGrid = { origin: [0, 0], angle: gridAngle, spacing: INTERIOR.snap };
-  const footprintPolicy: FootprintPolicy = { shape: params.footprintShape, grid: buildingGrid };
+  const footprintPolicy: FootprintPolicy = { grid: buildingGrid };
   const footprintHost = new FootprintHost(footprintPolicy);
   const cityCenter = centroid(boundary);
   const extent = Math.max(params.size.width, params.size.depth) * 3;
-  const cells = DistrictShapes.cells(planned, boundary, extent, gridAngle, 0, Rng.from(seed, 'district-shapes'));
+  const cells = DistrictShapes.cells(planned, boundary, extent, gridAngle);
   const districtOfPoint = (p: Vec2): number => {
     for (let i = 0; i < cells.length; i++) if (pointInPolygon(p, cells[i])) return i;
     let best = 0;
@@ -126,7 +129,6 @@ export function generateCity(input: AtlasParams, onProgress?: ProgressObserver):
 
   progress('parcels');
   // --- parcels ----------------------------------------------------------
-  const lotRng = Rng.from(seed, 'parcels');
   interface RawLot {
     polygon: Polygon;
     blockIndex: number;
@@ -136,14 +138,7 @@ export function generateCity(input: AtlasParams, onProgress?: ProgressObserver):
   }
   const rawLots: RawLot[] = [];
   const blockOpenAreas: Polygon[][] = builtBlocks.map(() => []);
-  const blockDistrict: number[] = builtBlocks.map(block => {
-    const total = block.boundaryRegions.reduce((sum, polygon) => sum + area(polygon), 0);
-    const center = block.boundaryRegions.reduce<Vec2>((sum, polygon) => {
-      const point = centroid(polygon), weight = area(polygon) / total;
-      return [sum[0] + point[0] * weight, sum[1] + point[1] * weight];
-    }, [0, 0]);
-    return districtOfPoint(center);
-  });
+  const blockDistrict: number[] = builtBlocks.map(block => districtOfPoint(centroid(block.boundary)));
   const sidewalkedEdges: string[][] = builtBlocks.map((b) =>
     b.edgeIds.filter((id) => {
       const e = streetEdgeById.get(id);
@@ -166,25 +161,34 @@ export function generateCity(input: AtlasParams, onProgress?: ProgressObserver):
   }) : undefined;
   const subwayBayPaving = subwayPlan?.subwayStations.flatMap((station) => station.entranceBays?.map((bay) => bay.footprint) ?? []) ?? [];
   const infrastructureNoBuild = union([...existingInfrastructure, ...subwayBayPaving]);
-  // --- standard lots: every block is tiled with catalog sizes, leftovers stay open ---
+  // --- standard lots: every block is tiled by its size-and-zone template, leftovers stay open ---
+  const templates = new BlockTemplates(seed);
+  const blockTemplateId: (string | undefined)[] = builtBlocks.map(() => undefined);
+  const blockTemplateLots: number[] = builtBlocks.map(() => 0);
   const blockCells: BlockCells[] = [];
+  const reservedLand = new PolygonIndex([...waterSurfaces, ...infrastructureNoBuild]);
   builtBlocks.forEach((block, blockIndex) => {
     const kind = planned[blockDistrict[blockIndex]].kind;
-    const rng = lotRng.fork(blockIndex);
-    const landInterior = waterSurfaces.length > 0 ? difference(block.interior, waterSurfaces) : block.interior;
-    const reserved = intersection(landInterior, infrastructureNoBuild);
-    blockOpenAreas[blockIndex].push(...reserved);
-    const cells: StandardLotCell[] = [];
-    for (const interior of difference(landInterior, infrastructureNoBuild)) {
-      // a block reachable only via highways gets no parcels: open ground instead
-      if (sidewalkedEdges[blockIndex].length === 0) {
-        blockOpenAreas[blockIndex].push(interior);
-        continue;
-      }
-      const plan = StandardLots.plan(interior, kind, rng);
-      const base = cells.length ? Math.max(...cells.map(value => value.row)) + 1 : 0;
-      cells.push(...plan.cells.map(value => ({ ...value, row: value.row + base })));
-      blockOpenAreas[blockIndex].push(...plan.openAreas);
+    const interior = block.interior[0];
+    const box = bounds(interior), outer = bounds(block.boundary);
+    const template = templates.get({ origin: outer.min, width: outer.max[0] - outer.min[0], depth: outer.max[1] - outer.min[1],
+      interior: { offset: [box.min[0] - outer.min[0], box.min[1] - outer.min[1]],
+        width: box.max[0] - box.min[0], depth: box.max[1] - box.min[1] } }, kind);
+    // A block reachable only via highways gets no parcels: open ground instead.
+    const served = sidewalkedEdges[blockIndex].length > 0;
+    const placed = served ? placeTemplate(template, outer.min) : [];
+    const blocked = (polygon: Polygon): boolean => {
+      const near = reservedLand.near(polygon);
+      return near.length > 0 && intersection([polygon], near).some(piece => area(piece) > 1e-6);
+    };
+    const cells = placed.filter(cell => !blocked(cell.polygon));
+    if (served && cells.length === placed.length) {
+      blockTemplateId[blockIndex] = template.id;
+      blockTemplateLots[blockIndex] = template.lots.length;
+      blockOpenAreas[blockIndex].push(...placeOpenAreas(template, outer.min));
+    } else {
+      blockOpenAreas[blockIndex].push(...rectanglesOf(difference([interior], cells.map(cell => cell.polygon)))
+        .filter(piece => area(piece) > 1));
     }
     blockCells.push({ blockIndex, cells });
   });
@@ -277,16 +281,23 @@ export function generateCity(input: AtlasParams, onProgress?: ProgressObserver):
   });
 
   // --- blocks and districts to schema ------------------------------------
-  const blocks: Block[] = builtBlocks.map((b, i) => ({
-    id: `b${i}`,
-    districtId: `d${blockDistrict[i]}`,
-    boundary: b.boundary,
-    boundaryRegions: b.boundaryRegions,
-    curb: b.curb,
-    sidewalk: b.sidewalk,
-    parcelIds: parcels.filter((p) => p.blockId === `b${i}`).map((p) => p.id),
-    openAreas: blockOpenAreas[i],
-  }));
+  // A block names its template only when its parcels are exactly the template's
+  // lots: a landmark merge or a lot the zoning could not build breaks that.
+  const blocks: Block[] = builtBlocks.map((b, i) => {
+    const parcelIds = parcels.filter((p) => p.blockId === `b${i}`);
+    const tiled = blockTemplateId[i] !== undefined && parcelIds.length === blockTemplateLots[i]
+      && parcelIds.every((p) => p.lotSize !== undefined);
+    return {
+      id: `b${i}`,
+      districtId: `d${blockDistrict[i]}`,
+      boundary: b.boundary,
+      ...(tiled ? { template: blockTemplateId[i] } : {}),
+      curb: b.curb,
+      sidewalk: b.sidewalk,
+      parcelIds: parcelIds.map((p) => p.id),
+      openAreas: blockOpenAreas[i],
+    };
+  });
 
   const districts: District[] = planned.map((d, i) => ({
     id: `d${i}`,
@@ -400,11 +411,11 @@ export function generateCity(input: AtlasParams, onProgress?: ProgressObserver):
       gridAngle,
       buildingGrid,
       lotSizes: STANDARD_LOT_SIZES.map(size => ({ ...size })),
+      blockTemplates: templates.published(),
       boundary,
     },
     districts,
     streets: { nodes: streetNodes, edges: streetEdges, crossings, signals, planting, highwayStructures: structures,
-      diagonalCandidates: layout.diagonalCandidates,
       construction: {
         version: '1.0.0', runs: streetPlan.runs, modules: layout.modules, reservations,
         ...(layout.medians.length ? { medians: layout.medians } : {}),
@@ -433,7 +444,9 @@ export function generateCity(input: AtlasParams, onProgress?: ProgressObserver):
   const result = params.landmarkFloors ? applyLandmarkFloors(blueprint, params.landmarkFloors) : blueprint;
   Invariants.check(result);
   progress('storage');
-  return result;
+  // Published last: rounding onto the grid the contract states costs no
+  // geometry (every coordinate is already there) and a fifth of the bytes.
+  return snapToMillimetres(result);
 }
 
 /** Point on the block's sidewalk band closest to any vertex of the lot. */

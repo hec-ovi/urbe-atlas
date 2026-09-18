@@ -75,12 +75,11 @@ describe('dimensioned city crossings', () => {
     }
   });
 
-  it('places declared-angle marking fields on real roadway, clear of gutters', () => {
+  it('places marking fields on real roadway, clear of gutters', () => {
     const design = resolveStreetDesign();
     const layout = GridLayout.plan({ seed: 'urbe', size: { width: 1000, depth: 1000 }, profiles: design.profiles,
-      diagonals: 'legacy-applied', sideAt: () => ({ profile: design.sidewalkProfiles[1], finish: 'plain' }) });
-    const cuts = layout.edges.filter((edge) => edge.path[0][0] !== edge.path[1][0] && edge.path[0][1] !== edge.path[1][1]);
-    const nodeIds = new Set(cuts.flatMap((edge) => [edge.from, edge.to]));
+      sideAt: () => ({ profile: design.sidewalkProfiles[1], finish: 'plain' }) });
+    const nodeIds = new Set(layout.nodes.filter((node) => node.edgeIds.length === 4).slice(0, 4).map((node) => node.id));
     const ground: GroundSurface[] = [...ModuleGround.cover(layout.modules), ...layout.roadway
       .map((polygon) => ({ surface: 'roadway' as const, polygon, top: 0, bottom: -0.2 }))];
     const input = { nodes: layout.nodes.filter((node) => nodeIds.has(node.id)), edges: layout.edges, ground };

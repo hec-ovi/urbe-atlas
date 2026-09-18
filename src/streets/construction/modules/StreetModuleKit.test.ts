@@ -4,8 +4,6 @@ import { difference, intersection, union } from '../../../geom/clip';
 import { area, bounds, coversPath, isSimpleRing, signedArea } from '../../../geom/polygon';
 import { ModuleGround } from './ModuleGround';
 import { StreetModuleKit } from './StreetModuleKit';
-import { rectangle } from './Geometry';
-import { DiagonalBlock } from './diagonal/DiagonalBlock';
 import { UnderpassModule } from './underpass/index';
 import type { UnderpassInput } from './underpass/schema';
 import type { BlockModuleInput, ModuleConstruction, ModuleFormat, ModulePrism } from './schema';
@@ -43,9 +41,12 @@ describe('StreetModuleKit public construction', () => {
     validPrisms(construction);
     for (const frontage of block.planning!.frontages) {
       const [first, last] = frontage.cornerIds.map(id => block.planning!.corners.find(corner => corner.id === id)!);
-      if (first.kind !== 'arc' || last.kind !== 'arc') throw new Error('block corner arc required');
-      expect(frontage.start).toEqual(first.arc.at(-1));
-      expect(frontage.end).toEqual(last.arc[0]);
+      if (first.kind !== 'explicit' || last.kind !== 'explicit') throw new Error('block corner support required');
+      // The run starts where its own corner square ends and stops at the next one.
+      for (const [point, corner] of [[frontage.start, first], [frontage.end, last]] as const) {
+        expect(bounds(corner.boundary).min.every((n, i) => point[i] >= n - 1e-9)).toBe(true);
+        expect(bounds(corner.boundary).max.every((n, i) => point[i] <= n + 1e-9)).toBe(true);
+      }
       const dx = frontage.end[0] - frontage.start[0], dz = frontage.end[1] - frontage.start[1];
       expect(frontage.inward[0]).toBeCloseTo(-Math.sign(dz));
       expect(frontage.inward[1]).toBeCloseTo(Math.sign(dx));
@@ -111,7 +112,7 @@ describe('StreetModuleKit public construction', () => {
     expect(native.support).toEqual({ start: 6, end: 26 });
     expect(native.end - native.start).toBe(16);
     expect(native.slots.map(area)).toEqual([15, 15]);
-    expect(area(native.footprint)).toBe(35);
+    expect(area(native.footprint)).toBe(40);
     expect(difference(native.slots, [native.footprint])).toEqual([]);
     expect(block.planning!.frontages.some(frontage => frontage.id === native.frontageId)).toBe(true);
     expect([plain.side, plain.start, plain.end, plain.slotCount]).toEqual([2, 16, 32, 3]);
@@ -217,33 +218,7 @@ describe('StreetModuleKit public construction', () => {
     expect(difference(outerCover, [frontage.boundary])).toEqual([]);
   });
 
-  it('builds diagonal and underpass templates as complete physical owners', () => {
-    const diagonal = { width: 121, depth: 113, sidewalks: [4, 4, 4, 4] as [4, 4, 4, 4], angle: 45 as const,
-      roadWidth: 7, diagonalSidewalk: 2 as const, reach: 72 };
-    const template = DiagonalBlock.build(diagonal);
-    expect(DiagonalBlock.build(diagonal)).toEqual(template);
-    expect(template.interiors).toHaveLength(2);
-    expect(template.planning).toHaveLength(template.interiors.length);
-    for (const contour of template.planning) for (const [index, frontage] of contour.frontages.entries()) {
-      expect(frontage.start).toEqual(contour.corners[index].arc.at(-1));
-      expect(frontage.end).toEqual(contour.corners[(index + 1) % contour.corners.length].arc[0]);
-      expect(Math.hypot(...frontage.inward)).toBeCloseTo(1);
-    }
-    expect(Math.atan2(template.axis.normal[0], template.axis.normal[1]) * 180 / Math.PI).toBeCloseTo(diagonal.angle, 10);
-    expect(template.definition.parts.filter(part => part.role === 'panel'
-      && Math.abs(area(part.polygon) - 0.988 ** 2) < 0.002).length).toBeGreaterThan(50);
-    for (const part of template.definition.parts) {
-      expect(isSimpleRing(part.polygon), `diagonal/${part.role}`).toBe(true);
-      expect(area(part.polygon)).toBeGreaterThan(0);
-      expect(part.top).toBeGreaterThan(part.bottom);
-    }
-    const diagonalCover = ModuleGround.cover({ version: '1.0.0', definitions: [template.definition],
-      placements: [{ moduleId: template.definition.id, blockId: 'b0', origin: [0, 0], turn: 0, count: 1, step: 2, finish: 'plain' }] });
-    const land = [...diagonalCover.map(region => region.polygon), ...template.interiors];
-    expect(difference([rectangle(0, 0, diagonal.width, diagonal.depth)], land)).toEqual([]);
-    expect(sum(land)).toBeCloseTo(diagonal.width * diagonal.depth, 5);
-    expect(intersection(template.interiors, diagonalCover.map(region => region.polygon))).toEqual([]);
-
+  it('builds underpass templates as complete physical owners', () => {
     for (const request of [
       { startWidth: 6, endWidth: 2, startReturn: 4, endReturn: 2, span: 14 } as UnderpassInput,
       { format: 'district', startWidth: 4.2, endWidth: 4.2, startReturn: 4.2, endReturn: 4.2, span: 14 } as UnderpassInput,
@@ -274,9 +249,8 @@ describe('StreetModuleKit public construction', () => {
       expect(difference(beds, [underpass.boundary])).toEqual([]);
       expect(sum(beds)).toBeCloseTo(area(underpass.boundary), 8);
       for (let i = 0; i < beds.length; i++) expect(intersection([beds[i]], beds.slice(i + 1))).toEqual([]);
-      const paved = cover.filter(region => region.surface === 'sidewalk');
-      expect(paved).toHaveLength(1);
-      expect(coversPath(paved[0].polygon, [[0, narrow / 2], [length, narrow / 2]])).toBe(true);
+      const paved = cover.filter(region => region.surface === 'sidewalk').map(region => region.polygon);
+      expect(coversPath(union(paved)[0], [[0, narrow / 2], [length, narrow / 2]])).toBe(true);
       for (const [role, surface] of Object.entries({ panel: 'sidewalk', curb: 'curb', gutter: 'gutter', 'gutter-lip': 'gutter' })) {
         const bodies = parts.filter(part => part.role === role);
         expect(bodies.length).toBeGreaterThan(0);
@@ -333,11 +307,6 @@ describe('StreetModuleKit public construction', () => {
         .toThrowError(expect.objectContaining({ code: 'E_INVALID_PARAMS' }));
     }
     expect(district.construction().placements).toEqual([]);
-
-    const diagonal = { width: 121, depth: 113, sidewalks: [2, 2, 2, 2] as [2, 2, 2, 2], angle: 30 as const,
-      roadWidth: 4, diagonalSidewalk: 2 as const, reach: 72 };
-    expect(() => DiagonalBlock.build({ ...diagonal, angle: 37 as 30 })).toThrow(/30\/45/);
-    expect(() => DiagonalBlock.build({ ...diagonal, reach: 5 })).toThrow(/land|returns/);
 
     const underpass: UnderpassInput = { startWidth: 2, endWidth: 4, startReturn: 6, endReturn: 2, span: 14 };
     expect(() => UnderpassModule.build({ ...underpass, startWidth: 3 as 2 })).toThrowError(expect.objectContaining({ code: 'E_INVALID_PARAMS' }));

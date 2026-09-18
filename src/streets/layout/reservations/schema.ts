@@ -13,7 +13,7 @@ export interface ReservationCity {
 
 export interface ReservationInput extends ReservationCity {
   planning: LayoutPlanningData;
-  layoutBlocks: Pick<GridLayoutBlock, 'id' | 'interior' | 'interiors'>[];
+  layoutBlocks: Pick<GridLayoutBlock, 'id' | 'interior'>[];
 }
 
 export interface StreetOwner {

@@ -8,7 +8,6 @@ import { GridLand } from './GridLand';
 
 /** The serialized construction rectangle stays on its shared grid and inside its lot. */
 export function validateFootprints(city: CityBlueprint): void {
-  if (city.meta.params.footprintShape !== 'rectangle') return;
   const grid = city.meta.buildingGrid;
   if (!grid || grid.angle !== city.meta.gridAngle || grid.spacing !== INTERIOR.snap
     || grid.origin[0] !== 0 || grid.origin[1] !== 0) {

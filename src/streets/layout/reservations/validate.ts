@@ -97,7 +97,7 @@ export function validateReservations(value: StreetReservations, city: Reservatio
       || bay.support.start < 0 || bay.support.end > frontage!.stationRange[1]) fail('invalid native parking dimensions', { parkingId: bay.id });
     const at = (station: number, depth: number): number[] => [frontage!.start[0] + frontage!.inward[1] * station + frontage!.inward[0] * depth,
       frontage!.start[1] - frontage!.inward[0] * station + frontage!.inward[1] * depth];
-    const expected = [at(bay.start, 0), at(bay.end, 0), at(bay.end - 2, bay.depth), at(bay.start + 2, bay.depth)];
+    const expected = [at(bay.start, 0), at(bay.end, 0), at(bay.end, bay.depth), at(bay.start, bay.depth)];
     if (bay.footprint.length !== 4 || bay.footprint.some((p, i) => !point(p) || p.some((n, axis) => Math.abs(n - expected[i][axis]) > 1e-8))
       || bay.slots.some(slot => slot.length !== 4 || !slot.every(point) || Math.abs(localArea(slot) - bay.slotLength * bay.depth) > 1e-6)
       || difference(bay.slots, [bay.footprint]).length

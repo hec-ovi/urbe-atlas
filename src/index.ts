@@ -5,4 +5,3 @@ export type * from '../schema/blueprint';
 export type * from '../schema/architecture';
 export { ARCHITECTURE_VERSION } from '../schema/architecture';
 export type * from '../schema/ground';
-export type { DiagonalMode, LayoutDiagonalCandidate } from './streets/layout/schema';

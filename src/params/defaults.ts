@@ -1,4 +1,4 @@
-import type { AtlasParams, DistrictKind, FeatureToggles, FootprintShape, WealthTier } from '../../schema/params';
+import type { AtlasParams, DistrictKind, FeatureToggles, WealthTier } from '../../schema/params';
 import { invalidParams, unsatisfiable } from '../errors';
 import { validateHydrologyParams } from '../hydro/Hydrology';
 import type { HydrologyParams } from '../hydro/types';
@@ -9,16 +9,11 @@ import { PavingPlanner } from '../streets/construction/paving/PavingPlanner';
 import type { PavingDesign } from '../streets/construction/paving/schema';
 import type { LandmarkFloors } from '../landmarks/schema';
 import { validateLandmarkFloors } from '../landmarks/validate';
-import type { DiagonalMode } from '../streets/layout/schema';
 
 export interface ResolvedParams {
   seed: string | number;
   size: { width: number; depth: number };
-  irregularity: number;
-  footprintShape: FootprintShape;
   streetDesign: StreetDesign;
-  diagonals: DiagonalMode;
-  diagonalCornerClearance: number;
   pavingDesign?: PavingDesign;
   districtCount: [number, number];
   maxFloors: number;
@@ -60,30 +55,13 @@ export function resolveParams(input: AtlasParams): ResolvedParams {
   if (input.size !== undefined && !isRecord(input.size)) {
     throw invalidParams('size must be an object', { field: 'size' });
   }
-  const size = input.size ?? { width: 1000, depth: 1000 };
+  const size = input.size ?? { width: 3000, depth: 3000 };
   if (!Number.isFinite(size.width) || !Number.isFinite(size.depth)
     || !(size.width > 0) || !(size.depth > 0)) {
     throw invalidParams('size.width and size.depth must be positive meters', { field: 'size' });
   }
 
-  const irregularity = input.irregularity ?? 0;
-  if (!(irregularity >= 0 && irregularity <= 1)) {
-    throw invalidParams('irregularity must be in [0, 1]', { field: 'irregularity' });
-  }
-
-  const footprintShape = input.footprintShape === undefined ? 'rectangle' : input.footprintShape;
-  if (footprintShape !== 'rectangle' && footprintShape !== 'parcel') {
-    throw invalidParams('footprintShape must be rectangle or parcel', { field: 'footprintShape' });
-  }
   const streetDesign = resolveStreetDesign(input.streetDesign ?? districtStreetDesign());
-  const diagonals = input.diagonals === undefined ? 'candidates' : input.diagonals;
-  if (!['candidates', 'off', 'legacy-applied'].includes(diagonals)) {
-    throw invalidParams('diagonals must be candidates, off or legacy-applied', { field: 'diagonals' });
-  }
-  const diagonalCornerClearance = input.diagonalCornerClearance === undefined ? 3 : input.diagonalCornerClearance;
-  if (!Number.isFinite(diagonalCornerClearance) || diagonalCornerClearance < 0) {
-    throw invalidParams('diagonalCornerClearance must be finite and nonnegative', { field: 'diagonalCornerClearance' });
-  }
   const pavingDesign = input.pavingDesign === undefined ? undefined : PavingPlanner.validateDesign(input.pavingDesign);
 
   if (input.districtCount !== undefined && !Array.isArray(input.districtCount)) {
@@ -166,11 +144,7 @@ export function resolveParams(input: AtlasParams): ResolvedParams {
   return {
     seed,
     size: { width: size.width, depth: size.depth },
-    irregularity,
-    footprintShape,
     streetDesign,
-    diagonals,
-    diagonalCornerClearance,
     ...(pavingDesign ? { pavingDesign } : {}),
     districtCount: [dMin, dMax],
     maxFloors,

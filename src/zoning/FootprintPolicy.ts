@@ -1,7 +1,6 @@
 import type { BuildingGrid } from '../../schema/blueprint';
-import type { FootprintShape } from '../../schema/params';
 
+/** Footprints are rectangles on the shared city construction grid. */
 export interface FootprintPolicy {
-  shape: FootprintShape;
   grid: BuildingGrid;
 }

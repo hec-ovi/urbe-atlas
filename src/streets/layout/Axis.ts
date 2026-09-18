@@ -4,6 +4,17 @@ import type { RoadProfile } from '../construction/schema/design';
 import { roadwayTotal } from '../construction/Design';
 import { measure } from '../construction/modules/Format';
 
+/** Blocks are sized in whole modules, the same 8 m the lot catalog is cut on. */
+const MODULE = 8;
+/** Shortest block face that still hosts a row of standard lots. */
+const MIN_PANEL = 48;
+/**
+ * Land kept outside the outermost street, both sides together: the perimeter
+ * sidewalk ring plus the slack the module rounding leaves. It stays under the
+ * reach a highway run may end from the city edge.
+ */
+const MARGIN = 24;
+
 export interface AxisOptions { blockGap?: number; centralAvenue?: boolean; medianIndices?: number[] }
 
 export interface GridAxis {
@@ -29,7 +40,10 @@ export function axis(extent: number, profiles: RoadProfile[], rng: Rng, highwayR
   if (widths.some(width => !Number.isFinite(width) || width <= 0)) {
     throw invalidParams('street grid profiles require 1, 2 or 4 lanes with positive widths');
   }
-  const count = Math.max(2, Math.floor((extent - 44) / 120));
+  // Blocks run about 120 m and grow with the square root of the city beyond a
+  // kilometre, so a 3 km city gets 200 m superblocks instead of 25 more streets.
+  const land = Math.max(extent - MARGIN, 1);
+  const count = Math.max(2, Math.min(Math.floor(land / 120), Math.round(Math.sqrt(land * 1000) / 120)));
   const highwayIndex = highwayRng?.int(Math.max(1, Math.ceil(count / 4)), Math.min(count - 1, Math.floor(count * 3 / 4)));
   const selected = Array.from({ length: count + 1 }, (_, i) => {
     const eligible = profiles.map((profile, index) => ({ profile, width: widths[index] }))
@@ -43,21 +57,21 @@ export function axis(extent: number, profiles: RoadProfile[], rng: Rng, highwayR
     return { profile, width: roadwayTotal(profile) };
   });
   const roadSpace = selected.reduce((sum, item) => sum + item.width, 0);
-  const pairs = Math.floor((extent - 44 - roadSpace - count * gap) / 2);
-  const base = Math.floor(pairs / count);
-  if (base < 24) throw unsatisfiable('city axis cannot fit two whole-panel blocks', { extent });
-  const panels = Array.from({ length: count }, (_, i) => (base + (i < pairs % count ? 1 : 0)) * 2);
-  for (let i = 0; i < count; i++) {
-    const target = rng.int(0, count - 1);
-    const transfer = Math.min(rng.int(0, 5), (panels[i] - 48) / 2) * 2;
-    panels[i] -= transfer;
-    panels[target] += transfer;
+  const panelLand = land - roadSpace - count * gap;
+  // Every panel is a whole number of 8 m modules, so a city is a few block
+  // sizes repeated and two blocks of one size carry one lot tiling.
+  const base = Math.floor(panelLand / count / MODULE) * MODULE;
+  if (base < MIN_PANEL) throw unsatisfiable('city axis cannot fit two whole-panel blocks', { extent });
+  // One axis carries two block sizes: the base, and the base plus a module
+  // where there is land for it. Which blocks get it is seeded.
+  const panels = Array.from({ length: count }, () => base);
+  const order = Array.from({ length: count }, (_, index) => index);
+  for (let i = count - 1; i > 0; i--) {
+    const j = rng.int(0, i);
+    [order[i], order[j]] = [order[j], order[i]];
   }
-  const short = rng.int(0, count - 1);
-  const long = (short + rng.int(1, count - 1)) % count;
-  const stretch = Math.min(Math.floor(base / 3), (panels[short] - 48) / 2) * 2;
-  panels[short] -= stretch;
-  panels[long] += stretch;
+  let spare = Math.floor((panelLand - base * count) / MODULE);
+  for (let i = 0; i < count && spare > 0; i++, spare--) panels[order[i]] += MODULE;
   const span = measure(roadSpace + panels.reduce((sum, value) => sum + value + gap, 0));
   const min = measure((extent - span) / 2);
   let position = min;

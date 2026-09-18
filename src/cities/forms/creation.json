@@ -4,10 +4,8 @@
   "layout": {"type": "split", "ratio": [70, 30], "items": ["form", "cities"]},
   "values": {
     "seed": "urbe",
-    "size": {"width": 1000, "depth": 1000},
-    "irregularity": 0,
-    "footprintShape": "rectangle",
-    "districtCount": [1, 3],
+    "size": {"width": 3000, "depth": 3000},
+    "districtCount": [4, 8],
     "maxFloors": 40,
     "tierWeights": {"poor": 0.3, "mid": 0.45, "rich": 0.2, "high_rich": 0.05},
     "features": {"highways": true, "subways": true, "alleys": true, "airTunnels": true, "undergroundTunnels": true},
@@ -71,10 +69,8 @@
           "keep": ["seed"],
           "values": {
             "size": {"width": 600, "depth": 600},
-            "irregularity": 0,
             "districtCount": [1, 2],
             "maxFloors": 8,
-            "footprintShape": "rectangle",
             "tierWeights": {"poor": 0.3, "mid": 0.45, "rich": 0.2, "high_rich": 0.05},
             "features": {"highways": false, "subways": false, "alleys": true, "airTunnels": true, "undergroundTunnels": true}
           }
@@ -85,10 +81,8 @@
           "keep": ["seed"],
           "values": {
             "size": {"width": 1000, "depth": 1000},
-            "irregularity": 0,
             "districtCount": [1, 3],
             "maxFloors": 40,
-            "footprintShape": "rectangle",
             "tierWeights": {"poor": 0.3, "mid": 0.45, "rich": 0.2, "high_rich": 0.05},
             "features": {"highways": true, "subways": true, "alleys": true, "airTunnels": true, "undergroundTunnels": true}
           }
@@ -99,10 +93,8 @@
           "keep": ["seed"],
           "values": {
             "size": {"width": 3000, "depth": 3000},
-            "irregularity": 0,
             "districtCount": [4, 8],
             "maxFloors": 60,
-            "footprintShape": "rectangle",
             "tierWeights": {"poor": 0.3, "mid": 0.45, "rich": 0.2, "high_rich": 0.05},
             "features": {"highways": true, "subways": true, "alleys": true, "airTunnels": true, "undergroundTunnels": true}
           }
@@ -128,13 +120,6 @@
       "items": [
         {"type": "slider", "id": "width", "path": "size.width", "label": "Width", "min": 300, "max": 5000, "exactMin": 1, "step": 100},
         {"type": "slider", "id": "depth", "path": "size.depth", "label": "Depth", "min": 300, "max": 5000, "exactMin": 1, "step": 100},
-        {
-          "type": "select",
-          "id": "footprint-shape",
-          "path": "footprintShape",
-          "label": "Building footprint",
-          "options": [{"value": "rectangle", "label": "Rectangle"}, {"value": "parcel", "label": "Follow parcel"}]
-        },
         {
           "type": "select",
           "id": "hydrology",

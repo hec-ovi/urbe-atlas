@@ -18,7 +18,7 @@ export class Owners {
         if (ground.moduleBlockId && !block && !frontages.has(id)) throw invariantFailure('street ground has no source owner', { index, id });
         owner = { id, kind: medians.has(id) ? 'median' : underpasses.has(id) ? 'underpass' : block ? 'block' : frontages.has(id) ? 'perimeter'
           : ground.surface === 'roadway' ? 'roadway' : 'station', groundIndices: [], excludedParcelIds: block?.parcelIds ?? [],
-          interiors: layout ? layout.interiors ?? [layout.interior] : [],
+          interiors: layout ? [layout.interior] : [],
           finish: input.modules.placements.find(placement => placement.blockId === id)?.finish ?? null };
         owners.set(id, owner);
       }

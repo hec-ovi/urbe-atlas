@@ -2,6 +2,7 @@ import type { GroundSurface, Polygon } from '../schema/blueprint';
 import type { ModuleGroundRegion } from './streets/construction/modules/schema';
 import { difference, union } from './geom/clip';
 import { PolygonIndex } from './geom/PolygonIndex';
+import { rectanglesOf } from './geom/rectangles';
 
 export const CITY_GROUND_LEVELS = {
   roadway: { bottom: -0.2, top: 0 }, curb: { bottom: -0.03, top: 0.2 },
@@ -13,8 +14,10 @@ export class CityGround {
   static build(input: { boundary: Polygon; water: Polygon[]; roadway: Polygon[]; blockBounds: Polygon[];
     modules: ModuleGroundRegion[]; lots: Polygon[]; open: Polygon[]; stationBays: Polygon[] }): GroundSurface[] {
     const ground: GroundSurface[] = input.modules.map(({ blockId, ...region }) => ({ ...region, moduleBlockId: blockId }));
+    // Everything the city publishes is an axis-aligned rectangle, so land a
+    // boolean leaves as one stair-shaped ring is cut back into rectangles.
     const append = (surface: GroundSurface['surface'], polygons: Polygon[], top: number, bottom = 0) => {
-      ground.push(...polygons.map(polygon => ({ surface, polygon, top, bottom })));
+      ground.push(...rectanglesOf(polygons).map(polygon => ({ surface, polygon, top, bottom })));
     };
     append('roadway', input.water.length ? difference(input.roadway, input.water) : input.roadway, 0, -0.2);
     const existing = new PolygonIndex([...ground.map(region => region.polygon), ...input.water]);

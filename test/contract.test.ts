@@ -8,7 +8,7 @@ import { ARCHITECTURE_VERSION, AtlasError, BLUEPRINT_VERSION, generateCity } fro
 import { bandWidth } from '../src/geom/band';
 import { intersection } from '../src/geom/clip';
 import { orientedBoundingBox } from '../src/geom/obb';
-import { area as polygonArea, distanceToOutline, pointInPolygon } from '../src/geom/polygon';
+import { area as polygonArea, bounds, distanceToOutline, pointInPolygon } from '../src/geom/polygon';
 import { length as pathLength } from '../src/geom/polyline';
 import { closestOnSegment, dist } from '../src/geom/vec';
 import { Invariants } from '../src/invariants/Invariants';
@@ -48,6 +48,7 @@ const fixtureParams = (name: string): AtlasParams =>
   JSON.parse(readFileSync(new URL(`./fixtures/${name}`, import.meta.url), 'utf8'));
 
 const distance = (a: Vec2, b: Vec2): number => Math.hypot(a[0] - b[0], a[1] - b[1]);
+const round3 = (value: number): number => Math.round(value * 1000) / 1000;
 
 describe('blueprint output', () => {
   it('covers every declared collection with valid shapes, hosted cores, references and plain reservations', () => {
@@ -110,12 +111,13 @@ describe('blueprint output', () => {
     expect(bp.stats.population).toBeGreaterThan(0);
     expect(bp.stats.perDistrict.length).toBe(bp.districts.length);
 
-    // a 1 km blueprint stays small: a straight corridor reservation is a plain cap, never a fan
+    // the default plan stays small: a straight corridor reservation is a plain cap, never a fan
     {
       const bp = defaultCity();
       const bytes = Buffer.byteLength(JSON.stringify(bp));
       const reservations = bp.streets.construction!.planningReservations!;
-      expect(bytes).toBeLessThan(5_000_000);
+      // The default 3 x 3 km plan is a browser load and a walk for every consumer.
+      expect(bytes).toBeLessThan(10_000_000);
       expect(Buffer.byteLength(JSON.stringify(reservations)) / bytes).toBeLessThan(0.15);
 
       const edges = new Map(bp.streets.edges.map((edge) => [edge.id, edge]));
@@ -152,9 +154,60 @@ describe('blueprint output', () => {
       expect(size, `${p.id} names lot size ${p.lotSize}`).toBeDefined();
       const xs = p.lot.map((v) => v[0]), zs = p.lot.map((v) => v[1]);
       const sides = [Math.max(...xs) - Math.min(...xs), Math.max(...zs) - Math.min(...zs)].sort((a, b) => a - b);
-      expect(sides, `${p.id} lot`).toEqual([size!.width, size!.depth].sort((a, b) => a - b));
+      const catalog = [size!.width, size!.depth].sort((a, b) => a - b);
+      sides.forEach((side, index) => expect(side, `${p.id} lot`).toBeCloseTo(catalog[index], 6));
       // an exact rectangle, not a bounding box that happens to match
       expect(polygonArea(p.lot), `${p.id} lot area`).toBeCloseTo(size!.area, 6);
+    }
+  });
+
+  it('publishes every land and ground ring as an axis-aligned rectangle', () => {
+    const bp = defaultCity();
+    const rectangle = (ring: Vec2[]): boolean =>
+      ring.length === 4 && new Set(ring.map((point) => Math.round(point[0] * 1000))).size === 2
+        && new Set(ring.map((point) => Math.round(point[1] * 1000))).size === 2;
+    const rings: [string, Vec2[][]][] = [
+      ['city boundary', [bp.meta.boundary]],
+      ['district', bp.districts.map((district) => district.boundary)],
+      ['block', bp.blocks.map((block) => block.boundary)],
+      ['block paving', bp.blocks.flatMap((block) => [...block.curb, ...block.sidewalk, ...block.openAreas])],
+      ['lot', bp.parcels.map((parcel) => parcel.lot)],
+      ['footprint', bp.parcels.map((parcel) => parcel.footprint)],
+      ['ground', bp.volumetric.ground.map((region) => region.polygon)],
+      ['building', bp.volumetric.buildings.map((building) => building.footprint)],
+    ];
+    for (const [what, list] of rings) {
+      expect(list.length).toBeGreaterThan(0);
+      expect(list.filter((ring) => !rectangle(ring)).slice(0, 1), `${what} ring`).toEqual([]);
+    }
+    expect(bp.streets.edges.every((edge) => edge.path.length === 2
+      && (edge.path[0][0] === edge.path[1][0] || edge.path[0][1] === edge.path[1][1]))).toBe(true);
+  });
+
+  it('tiles equal blocks from one template with identical lots', () => {
+    const bp = defaultCity();
+    const templates = new Map(bp.meta.blockTemplates!.map((template) => [template.id, template]));
+    expect(templates.size).toBeLessThan(bp.blocks.length);
+    const tiled = bp.blocks.filter((block) => block.template);
+    expect(tiled.length).toBeGreaterThan(bp.blocks.length / 2);
+    const lots = new Map(bp.parcels.map((parcel) => [parcel.id, parcel]));
+    const shapes = new Map<string, string>();
+    for (const block of tiled) {
+      const template = templates.get(block.template!)!;
+      const min = block.boundary.reduce((low, point) => [Math.min(low[0], point[0]), Math.min(low[1], point[1])] as Vec2);
+      // the block is the template's size and zone, and carries exactly its lots
+      expect([bounds(block.boundary).max[0] - min[0], bounds(block.boundary).max[1] - min[1]]
+        .map((side) => Math.round(side * 1000) / 1000)).toEqual([template.width, template.depth]);
+      expect(bp.districts.find((district) => district.id === block.districtId)!.kind).toBe(template.zone);
+      const placed = block.parcelIds.map((id) => {
+        const box = bounds(lots.get(id)!.lot);
+        return { offset: [box.min[0] - min[0], box.min[1] - min[1]].map(round3),
+          width: round3(box.max[0] - box.min[0]), depth: round3(box.max[1] - box.min[1]), sizeId: lots.get(id)!.lotSize };
+      });
+      expect(placed).toEqual(template.lots.map((lot) => ({ ...lot, offset: lot.offset.map(round3) })));
+      const key = shapes.get(template.id);
+      expect(key ?? JSON.stringify(placed)).toBe(JSON.stringify(placed));
+      shapes.set(template.id, JSON.stringify(placed));
     }
   });
 
@@ -383,70 +436,12 @@ describe('parameters', () => {
       regions: coast.volumetric.ground.filter((ground) => ground.moduleBlockId === 'fringe').length,
       frontages: reservations.frontages.filter((frontage) => frontage.ownerId === 'fringe').length,
       corners: reservations.corners.filter((corner) => corner.ownerId === 'fringe').length,
-    }).toEqual({ regions: 18, frontages: 3, corners: 2 });
-  });
-
-  it('publishes diagonal proposals while keeping the off-mode city intact', () => {
-    const params = { seed: 'urbe', size: { width: 1000, depth: 1000 }, features: { subways: false } };
-    const city = generateCity(params), off = generateCity({ ...params, diagonals: 'off' });
-    expect(city.meta.params.diagonals).toBe('candidates');
-    expect(city.streets.diagonalCandidates!.length).toBeGreaterThan(0);
-    expect(off.streets.diagonalCandidates).toEqual([]);
-    expect({ ...city, meta: { ...city.meta, params: off.meta.params },
-      streets: { ...city.streets, diagonalCandidates: [] } }).toEqual(off);
-    expect(city.streets.edges.every((edge) => edge.path[0][0] === edge.path[1][0] || edge.path[0][1] === edge.path[1][1])).toBe(true);
-    expect(city.streets.construction!.modules!.definitions.some((definition) => definition.id.startsWith('diagonal:'))).toBe(false);
-    const blocks = new Map(city.blocks.map((block) => [block.id, block]));
-    const edges = new Set(city.streets.edges.map((edge) => edge.id));
-    for (const candidate of city.streets.diagonalCandidates!) {
-      for (const mouth of [...candidate.mouths, ...candidate.intermediateMouths]) {
-        expect(blocks.has(mouth.rectangleId)).toBe(true);
-        expect(edges.has(mouth.streetId)).toBe(true);
-        expect(mouth.cornerClearances.every((clearance) => clearance >= 3)).toBe(true);
-      }
-    }
-  });
-
-  it('reproduces applied cuts and native reservations only through the explicit compatibility mode', () => {
-    const city = generateCity({ seed: 'urbe', diagonals: 'legacy-applied', streetDesign: resolveStreetDesign(),
-      size: { width: 1000, depth: 1000 }, features: { highways: false, trains: false, subways: false } });
-    const cuts = city.streets.edges.filter((edge) => edge.path[0][0] !== edge.path[1][0] && edge.path[0][1] !== edge.path[1][1]);
-    expect(cuts).toHaveLength(2);
-    expect(cuts.map((edge) => Math.round(Math.atan2(Math.abs(edge.path[1][1] - edge.path[0][1]),
-      Math.abs(edge.path[1][0] - edge.path[0][0])) * 180 / Math.PI)).sort()).toEqual([30, 45]);
-    for (const edge of cuts) {
-      expect([1, 2]).toContain(edge.crossSection!.lanes.length);
-      for (const nodeId of [edge.from, edge.to]) {
-        expect(city.streets.nodes.find((node) => node.id === nodeId)!.edgeIds).toHaveLength(3);
-        expect(city.streets.crossings.find((crossing) => crossing.nodeId === nodeId)!
-          .segments.map((segment) => segment.edgeId)).toContain(edge.id);
-      }
-    }
-    expect(city.streets.construction!.modules!.definitions.filter((definition) => definition.id.startsWith('diagonal:'))).toHaveLength(2);
-    for (const parcel of city.parcels) {
-      expect(new Set(parcel.footprint.map((point) => point[0])).size).toBe(2);
-      expect(new Set(parcel.footprint.map((point) => point[1])).size).toBe(2);
-    }
-
-    // the same mode publishes source-native reservations with their protected infrastructure
-    const native = generateCity({ seed: 'appeal-1', diagonals: 'legacy-applied', streetDesign: resolveStreetDesign(),
-      size: { width: 800, depth: 800 } });
-    const reservations = native.streets.construction!.reservations!;
-    expect(reservations.version).toBe('1.0.0');
-    expect(reservations.protected.flatMap((reference) => reference.kind === 'highway' ? [reference.structureIndex] : []))
-      .toEqual(native.streets.highwayStructures.map((_, index) => index));
-    expect(reservations.parking.length).toBeGreaterThan(0);
-    expect(native.streets.construction!.modules!.parking!.every((bay) => bay.profile === 'native')).toBe(true);
-    expect(reservations.protected.filter((value) => value.kind === 'station-bay')).toHaveLength(4);
-    expect(reservations.protected.some((value) => value.kind === 'underpass')).toBe(true);
-    const saved = JSON.parse(JSON.stringify(native));
-    expect(() => StreetReservations.validate(saved.streets.construction.reservations,
-      { ...saved, modules: saved.streets.construction.modules })).not.toThrow();
+    }).toEqual({ regions: 22, frontages: 3, corners: 2 });
   });
 
   it('builds district modules with their published medians, finishes and parking dimensions', () => {
     const city = generateCity({ seed: 'district-luxury', size: { width: 500, depth: 500 }, maxFloors: 30,
-      tierWeights: { poor: 0, mid: 0, rich: 0.5, high_rich: 0.5 }, features: { highways: false, subways: false }, diagonals: 'off' });
+      tierWeights: { poor: 0, mid: 0, rich: 0.5, high_rich: 0.5 }, features: { highways: false, subways: false } });
     const construction = city.streets.construction!;
     expect(construction.modules!.format).toBe('district');
     expect(construction.medians!.length).toBeGreaterThan(0);
@@ -503,9 +498,8 @@ describe('errors', () => {
       try { run(); return undefined; } catch (error) { return error instanceof AtlasError ? error.code : String(error); }
     };
     for (const input of [
-      {}, { seed: 1, irregularity: 2 }, { seed: 'bad', districtCount: {} }, { seed: 'bad', maxFloorsByDistrict: null },
+      {}, { seed: 1, size: { width: 0, depth: 400 } }, { seed: 'bad', districtCount: {} }, { seed: 'bad', maxFloorsByDistrict: null },
       { seed: 'bad', tierWeights: { unknown: 1 } }, { seed: 'bad', features: { highways: 'false' } },
-      { seed: 'invalid', diagonals: 'bad' }, { seed: 'invalid', diagonalCornerClearance: NaN },
       { seed: 'bad-water', hydrology: { type: 'ocean' } },
     ]) {
       expect(code(() => generateCity(input as never)), JSON.stringify(input)).toBe('E_INVALID_PARAMS');

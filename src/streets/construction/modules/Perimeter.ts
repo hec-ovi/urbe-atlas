@@ -1,8 +1,8 @@
 import type { Polygon, Vec2 } from '../../../../schema/blueprint';
-import { intersection, offset } from '../../../geom/clip';
+import { intersection } from '../../../geom/clip';
 import { area } from '../../../geom/polygon';
 import { PolygonIndex } from '../../../geom/PolygonIndex';
-import { CORNER_ANGLES, DIMENSIONS as D, prism, rectangle, transform } from './Geometry';
+import { bandBody, DIMENSIONS as D, insetBody, prism, rectangle, transform } from './Geometry';
 import type { ModuleDefinition, ModulePrism, PerimeterModuleInput, QuarterTurn, SidewalkWidth } from './schema';
 import { measure, moduleId, moduleSizing, type ModuleSizing } from './Format';
 
@@ -89,29 +89,30 @@ export function perimeterSections(input: PerimeterModuleInput, sizing: Readonly<
   return { sides, corners };
 }
 
-/** Fixed outward road corner, with fitted terminal rows and one formed curb cap. */
+/** The square outward road corner of the ring: two paving rectangles, then the curb and gutter that square it off. */
 export function perimeterCorner(width: SidewalkWidth, sizing = moduleSizing()): ModuleDefinition {
   const rim = measure(sizing.curb + sizing.gutter), size = measure(width + sizing.separator + rim);
   const parts: ModulePrism[] = [];
-  const paving = [rectangle(-size, -size, size - rim, size), rectangle(-rim, -size, rim, size - rim)];
-  for (let x = 0; x < size; x++) for (let z = 0; z < size; z++) {
-    const cell = rectangle(measure(x - size), measure(z - size), measure(Math.min(1, size - x)), measure(Math.min(1, size - z)));
-    for (const piece of intersection([cell], paving)) {
-      parts.push(prism('joint', piece, 0, D.bedTop));
-      for (const body of offset([piece], -D.joint / 2)) parts.push(prism('panel', body, D.bedTop, D.pavedTop));
+  const paving = [rectangle(-size, -size, measure(size - rim), size), rectangle(-rim, -size, rim, measure(size - rim))];
+  for (const bed of paving) {
+    parts.push(prism('joint', bed, 0, D.bedTop));
+    const [x0, z0] = bed[0], [x1, z1] = bed[2];
+    for (let x = x0; x < x1 - 1e-9; x++) {
+      for (let z = z0; z < z1 - 1e-9; z++) {
+        parts.push(prism('panel', insetBody(rectangle(x, z, measure(Math.min(1, x1 - x)), measure(Math.min(1, z1 - z)))), D.bedTop, D.pavedTop));
+      }
     }
   }
-  const arc = (radius: number): Polygon => CORNER_ANGLES.map((angle, index): Vec2 =>
-    index === 0 ? [-radius, 0] : index === CORNER_ANGLES.length - 1 ? [0, -radius]
-      : [radius * Math.cos(angle), radius * Math.sin(angle)]);
-  const curb: Polygon = [[-rim, -rim], [0, -rim], ...arc(sizing.gutter).reverse(), [-rim, 0]];
-  const gutter: Polygon = [...arc(sizing.gutter), [0, 0]];
-  const cuts = [rectangle(-size, -size, size - D.joint / 2, size - D.joint / 2)];
-  const bodies = (role: 'curb' | 'gutter' | 'gutter-lip', polygon: Polygon, bottom: number, top: number) =>
-    intersection([polygon], cuts).map(polygon => prism(role, polygon, bottom, top));
-  parts.push(prism('joint', curb, -0.03, D.bedTop), ...bodies('curb', curb, D.bedTop, D.pavedTop),
-    prism('joint', gutter, -0.03, -0.008),
-    ...bodies('gutter', [...arc(sizing.gutter), ...arc(D.lip).reverse()], -0.008, 0),
-    ...bodies('gutter-lip', [...arc(D.lip), [0, 0]], -0.008, D.lip));
-  return { id: moduleId(`perimeter-corner:${width}`, sizing), parts };
+  // The bands run the other way here: the corner point is the road side.
+  const gutter = sizing.gutter;
+  for (const leg of [rectangle(-rim, -rim, D.curb, rim), rectangle(measure(-gutter), -rim, gutter, D.curb)]) {
+    parts.push(prism('joint', leg, -0.03, D.bedTop), prism('curb', bandBody(leg), D.bedTop, D.pavedTop));
+  }
+  parts.push(
+    prism('joint', rectangle(measure(-gutter), measure(-gutter), gutter, gutter), -0.03, -0.008),
+    prism('gutter', rectangle(measure(-gutter), measure(-gutter), measure(gutter - D.lip), measure(gutter - D.lip)), -0.008, 0),
+    prism('gutter-lip', rectangle(measure(-D.lip), measure(-gutter), D.lip, gutter), -0.008, D.lip),
+    prism('gutter-lip', rectangle(measure(-gutter), measure(-D.lip), measure(gutter - D.lip), D.lip), -0.008, D.lip),
+  );
+  return { id: moduleId(`perimeter-corner:${width}`, sizing), parts, partitionedBeds: true };
 }

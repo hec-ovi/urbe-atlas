@@ -76,7 +76,12 @@ export interface BlueprintMeta {
    * optional when reading older artifacts.
    */
   lotSizes?: StandardLotSize[];
-  /** Irregular outer city boundary. */
+  /**
+   * Every block tiling in the city, keyed by size and zone. Present on
+   * generated worlds; optional when reading older artifacts.
+   */
+  blockTemplates?: BlockTemplate[];
+  /** The city rectangle. */
   boundary: Polygon;
 }
 
@@ -109,8 +114,6 @@ export interface District {
 
 /** Planar street graph. Edges reference nodes; blocks are its interior faces. */
 export interface StreetGraph {
-  /** Independent proposals; no graph, parcel or construction ownership. Optional on saved older blueprints. */
-  diagonalCandidates?: import('../src/streets/layout/schema').LayoutDiagonalCandidate[];
   nodes: StreetNode[];
   edges: StreetEdge[];
   /** Pedestrian crossings linking sidewalks across roadways at intersections. */
@@ -261,10 +264,14 @@ export interface CrossingSegment {
 export interface Block {
   id: string;
   districtId: string;
-  /** Enclosing outline for compatibility; boundaryRegions owns the land. */
+  /** The block rectangle, kerb line to kerb line. */
   boundary: Polygon;
-  /** Exact block land, with holes represented by disjoint simple pieces. */
-  boundaryRegions?: Polygon[];
+  /**
+   * The size-and-zone template this block is tiled from, an entry of
+   * `meta.blockTemplates`. Absent when water or infrastructure cuts the block,
+   * which is then tiled on its own.
+   */
+  template?: string;
   /** Curb strips with dimensions published by the street construction. */
   curb: Polygon[];
   /** Sidewalk strip polygons between the curb and the buildable interior. */
@@ -272,6 +279,29 @@ export interface Block {
   parcelIds: string[];
   /** Unbuilt leftover areas (plazas, courtyards). Parcels + sidewalk + openAreas cover the block. */
   openAreas: Polygon[];
+}
+
+/**
+ * One block size and zone, with the lots it tiles into. Two blocks of the same
+ * width, depth and zone carry the same template id and the same lots, so a
+ * consumer builds the tiling once and instances it at every block origin.
+ */
+export interface BlockTemplate {
+  id: string;
+  width: number;
+  depth: number;
+  zone: DistrictKind;
+  lots: BlockTemplateLot[];
+}
+
+/** One lot of a template: its offset from the block's minimum corner and its catalog size. */
+export interface BlockTemplateLot {
+  /** Offset of the lot's minimum corner from the block's minimum corner. */
+  offset: Vec2;
+  width: number;
+  depth: number;
+  /** The `meta.lotSizes` entry this lot is, in this orientation. */
+  sizeId: string;
 }
 
 export interface Parcel {

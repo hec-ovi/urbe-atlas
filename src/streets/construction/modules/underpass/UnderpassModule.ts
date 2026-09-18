@@ -6,6 +6,7 @@ import { DIMENSIONS as D, prism, rectangle, transform } from '../Geometry';
 import { measure, moduleId, moduleSizing, onGrid } from '../Format';
 import type { SidewalkWidth } from '../schema';
 import { bandBodies, panels } from './Bodies';
+import { rectangles } from './Rectangles';
 import type { UnderpassInput, UnderpassTemplate } from './schema';
 
 export class UnderpassModule {
@@ -39,11 +40,14 @@ export class UnderpassModule {
     const gutterOuter = intersection(offset(paved, rim), owner);
     const curb = difference(curbOuter, paved), gutter = difference(gutterOuter, curbOuter);
     const lip = difference(gutterOuter, offset(paved, rim - D.lip));
+    // Every bed is published as rectangles, like the rest of the plan.
+    const beds = (polygons: Polygon[]): Polygon[] =>
+      rectangles(polygons).map(part => rectangle(part.x, part.z, part.width, part.depth));
     const parts = [
-      ...difference(owner, gutterOuter).map(polygon => prism('roadway', polygon, -0.2, 0)),
-      ...paved.map(polygon => prism('joint', polygon, 0, D.bedTop)),
-      ...curb.map(polygon => prism('joint', polygon, -0.03, D.bedTop)),
-      ...gutter.map(polygon => prism('joint', polygon, -0.03, -0.008)),
+      ...beds(difference(owner, gutterOuter)).map(polygon => prism('roadway', polygon, -0.2, 0)),
+      ...beds(paved).map(polygon => prism('joint', polygon, 0, D.bedTop)),
+      ...beds(curb).map(polygon => prism('joint', polygon, -0.03, D.bedTop)),
+      ...beds(gutter).map(polygon => prism('joint', polygon, -0.03, -0.008)),
       ...panels(paved),
       ...bandBodies(curb, 'curb', D.bedTop, D.pavedTop),
       ...bandBodies(difference(gutter, lip), 'gutter', -0.008, 0),

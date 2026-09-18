@@ -1,24 +1,27 @@
 /**
  * Standard lot sizes and the tiler that lays them.
  *
- * A block's buildable land is filled with rows of standard rectangles: every
- * ordinary parcel is exactly one catalog size, so a downstream building kit
- * built for that size fits it without stretching. What a row cannot fill stays
- * open area. Selected runs of neighbouring cells merge into one landmark lot,
- * the only lot shape outside the catalog.
+ * A block is a rectangle, and its buildable land is filled with rows of
+ * standard rectangles: every ordinary parcel is exactly one catalog size, so a
+ * downstream building kit built for that size fits it without stretching. What
+ * a row cannot fill stays open area. Selected runs of neighbouring cells merge
+ * into one landmark lot, the only lot shape outside the catalog.
+ *
+ * The tiling is keyed by block width, depth and zone, never by block id or
+ * position, so two blocks of the same size and zone carry the same template id
+ * and the same lots and a consumer builds the tiling once.
  */
-import type { Polygon, Vec2 } from '../../schema/blueprint';
+import type { BlockTemplate, BlockTemplateLot, Polygon, Vec2 } from '../../schema/blueprint';
 import type { DistrictKind } from '../../schema/params';
 import type { StandardLotSize } from '../../schema/blueprint';
-import type { Rng } from '../core/rng';
-import { difference } from '../geom/clip';
+import { Rng } from '../core/rng';
 import { area } from '../geom/polygon';
 
 /**
- * Six sizes, every dimension a multiple of 8 m so rows and row depths pack with
- * at most 7 m left over. Widths are street frontages, depths run back from the
- * street. They cover what recursive subdivision produced before them: 512 m2
- * shopfronts and row houses up to 3136 m2 commercial and industrial plots.
+ * Six sizes, every dimension a multiple of the 8 m module so rows and row
+ * depths pack with at most 7 m left over. Widths are street frontages, depths
+ * run back from the street. They cover 512 m2 shopfronts and row houses up to
+ * 3136 m2 commercial and industrial plots.
  */
 export const STANDARD_LOT_SIZES: readonly StandardLotSize[] = Object.freeze([
   { id: 'lot-16x32', width: 16, depth: 32, area: 512 },
@@ -41,10 +44,6 @@ const KIND_WEIGHTS: Record<DistrictKind, Record<string, number>> = {
   mixed: { 'lot-16x32': 3, 'lot-24x32': 4, 'lot-24x40': 4, 'lot-40x40': 3, 'lot-40x56': 2, 'lot-56x56': 1 },
 };
 
-/** Building-grid cell the lot corners land on, metres. */
-const GRID = 0.5;
-/** Station step used when no size fits at the current one, metres. */
-const STEP = 8;
 /** Land below this is a sliver, not an open area worth publishing. */
 const SLIVER = 1;
 
@@ -54,11 +53,6 @@ export interface StandardLotCell {
   /** Row index across the block, and position along that row. */
   row: number;
   index: number;
-}
-
-export interface StandardLotPlan {
-  cells: StandardLotCell[];
-  openAreas: Polygon[];
 }
 
 export interface BlockCells {
@@ -73,45 +67,84 @@ export interface LandmarkLot {
   cells: StandardLotCell[];
 }
 
-const up = (value: number): number => Math.ceil(value / GRID - 1e-9) * GRID;
-const down = (value: number): number => Math.floor(value / GRID + 1e-9) * GRID;
+/** One rectangle of a template, in block-local coordinates. */
+interface LocalRectangle {
+  offset: Vec2;
+  width: number;
+  depth: number;
+}
 
-export class StandardLots {
-  /** Lays standard rows over one buildable region. Land no row claims is returned as open area. */
-  static plan(region: Polygon, kind: DistrictKind, rng: Rng): StandardLotPlan {
-    const xs = region.map(point => point[0]), zs = region.map(point => point[1]);
-    const span: [number, number][] = [[up(Math.min(...xs)), down(Math.max(...xs))], [up(Math.min(...zs)), down(Math.max(...zs))]];
-    // Rows run along the longer side, so lots front the block's longer street faces.
-    const along = span[0][1] - span[0][0] >= span[1][1] - span[1][0] ? 0 : 1;
-    const across = 1 - along;
-    const sizes = STANDARD_LOT_SIZES.filter(size => KIND_WEIGHTS[kind][size.id] > 0);
-    const rows = rowDepths(span[across][1] - span[across][0], new Set(sizes.map(size => size.depth)));
-    // A rectangular region contains every cell inside its inward-snapped span; anything else is clipped against.
-    const whole = rectangleOf(region) !== null;
+/** A template plus the local rows and leftovers the generator places. */
+export interface BlockTemplatePlan extends BlockTemplate {
+  /** Row and position along it, per published lot. */
+  rows: { row: number; index: number }[];
+  /** Land no row claims, as block-local rectangles. */
+  openAreas: LocalRectangle[];
+}
 
-    const cells: StandardLotCell[] = [];
-    let offset = span[across][0];
-    rows.forEach((depth, row) => {
-      const rowStart = offset;
-      offset += depth;
-      let station = span[along][0], index = 0;
-      while (station < span[along][1]) {
-        const remaining = span[along][1] - station;
-        const fitting = sizes.filter(size => size.depth === depth && size.width <= remaining);
-        const choice = fitting.length ? fitting[rng.weighted(fitting.map(size => KIND_WEIGHTS[kind][size.id]))] : undefined;
-        const polygon = choice && cell(station, rowStart, choice.width, depth, along);
-        if (polygon && (whole || difference([polygon], [region]).length === 0)) {
-          cells.push({ polygon, sizeId: choice!.id, row, index: index++ });
-          station += choice!.width;
-        } else {
-          station += STEP;
-        }
-      }
-    });
-    const claimed = cells.map(value => value.polygon);
-    return { cells, openAreas: (claimed.length ? difference([region], claimed) : [region]).filter(piece => area(piece) > SLIVER) };
+const round = (value: number): number => Math.round(value * 1000) / 1000;
+
+/** A block as the tiler sees it: its published rectangle and the land inside its sidewalk ring. */
+export interface BlockShape {
+  /** Minimum corner of the block rectangle: every template offset starts here. */
+  origin: Vec2;
+  width: number;
+  depth: number;
+  /** Minimum corner of the buildable land, and its size. */
+  interior: { offset: Vec2; width: number; depth: number };
+}
+
+/** The tilings a city uses, one per block size and zone. */
+export class BlockTemplates {
+  private readonly plans = new Map<string, BlockTemplatePlan>();
+  private readonly ids = new Set<string>();
+
+  constructor(private readonly seed: string) {}
+
+  /** The tiling for a block of this size in this zone, built once and reused. */
+  get(block: BlockShape, zone: DistrictKind): BlockTemplatePlan {
+    const inside = block.interior;
+    const key = [zone, round(block.width), round(block.depth), round(inside.offset[0]), round(inside.offset[1]),
+      round(inside.width), round(inside.depth)].join(':');
+    let plan = this.plans.get(key);
+    if (!plan) {
+      const base = `bt-${zone}-${round(block.width)}x${round(block.depth)}`;
+      let id = base;
+      for (let n = 2; this.ids.has(id); n++) id = `${base}-${n}`;
+      this.ids.add(id);
+      plan = tile(id, round(block.width), round(block.depth), zone,
+        { offset: [round(inside.offset[0]), round(inside.offset[1])], width: round(inside.width), depth: round(inside.depth) },
+        Rng.from(this.seed, 'block-templates').fork(key));
+      this.plans.set(key, plan);
+    }
+    return plan;
   }
 
+  /** Every template the city used, in id order. */
+  published(): BlockTemplate[] {
+    return [...this.plans.values()]
+      .sort((a, b) => a.id.localeCompare(b.id))
+      .map(({ id, width, depth, zone, lots }) => ({ id, width, depth, zone, lots: lots.map(lot => ({ ...lot })) }));
+  }
+}
+
+/** Places a template's lots at a block's minimum corner. */
+export function placeTemplate(plan: BlockTemplatePlan, origin: Vec2): StandardLotCell[] {
+  return plan.lots.map((lot, index) => ({
+    polygon: rectangle(origin[0] + lot.offset[0], origin[1] + lot.offset[1], lot.width, lot.depth),
+    sizeId: lot.sizeId,
+    ...plan.rows[index],
+  }));
+}
+
+/** Places a template's leftovers at a block's minimum corner. */
+export function placeOpenAreas(plan: BlockTemplatePlan, origin: Vec2): Polygon[] {
+  return plan.openAreas
+    .filter(piece => piece.width * piece.depth > SLIVER)
+    .map(piece => rectangle(origin[0] + piece.offset[0], origin[1] + piece.offset[1], piece.width, piece.depth));
+}
+
+export class StandardLots {
   /**
    * One landmark lot in each of the city's chosen blocks: a run of neighbouring
    * cells merged into a single plot, outside the catalog and built bespoke.
@@ -133,13 +166,61 @@ export class StandardLots {
     return new Map(order.slice(0, target).sort((a, b) => a - b).map(index => [pool[index].blockIndex, pool[index]]));
   }
 
-  /** The catalog entry a lot polygon matches exactly, in either orientation, or null for any other shape. */
+  /** The catalog entry a lot polygon measures, in either orientation, or null for any other shape. */
   static sizeOf(lot: Polygon): StandardLotSize | null {
-    const box = rectangleOf(lot);
-    return box && STANDARD_LOT_SIZES.find(size => (size.width === box[0] && size.depth === box[1])
-      || (size.width === box[1] && size.depth === box[0])) || null;
+    const box = sidesOf(lot);
+    const same = (a: number, b: number) => Math.abs(a - b) < 1e-6;
+    return box && STANDARD_LOT_SIZES.find(size => (same(size.width, box[0]) && same(size.depth, box[1]))
+      || (same(size.width, box[1]) && same(size.depth, box[0]))) || null;
   }
 }
+
+/** Rows of catalog rectangles over one block's buildable rectangle, deterministic in size and zone alone. */
+function tile(id: string, width: number, depth: number, zone: DistrictKind,
+  inside: { offset: Vec2; width: number; depth: number }, rng: Rng): BlockTemplatePlan {
+  const span = [inside.width, inside.depth];
+  // Rows run along the longer side, so lots front the block's longer street faces.
+  const along = inside.width >= inside.depth ? 0 : 1;
+  const across = 1 - along;
+  const sizes = STANDARD_LOT_SIZES.filter(size => KIND_WEIGHTS[zone][size.id] > 0);
+  const rows = rowDepths(span[across], new Set(sizes.map(size => size.depth)));
+  const lots: BlockTemplateLot[] = [];
+  const placement: BlockTemplatePlan['rows'] = [];
+  const openAreas: LocalRectangle[] = [];
+  const at = (station: number, offset: number): Vec2 => (along === 0
+    ? [round(inside.offset[0] + station), round(inside.offset[1] + offset)]
+    : [round(inside.offset[0] + offset), round(inside.offset[1] + station)]);
+  let offset = 0;
+  rows.forEach((rowDepth, row) => {
+    let station = 0;
+    for (let index = 0; ; index++) {
+      const remaining = span[along] - station;
+      const fitting = sizes.filter(size => size.depth === rowDepth && size.width <= remaining);
+      if (!fitting.length) break;
+      const choice = fitting[rng.weighted(fitting.map(size => KIND_WEIGHTS[zone][size.id]))];
+      lots.push({ offset: at(station, offset), ...sides(choice.width, rowDepth, along), sizeId: choice.id });
+      placement.push({ row, index });
+      station += choice.width;
+    }
+    if (station < span[along]) {
+      openAreas.push({ offset: at(station, offset), ...sides(span[along] - station, rowDepth, along) });
+    }
+    offset += rowDepth;
+  });
+  if (offset < span[across]) openAreas.push({ offset: at(0, offset), ...sides(span[along], span[across] - offset, along) });
+  return { id, width, depth, zone, lots, rows: placement, openAreas };
+}
+
+/** A cell's published width and depth: width is its frontage along the row. */
+function sides(along: number, across: number, axis: 0 | 1): { width: number; depth: number } {
+  return axis === 0 ? { width: along, depth: across } : { width: across, depth: along };
+}
+
+/** Lot corners land on the published millimetre grid. */
+const rectangle = (x: number, z: number, width: number, depth: number): Polygon => {
+  const [x0, z0, x1, z1] = [round(x), round(z), round(x + width), round(z + depth)];
+  return [[x0, z0], [x1, z0], [x1, z1], [x0, z1]];
+};
 
 /** Widest run of two or three touching cells in one row, the plot a landmark takes. */
 function bestRun(cells: readonly StandardLotCell[]): { polygon: Polygon; cells: StandardLotCell[] } | null {
@@ -171,8 +252,8 @@ function touchingCells(run: readonly StandardLotCell[]): Polygon | null {
   return [[x0, z0], [x1, z0], [x1, z1], [x0, z1]];
 }
 
-/** Side lengths of an axis-aligned four-corner ring, the shape a block interior keeps unless water or infrastructure cut it. */
-function rectangleOf(region: Polygon): [number, number] | null {
+/** Side lengths of an axis-aligned four-corner ring. */
+function sidesOf(region: Polygon): [number, number] | null {
   if (region.length !== 4) return null;
   const xs = region.map(point => point[0]), zs = region.map(point => point[1]);
   const width = Math.max(...xs) - Math.min(...xs), depth = Math.max(...zs) - Math.min(...zs);
@@ -202,11 +283,4 @@ function fill(left: number, depths: readonly number[]): number {
     best = Math.max(best, depth + fill(left - depth, depths));
   }
   return best;
-}
-
-function cell(station: number, offset: number, width: number, depth: number, along: 0 | 1): Polygon {
-  const at = (u: number, v: number): Vec2 => (along === 0 ? [station + u, offset + v] : [offset + v, station + u]);
-  return along === 0
-    ? [at(0, 0), at(width, 0), at(width, depth), at(0, depth)]
-    : [at(0, 0), at(0, depth), at(width, depth), at(width, 0)];
 }

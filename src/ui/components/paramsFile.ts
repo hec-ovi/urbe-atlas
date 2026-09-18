@@ -6,11 +6,7 @@ import { resolveParams } from '../../params/defaults';
 const FIELDS: Record<keyof AtlasParams, true> = {
   seed: true,
   size: true,
-  irregularity: true,
-  footprintShape: true,
   streetDesign: true,
-  diagonals: true,
-  diagonalCornerClearance: true,
   pavingDesign: true,
   districtCount: true,
   maxFloors: true,

@@ -57,18 +57,15 @@ it('emits every contract parameter with the resolved paving and street design an
   const { onGenerate, root, panel: created, user } = panel();
   const submit = getByRole(root, 'button', { name: 'Generate city' });
   const seed = getByLabelText(root, 'Seed') as HTMLInputElement;
-  const footprint = getByRole(root, 'combobox', { name: 'Building footprint' }) as HTMLSelectElement;
   await user.clear(seed);
   await user.type(seed, 'test-9');
-  expect(footprint.value).toBe('rectangle');
-  await user.selectOptions(footprint, 'parcel');
   await user.click(getByLabelText(root, 'Subways'));
   await user.selectOptions(getByLabelText(root, 'Waterfront'), 'lagoon');
   await user.click(submit);
 
   const fresh = onGenerate.mock.lastCall![0];
-  expect(fresh).toMatchObject({ seed: 'test-9', footprintShape: 'parcel', size: { width: 1000, depth: 1000 },
-    districtCount: [1, 3], hydrology: { type: 'lagoon' },
+  expect(fresh).toMatchObject({ seed: 'test-9', size: { width: 3000, depth: 3000 },
+    districtCount: [4, 8], hydrology: { type: 'lagoon' },
     tierWeights: { poor: 0.3, mid: 0.45, rich: 0.2, high_rich: 0.05 } });
   expect(fresh.features).toEqual({ highways: true, subways: false, alleys: true, airTunnels: true, undergroundTunnels: true });
   const layout = fresh.pavingDesign!.layouts[0];
@@ -95,10 +92,8 @@ it('emits every contract parameter with the resolved paving and street design an
 
   const supplied = parseParams(JSON.stringify({ seed: 'from-file', size: { width: 900, depth: 700 },
     maxFloors: 12, districtCount: [2, 3], maxFloorsByDistrict: { downtown: 9 }, landmarkFloors: { p3: 8 },
-    diagonals: 'legacy-applied', diagonalCornerClearance: 4,
     tierWeights: { poor: 1 }, features: { alleys: false }, hydrology: { type: 'river' }, pavingDesign: owned }));
   created.setParams(supplied);
-  await user.selectOptions(footprint, 'parcel');
   const avenue = getByLabelText(root, 'Avenue, 4 lanes') as HTMLInputElement;
   await user.clear(avenue);
   await user.type(avenue, '3');
@@ -113,7 +108,6 @@ it('emits every contract parameter with the resolved paving and street design an
   const kept = onGenerate.mock.lastCall![0];
   expect(parseParams(JSON.stringify(kept))).toMatchObject({ seed: 'from-file', size: { width: 900, depth: 700 },
     maxFloors: 12, districtCount: [2, 3], maxFloorsByDistrict: { downtown: 9 }, landmarkFloors: { p3: 8 },
-    diagonals: 'legacy-applied', diagonalCornerClearance: 4, footprintShape: 'parcel',
     tierWeights: { poor: 1, mid: 0.45, rich: 0.2, high_rich: 0.05 },
     features: { alleys: false }, hydrology: { type: 'river' } });
   expect(kept.pavingDesign).toEqual(owned);

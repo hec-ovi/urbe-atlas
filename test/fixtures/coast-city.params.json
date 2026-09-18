@@ -4,8 +4,6 @@
     "width": 3000,
     "depth": 1200
   },
-  "irregularity": 0,
-  "footprintShape": "rectangle",
   "streetDesign": {
     "moduleFormat": "district",
     "profiles": [
@@ -99,8 +97,6 @@
       "pedestrianClearance": 2.5
     }
   },
-  "diagonals": "candidates",
-  "diagonalCornerClearance": 3,
   "pavingDesign": {
     "defaultLayoutId": "metre-slabs",
     "districtLayouts": [],

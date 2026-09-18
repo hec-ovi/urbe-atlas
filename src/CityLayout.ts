@@ -10,7 +10,6 @@ import { area } from './geom/polygon';
 import { applyHighwayElevationProfiles } from './streets/Highways';
 import { LEVELS } from './levels';
 import { HighwayUnderpasses } from './streets/layout/underpasses';
-import { CityDiagonalCandidates } from './CityDiagonalCandidates';
 import { AvenueMedians } from './streets/layout/medians/AvenueMedians';
 
 /** Connects district choices to the dimensioned street layout. */
@@ -19,7 +18,6 @@ export class CityLayout {
     const design = params.streetDesign;
     const plan = GridLayout.plan({ seed: String(params.seed), size: params.size, profiles: design.profiles, highway: params.features.highways,
       moduleFormat: design.moduleFormat, districtCenters,
-      diagonals: params.diagonals, diagonalCornerClearance: params.diagonalCornerClearance,
       perimeter: { profile: design.sidewalkProfiles[0], finish: params.pavingDesign?.layouts
         .find(value => value.id === params.pavingDesign!.defaultLayoutId)?.familyId ?? (design.moduleFormat === 'district' ? 'ordinary' : 'maintained'),
         ...(water.length ? { exclusions: water } : {}) },
@@ -68,7 +66,6 @@ export class CityLayout {
     const waterExcludedCorners = plan.planning.corners.filter(corner => !kept.has(corner.ownerId));
     LayoutPlanning.retain(plan.planning, kept);
     const boundary: Polygon = [[0, 0], [params.size.width, 0], [params.size.width, params.size.depth], [0, params.size.depth]];
-    plan.diagonalCandidates = CityDiagonalCandidates.retain(plan.diagonalCandidates, kept, boundary, water);
     const underpasses = HighwayUnderpasses.apply(plan, {
       boundary,
       water, waterExcludedCorners, clearHeight: design.crossings!.pedestrianClearance,
@@ -87,7 +84,7 @@ export class CityLayout {
     cover.forEach(region => byBlock.get(region.blockId)?.push(region));
     underpasses.forEach((regions, blockId) => byBlock.get(blockId)?.push(...regions));
     const blocks = plan.blocks.map(block => ({
-      boundary: block.outer, boundaryRegions: [block.outer], interior: block.interiors ?? [block.interior], edgeIds: block.edgeIds,
+      boundary: block.outer, interior: [block.interior], edgeIds: block.edgeIds,
       sidewalk: byBlock.get(block.id)!.filter(region => region.surface === 'sidewalk').map(region => region.polygon),
       curb: byBlock.get(block.id)!.filter(region => region.surface === 'curb').map(region => region.polygon),
       returns: byBlock.get(block.id)!.filter(region => region.surface === 'roadway').map(region => region.polygon),

@@ -26,7 +26,7 @@ describe('footprint hosting', () => {
     expect(RectangularFootprint.fit(inset, { ...profile, band: 20.5 }, grid)).toBeNull();
     expect(RectangularFootprint.fit([[0, 0], [12, 0], [12, 24], [0, 24]], { ...profile, heavy: true }, grid)).toBeNull();
 
-    const host = new FootprintHost({ shape: 'rectangle', grid });
+    const host = new FootprintHost({ grid });
     expect(host.fit(inset, profile)).toEqual({ footprint: inset, floorCap: Infinity });
     expect(host.fit(inset, { ...profile, setback: 1, keep: 1 })?.footprint)
       .toEqual([[1, 1], [19, 1], [19, 19], [1, 19]]);

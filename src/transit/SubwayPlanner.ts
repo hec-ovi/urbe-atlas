@@ -2,7 +2,7 @@ import type { Polygon, Polyline, Station, StreetEdge, Vec2 } from '../../schema/
 import { invalidParams, unsatisfiable } from '../errors';
 import { intersection } from '../geom/clip';
 import { area, bounds, distanceToOutline, pointInPolygon } from '../geom/polygon';
-import { directionAt, length as pathLength, pointAt, removeDoubleBacks } from '../geom/polyline';
+import { directionAt, length as pathLength, pointAt, projectArc, removeDoubleBacks } from '../geom/polyline';
 import { add, dist } from '../geom/vec';
 import { LEVELS } from '../levels';
 import { EntranceBays } from './reservations/EntranceBays';
@@ -34,7 +34,7 @@ export class SubwayPlanner {
       const a = this.routing.nearest(add(districts[first].center, [rng.range(-100, 100), rng.range(-100, 100)]));
       const b = this.routing.nearest(add(districts[second].center, [rng.range(-100, 100), rng.range(-100, 100)]));
       const path = this.selectPath(a, b, hub.id, options.boundary, bays, options.stationExclusion ?? [], result.subwayStations);
-      const stationIds = this.stations(path, result.subwayStations, bays, options);
+      const stationIds = this.stations(path, result.subwayStations, bays, options, hub.position);
       result.subwayLines.push({ id: `sl${result.subwayLines.length}`, stationIds, path,
         underground: true, level: LEVELS.subway, width: RAIL.subwayDiameter });
     }
@@ -74,17 +74,27 @@ export class SubwayPlanner {
     throw unsatisfiable('subway street graph cannot host two complete reachable terminal platforms');
   }
 
-  private stations(path: Polyline, all: Station[], bays: EntranceBays, options: SubwayOptions): string[] {
+  private stations(path: Polyline, all: Station[], bays: EntranceBays, options: SubwayOptions, hub: Vec2): string[] {
     const length = pathLength(path);
     const count = Math.max(2, Math.round(length / STATION_SPACING) + 1);
+    const half = STATION.subway.platformLength / 2;
+    const stops = Array.from({ length: count }, (_, i) => ({
+      desired: i === 0 ? Math.min(half, length / 2)
+        : i === count - 1 ? Math.max(length - half, length / 2) : length * i / (count - 1),
+      terminal: i === 0 ? path[0] : i === count - 1 ? path[path.length - 1] : undefined,
+      slide: i === 0 || i === count - 1 ? half : STATION_SPACING / 3,
+    }));
+    // Every line calls at the centre, so the lines interchange there and the
+    // network is one connected graph instead of parallel routes.
+    const centre = projectArc(path, hub);
+    if (stops.every(stop => Math.abs(stop.desired - centre) > STATION_MERGE_RADIUS)) {
+      const at = stops.findIndex(stop => stop.desired > centre);
+      stops.splice(at < 0 ? stops.length : at, 0, { desired: centre, terminal: undefined, slide: STATION_SPACING / 3 });
+    }
     const ids: string[] = [];
-    for (let i = 0; i < count; i++) {
-      const terminal = i === 0 ? path[0] : i === count - 1 ? path[path.length - 1] : undefined;
-      const half = STATION.subway.platformLength / 2;
-      const desired = i === 0 ? Math.min(half, length / 2)
-        : i === count - 1 ? Math.max(length - half, length / 2) : length * i / (count - 1);
-      const placement = this.placement(path, desired, terminal ? half : STATION_SPACING / 3,
-        terminal, bays, options.stationExclusion ?? [], all);
+    for (let i = 0; i < stops.length; i++) {
+      const { desired, terminal, slide } = stops[i];
+      const placement = this.placement(path, desired, slide, terminal, bays, options.stationExclusion ?? [], all);
       if (!placement) throw unsatisfiable('subway station cannot reserve a reachable entrance bay', { stationIndex: i, desired, terminal });
       const existing = placement.existing;
       if (existing) {

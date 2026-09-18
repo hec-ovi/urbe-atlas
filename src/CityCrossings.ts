@@ -171,8 +171,10 @@ class StreetFrame {
   }
 }
 
+/** Published coordinates sit on the millimetre grid; a replan may land a float step off it. */
 function equal(a: unknown, b: unknown): boolean {
   if (a === b) return true;
+  if (typeof a === 'number' && typeof b === 'number') return Math.abs(a - b) < 1e-6;
   if (typeof a !== 'object' || a === null || typeof b !== 'object' || b === null || Array.isArray(a) !== Array.isArray(b)) return false;
   const keys = Object.keys(a);
   return keys.length === Object.keys(b).length && keys.every(key => Object.hasOwn(b, key)

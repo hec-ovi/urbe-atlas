@@ -5,7 +5,6 @@
  * Null when the lot cannot host the profile.
  */
 import type { Polygon } from '../../schema/blueprint';
-import { trimToBand } from '../geom/band';
 import { offset } from '../geom/clip';
 import { area } from '../geom/polygon';
 import { coreFit } from './core';
@@ -49,19 +48,16 @@ export class FootprintHost {
 function hostFootprint(lot: Polygon, profile: HostingProfile, policy: FootprintPolicy): HostedFootprint | null {
   const pieces = offset([lot], -profile.setback).sort((a, b) => area(b) - area(a));
   const minimumArea = profile.keep * pieces.reduce((sum, piece) => sum + area(piece), 0);
-  const frame = policy.shape === 'rectangle' ? new GridFrame(policy.grid) : null;
+  const frame = new GridFrame(policy.grid);
   let best: HostedFootprint | null = null;
   for (const inset of pieces) {
-    const footprint = policy.shape === 'rectangle'
-      ? RectangularFootprint.fit(inset, profile, policy.grid)
-      : trimToBand(inset, profile.band);
+    const footprint = RectangularFootprint.fit(inset, profile, policy.grid);
     if (!footprint || area(footprint) < minimumArea) continue;
     const fit = coreFit(footprint);
     if (fit.floorCap === 0 || (profile.heavy && !fit.compact)) continue;
-    const preferred = !best || (frame
-      ? compareCandidates(frame.candidate(footprint), frame.candidate(best.footprint)) < 0
-      : area(footprint) > area(best.footprint));
-    if (preferred) best = { footprint, floorCap: fit.floorCap };
+    if (!best || compareCandidates(frame.candidate(footprint), frame.candidate(best.footprint)) < 0) {
+      best = { footprint, floorCap: fit.floorCap };
+    }
   }
   return best;
 }

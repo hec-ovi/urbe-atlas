@@ -15,9 +15,7 @@ Only `seed` is required.
 | Field | Default | Meaning |
 | --- | --- | --- |
 | `seed` | required | String or number. |
-| `size` | `{ width: 1000, depth: 1000 }` | City extent in meters. |
-| `diagonals` | `candidates` | Independent corridor proposals; `off` omits them, explicit `legacy-applied` with a source street design constructs local cuts. |
-| `diagonalCornerClearance` | 3 | Metres from every complete reserved mouth to original rectangle corners. |
+| `size` | `{ width: 3000, depth: 3000 }` | City extent in meters. |
 | `districtCount` | scales with area | `[min, max]` districts. |
 | `maxFloors` | 40 | Global floor cap. |
 | `maxFloorsByDistrict` | none | Floor cap per district kind: downtown, commercial, residential, industrial, mixed. |
@@ -25,15 +23,15 @@ Only `seed` is required.
 | `features` | all true | `highways`, `subways`, `alleys`, `airTunnels`, `undergroundTunnels`. |
 | `hydrology` | none | `{ type: 'lagoon' \| 'river' \| 'sea-coast' }`. |
 
-`streetDesign`, `pavingDesign`, `footprintShape`, `landmarkFloors` and `irregularity` are advanced; see CONTRACT.md.
+`streetDesign`, `pavingDesign` and `landmarkFloors` are advanced; see CONTRACT.md.
 
 ## Response
 
-Package 0.9.1 returns blueprint 0.26.0. Default district streets use uniform 4.2 m paving, 0.2 m curbs, 0.5 m gutters and 2 m-deep parking. Whole-block finishes and road district styles are explicit. Selected central avenues reserve 3.4 m ornamental islands separately from traffic lanes.
+Package 0.10.0 returns blueprint 0.26.0. Default district streets use uniform 4.2 m paving, 0.2 m curbs, 0.5 m gutters and 2 m-deep parking. Whole-block finishes and road district styles are explicit. Selected central avenues reserve 3.4 m ornamental islands separately from traffic lanes.
 
-`streets.diagonalCandidates` contains independent straight corridor proposals with terminal/intermediate face clearance and separate actual construction and padded reservation widths. Candidates change no graph, parcels or meshes.
+The plan is rectangles: blocks and lots are axis-aligned rectangles on the 8 m module, streets are straight segments between rectangular junction boxes, and every published land or ground ring has four corners.
 
-A `CityBlueprint`: `meta`, `districts`, `streets` (node and edge graph), `architecture` (movement plan), `blocks`, `parcels`, `transit`, optional `hydrology`, `volumetric` and `stats`. Parcels carry type, wealth tier, lot, rectangular footprint, street access and height envelope. An ordinary parcel also names its `lotSize`, one of the six rectangles in `meta.lotSizes`; a `landmark` parcel keeps its own plot instead. The movement plan carries each street's reserved widths, driving lanes and walking lanes, the legal turns at every node, crossings with their signal phases, and the ramps up to highway decks. Full shapes: CONTRACT.md and `schema/`.
+A `CityBlueprint`: `meta`, `districts`, `streets` (node and edge graph), `architecture` (movement plan), `blocks`, `parcels`, `transit`, optional `hydrology`, `volumetric` and `stats`. Parcels carry type, wealth tier, lot, rectangular footprint, street access and height envelope. An ordinary parcel also names its `lotSize`, one of the six rectangles in `meta.lotSizes`; a `landmark` parcel keeps its own plot instead. A block names the `meta.blockTemplates` entry it is tiled from, so two blocks of the same size and zone carry the same lots and a consumer builds the tiling once. The movement plan carries each street's reserved widths, driving lanes and walking lanes, the legal turns at every node, crossings with their signal phases, and the ramps up to highway decks. Full shapes: CONTRACT.md and `schema/`.
 
 ## Errors
 

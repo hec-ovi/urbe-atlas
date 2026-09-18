@@ -1,6 +1,5 @@
 import { expect, it } from 'vitest';
 import { GridLayout } from './GridLayout';
-import { LayoutCandidates } from './LayoutCandidates';
 import { LayoutPlanning } from './LayoutPlanning';
 import { AvenueMedians } from './medians/AvenueMedians';
 import { StreetReservations } from './reservations/StreetReservations';
@@ -11,7 +10,7 @@ import { applyHighwayElevationProfiles } from '../construction/highway';
 import { ModuleGround } from '../construction/modules/ModuleGround';
 import { difference, intersection, union } from '../../geom/clip';
 import { area } from '../../geom/polygon';
-import { length } from '../../geom/polyline';
+
 import type { ModuleFormat } from '../construction/modules/schema';
 import type { GridLayoutInput, GridLayoutPlan } from './schema';
 import type { ReservationInput } from './reservations/schema';
@@ -22,7 +21,7 @@ const districtDesign = districtStreetDesign();
 const sum = (rings: Polygon[]) => rings.reduce((value, ring) => value + area(ring), 0);
 
 const input: GridLayoutInput = {
-  seed: 'modules', diagonals: 'off', size: { width: 1000, depth: 800 },
+  seed: 'modules', size: { width: 1000, depth: 800 },
   profiles: [1, 2, 4].map(count => ({ id: `lanes:${count}`, classes: [count === 4 ? 'road' : 'street'],
     lanes: Array.from({ length: count }, (_, i) => ({ width: 3.5, direction: i < count / 2 ? 'forward' : 'backward' })),
     shoulders: { left: 0, right: 0 } })),
@@ -34,12 +33,9 @@ const input: GridLayoutInput = {
   } }),
 };
 const districtInput: GridLayoutInput = { seed: 'district-review', moduleFormat: 'district', size: { width: 800, depth: 800 },
-  profiles: districtDesign.profiles, highway: true, diagonals: 'off', districtCenters: [[400, 400]],
+  profiles: districtDesign.profiles, highway: true, districtCenters: [[400, 400]],
   sideAt: ([x, z]) => ({ profile: districtDesign.sidewalkProfiles[0], finish: x + z < 800 ? 'luxury-blue' : 'luxury-red' }),
   perimeter: { profile: districtDesign.sidewalkProfiles[0], finish: 'luxury-red' } };
-const candidateInput: GridLayoutInput = { seed: 'urbe', size: { width: 1000, depth: 1000 }, profiles: sourceDesign.profiles,
-  highway: true, sideAt: () => ({ profile: sourceDesign.sidewalkProfiles[2], finish: 'plain' }) };
-
 const grid = GridLayout.plan(input);
 
 function reservationInput(plan: GridLayoutPlan): ReservationInput {
@@ -59,7 +55,7 @@ function reservationInput(plan: GridLayoutPlan): ReservationInput {
 function highwayPlan(format: ModuleFormat): GridLayoutPlan {
   const design = format === 'district' ? districtDesign : sourceDesign;
   const plan = GridLayout.plan({ seed: 'underpass-supports', size: { width: 800, depth: 800 },
-    moduleFormat: format, profiles: design.profiles, highway: true, diagonals: 'off',
+    moduleFormat: format, profiles: design.profiles, highway: true,
     sideAt: () => ({ profile: design.sidewalkProfiles[format === 'district' ? 0 : 2], finish: 'maintained' }) });
   const highway = new Set(plan.runs.find(run => run.id === plan.highwayRunId)!.edges.map(edge => edge.edgeId));
   for (const edge of plan.edges) if (highway.has(edge.id)) {
@@ -106,9 +102,10 @@ it('connects whole-panel blocks through one street graph and covers its rectangl
     [block.outer[1][0] - block.outer[0][0] - 1, block.outer[2][1] - block.outer[1][1] - 1];
   for (const block of grid.blocks) {
     expect(block.edgeIds.every(id => edges.has(id))).toBe(true);
-    expect(shape(block).every(span => span % 2 === 0)).toBe(true);
+    expect(shape(block).every(span => span % 8 === 0)).toBe(true);
   }
-  expect(grid.blocks.some(block => Math.max(...shape(block)) / Math.min(...shape(block)) >= 1.5)).toBe(true);
+  // A city is a few block sizes repeated: one axis carries at most two.
+  for (const axis of [0, 1]) expect(new Set(grid.blocks.map(block => shape(block)[axis])).size).toBeLessThanOrEqual(2);
   const rectangles = [...grid.roadway, ...grid.blocks.map(block => block.outer)];
   expect(sum(rectangles)).toBeCloseTo((grid.bounds.max[0] - grid.bounds.min[0]) * (grid.bounds.max[1] - grid.bounds.min[1]), 8);
   for (let i = 0; i < rectangles.length; i++) for (let j = i + 1; j < rectangles.length; j++) {
@@ -170,7 +167,7 @@ it('repeats catalog pieces and places sparse parking and rails on their cleared 
   expect(wideWalking.modules.parking ?? []).toEqual([]);
 });
 
-it('rejects unusable profiles, sizes, diagonal modes and district centers', () => {
+it('rejects unusable profiles, sizes and district centers', () => {
   const narrow = () => {
     const side = input.sideAt([0, 0], 'street');
     return { ...side, profile: { ...side.profile, walking: 3 } };
@@ -180,9 +177,6 @@ it('rejects unusable profiles, sizes, diagonal modes and district centers', () =
     [{ ...input, profiles: [] }, /road profiles/],
     [{ ...input, highway: 'yes' as unknown as boolean }, /highway must be boolean/],
     [{ ...input, sideAt: narrow }, /2\/4\/6/],
-    [{ ...input, diagonals: 'bad' as 'off' }, { code: 'E_INVALID_PARAMS' }],
-    [{ ...input, diagonalCornerClearance: NaN }, { code: 'E_INVALID_PARAMS' }],
-    [{ ...districtInput, diagonals: 'legacy-applied' }, { code: 'E_INVALID_PARAMS' }],
     [{ ...districtInput, districtCenters: [[NaN, 0]] }, { code: 'E_INVALID_PARAMS' }],
   ];
   for (const [settings, expected] of rejected) {
@@ -329,70 +323,3 @@ it('replaces paired highway corners with underpass sidewalks, skips excluded sho
   const excludedIds = new Set(waterExcludedCorners.map(corner => corner.id));
   expect(shore.planning.protected.flatMap(record => record.replacedCornerIds).some(id => excludedIds.has(id))).toBe(false);
 });
-
-it('publishes diagonal proposals in candidate mode and cuts blocks only in the compatibility mode', () => {
-  const enabled = GridLayout.plan(candidateInput), disabled = GridLayout.plan({ ...candidateInput, diagonals: 'off' });
-  const { diagonalCandidates, ...base } = enabled;
-  expect(diagonalCandidates.length).toBeGreaterThan(0);
-  expect({ ...base, diagonalCandidates: [] }).toEqual(disabled);
-  const highways = new Set(enabled.runs.find(run => run.id === enabled.highwayRunId)!.edges.map(member => member.edgeId));
-  const parking = new Set(enabled.modules.parking!.map(bay => bay.blockId));
-  const blocks = new Map(enabled.blocks.map(block => [block.id, block]));
-  for (const candidate of diagonalCandidates) {
-    expect(candidate.roadProfile.lanes.length).toBeLessThanOrEqual(2);
-    expect(candidate.constructionWidth).toBe(candidate.roadWidth
-      + candidate.sidewalks.left.geometry!.totalWidth + candidate.sidewalks.right.geometry!.totalWidth);
-    expect(candidate.reservationWidth).toBe(candidate.constructionWidth + 2 * candidate.reservationPadding);
-    for (const mouth of [...candidate.mouths, ...candidate.intermediateMouths]) {
-      expect(mouth.cornerClearances.every(clearance => clearance >= 3)).toBe(true);
-      expect(parking.has(mouth.rectangleId)).toBe(false);
-      expect(blocks.get(mouth.rectangleId)!.edgeIds.some(id => highways.has(id))).toBe(false);
-    }
-  }
-  expect(diagonalCandidates.some(candidate => candidate.intermediateMouths.length === 2)).toBe(true);
-  const first = diagonalCandidates[0];
-  const retained = new Map(enabled.blocks.map(block => [block.id, `retained:${block.id}`]));
-  const mapped = LayoutCandidates.retain([first], retained)[0];
-  expect(mapped.id).toBe(first.id);
-  expect(mapped.mouths[0].rectangleId).toBe(`retained:${first.mouths[0].rectangleId}`);
-  retained.delete(first.mouths[0].rectangleId);
-  expect(LayoutCandidates.retain([first], retained)).toEqual([]);
-  expect(GridLayout.plan({ ...candidateInput, diagonalCornerClearance: 1000 })).toEqual(disabled);
-
-  const applied = GridLayout.plan({ seed: 'urbe', diagonals: 'legacy-applied', size: { width: 1000, depth: 1000 },
-    profiles: sourceDesign.profiles, sideAt: () => ({ profile: sourceDesign.sidewalkProfiles[1], finish: 'plain' }) });
-  const cuts = applied.edges.filter(edge => edge.path[0][0] !== edge.path[1][0] && edge.path[0][1] !== edge.path[1][1]);
-  expect(cuts).toHaveLength(2);
-  expect(cuts.map(edge => Math.round(Math.atan2(Math.abs(edge.path[1][1] - edge.path[0][1]),
-    Math.abs(edge.path[1][0] - edge.path[0][0])) * 180 / Math.PI)).sort()).toEqual([30, 45]);
-  const nodes = new Map(applied.nodes.map(node => [node.id, node]));
-  const edges = new Map(applied.edges.map(edge => [edge.id, edge]));
-  for (const run of applied.runs) {
-    let station = 0;
-    for (const member of run.edges) {
-      expect(member.start).toBeCloseTo(station, 9);
-      expect(member.end - member.start).toBeCloseTo(length(edges.get(member.edgeId)!.path), 9);
-      station = member.end;
-    }
-    expect(station).toBeCloseTo(run.length, 9);
-  }
-  for (const edge of cuts) {
-    for (const id of [edge.from, edge.to]) {
-      const node = nodes.get(id)!;
-      expect(node.edgeIds).toHaveLength(3);
-      for (const arm of node.edgeIds.filter(value => value !== edge.id)) {
-        expect(length(edges.get(arm)!.path)).toBeGreaterThanOrEqual(40 - 1e-9);
-      }
-    }
-    const block = applied.blocks.find(block => block.edgeIds.includes(edge.id))!;
-    expect(block.interiors).toHaveLength(2);
-    const placed = applied.modules.placements.filter(placement => placement.blockId === block.id);
-    expect(placed).toHaveLength(1);
-    expect(placed[0].moduleId).toMatch(/^diagonal:/);
-    const supports = applied.planning.frontages.filter(frontage => frontage.ownerId === block.id);
-    expect(supports.some(frontage => frontage.edgeIds.includes(edge.id))).toBe(true);
-    expect(applied.planning.corners.filter(corner => corner.ownerId === block.id)
-      .every(corner => corner.placement.moduleId === placed[0].moduleId)).toBe(true);
-    expect(applied.modules.parking?.some(bay => bay.blockId === block.id) ?? false).toBe(false);
-  }
-}, 20000);

@@ -34,7 +34,7 @@ export function cornerDimensions(placement: ModulePlacement, planning: LayoutPla
   const corner = planning.corners.find(corner => corner.ownerId === placement.blockId
     && corner.placement.moduleId === placement.moduleId
     && placementKey(corner.placement.origin, corner.placement.turn) === placementKey(placement.origin, placement.turn));
-  if (!corner || corner.kind !== 'arc' || placement.count !== 1) {
+  if (!corner || placement.count !== 1) {
     throw invariantFailure('underpass requires complete authored corner supports', { moduleId: placement.moduleId, blockId: placement.blockId });
   }
   const fronts = corner.frontageIds.map(id => planning.frontages.find(frontage => frontage.id === id));

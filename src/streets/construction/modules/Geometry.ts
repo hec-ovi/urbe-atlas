@@ -1,7 +1,7 @@
 import type { Polygon, Vec2 } from '../../../../schema/blueprint';
 import type { ModulePrism, ModuleRole, QuarterTurn } from './schema';
 
-export const DIMENSIONS = { joint: 0.012, pavedTop: 0.2, bedTop: 0.18, curb: 0.2, gutter: 0.3, lip: 0.02, radius: 2 } as const;
+export const DIMENSIONS = { joint: 0.012, pavedTop: 0.2, bedTop: 0.18, curb: 0.2, gutter: 0.3, lip: 0.02 } as const;
 
 export function rectangle(x: number, z: number, width: number, depth: number): Polygon {
   return [[x, z], [x + width, z], [x + width, z + depth], [x, z + depth]];
@@ -17,7 +17,7 @@ export function prism(role: ModuleRole, polygon: Polygon, bottom: number, top: n
   return { role, polygon, bottom, top };
 }
 
-/** Clips only the fixed convex corner template against one panel boundary. */
+/** Clips a convex template against one panel boundary. */
 function halfPlane(polygon: Polygon, a: Vec2, b: Vec2, inset: number): Polygon {
   const dx = b[0] - a[0], dz = b[1] - a[1];
   const shift = inset * Math.hypot(dx, dz);
@@ -35,9 +35,24 @@ function halfPlane(polygon: Polygon, a: Vec2, b: Vec2, inset: number): Polygon {
   return out;
 }
 
-export function clipCell(template: Polygon, x: number, z: number): Polygon {
-  const cell = rectangle(x, z, 1, 1);
-  return cell.reduce((polygon, a, index) => halfPlane(polygon, a, cell[(index + 1) % 4], 0), template);
+/**
+ * The visible body of a curb or gutter band: the band pulled back by half a
+ * joint at each end of its run, and by `road` on its road side (the low side
+ * of its short axis).
+ */
+export function bandBody(band: Polygon, road = 0): Polygon {
+  const [x0, z0] = band[0], [x1, z1] = band[2], half = DIMENSIONS.joint / 2;
+  return x1 - x0 >= z1 - z0
+    ? rectangle(x0 + half, z0 + road, x1 - x0 - DIMENSIONS.joint, z1 - z0 - road)
+    : rectangle(x0 + road, z0 + half, x1 - x0 - road, z1 - z0 - DIMENSIONS.joint);
+}
+
+/** The lip strip of a gutter band, on its road side. */
+export function roadLip(band: Polygon): Polygon {
+  const [x0, z0] = band[0], [x1, z1] = band[2], half = DIMENSIONS.joint / 2;
+  return x1 - x0 >= z1 - z0
+    ? rectangle(x0 + half, z0, x1 - x0 - DIMENSIONS.joint, DIMENSIONS.lip)
+    : rectangle(x0, z0 + half, DIMENSIONS.lip, z1 - z0 - DIMENSIONS.joint);
 }
 
 export function insetBody(polygon: Polygon): Polygon {
@@ -47,21 +62,4 @@ export function insetBody(polygon: Polygon): Polygon {
 /** Opens the two station joints of a band without shifting its shared side faces. */
 export function jointedBand(polygon: Polygon): Polygon {
   return halfPlane(halfPlane(polygon, polygon[0], polygon[1], DIMENSIONS.joint / 2), polygon[2], polygon[3], DIMENSIONS.joint / 2);
-}
-
-/** Shared corner angles include grid intersections and limit curved facets to 0.5 m. */
-export const CORNER_ANGLES = Array.from({ length: 13 }, (_, i) => Math.PI + i * Math.PI / 24);
-
-export function arc(radius: number, angles = CORNER_ANGLES, center: number = DIMENSIONS.radius): Polygon {
-  return angles.map(angle => angle === Math.PI ? [center - radius, center]
-    : angle === Math.PI * 1.5 ? [center, center - radius]
-      : [center + radius * Math.cos(angle), center + radius * Math.sin(angle)]);
-}
-
-export function ringPart(inner: number, outer: number, angles = CORNER_ANGLES, jointAngle = 0, centerRadius: number = DIMENSIONS.radius): Polygon {
-  const polygon = [...arc(outer, angles, centerRadius), ...arc(inner, angles, centerRadius).reverse()];
-  if (!jointAngle) return polygon;
-  const center: Vec2 = [centerRadius, centerRadius];
-  const [start, end] = arc(1, [angles[0] + jointAngle, angles[angles.length - 1] - jointAngle], centerRadius);
-  return halfPlane(halfPlane(polygon, center, start, 0), end, center, 0);
 }
