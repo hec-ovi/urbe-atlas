@@ -10,17 +10,42 @@ export function lateralOffsets(envelope: HighwayEnvelope): number[] {
   return [0, lateral, -lateral];
 }
 
-/** Moving-square contact events bound every clear interval along a straight path segment. */
-export function supportStations(
-  envelope: HighwayEnvelope, after: number, target: number, obstacles: readonly SupportObstacle[],
+/** Obstacles a column could ever touch: the three strips its square sweeps along the run. */
+export function corridorObstacles(
+  envelope: HighwayEnvelope, obstacles: readonly SupportObstacle[],
+): SupportObstacle[] {
+  const half = HIGHWAY_DECK.supportSize / 2;
+  const strips: ReturnType<typeof bounds>[] = [];
+  for (let i = 1; i < envelope.path.length; i++) {
+    const p = envelope.path[i - 1], q = envelope.path[i];
+    const length = Math.hypot(q[0] - p[0], q[1] - p[1]);
+    if (length === 0) continue;
+    const direction: Vec2 = [(q[0] - p[0]) / length, (q[1] - p[1]) / length];
+    for (const offset of lateralOffsets(envelope)) {
+      const a: Vec2 = [p[0] - direction[1] * offset, p[1] + direction[0] * offset];
+      const b: Vec2 = [q[0] - direction[1] * offset, q[1] + direction[0] * offset];
+      strips.push({
+        min: [Math.min(a[0], b[0]) - half, Math.min(a[1], b[1]) - half],
+        max: [Math.max(a[0], b[0]) + half, Math.max(a[1], b[1]) + half],
+      });
+    }
+  }
+  return obstacles.filter((obstacle) => strips.some((strip) =>
+    obstacle.box.min[0] < strip.max[0] && obstacle.box.max[0] > strip.min[0]
+    && obstacle.box.min[1] < strip.max[1] && obstacle.box.max[1] > strip.min[1]));
+}
+
+/** Moving-square contact events: every station where a column starts or stops touching an obstacle. */
+export function contactStations(
+  envelope: HighwayEnvelope, from: number, to: number, obstacles: readonly SupportObstacle[],
 ): number[] {
-  const stations = new Set<number>([target]);
+  const stations = new Set<number>([from, to]);
   const half = HIGHWAY_DECK.supportSize / 2;
   const corners: Vec2[] = [[-half, -half], [half, -half], [half, half], [-half, half]];
   const include = (station: number): void => {
     // Snapping a contact center can choose either adjacent millimetre cell.
     for (const candidate of [station, station - 0.001, station + 0.001]) {
-      if (candidate >= after + 1 && candidate <= target) stations.add(candidate);
+      if (candidate >= from && candidate <= to) stations.add(candidate);
     }
   };
   let start = 0;
@@ -28,9 +53,9 @@ export function supportStations(
     const p = envelope.path[i - 1], q = envelope.path[i];
     const length = Math.hypot(q[0] - p[0], q[1] - p[1]);
     const end = start + length;
-    if (length > 0 && end >= after + 1 && start <= target) {
+    if (length > 0 && end >= from && start <= to) {
       const direction: Vec2 = [(q[0] - p[0]) / length, (q[1] - p[1]) / length];
-      const lower = Math.max(0, after + 1 - start), upper = Math.min(length, target - start);
+      const lower = Math.max(0, from - start), upper = Math.min(length, to - start);
       include(start + lower); include(start + upper);
       for (const offset of lateralOffsets(envelope)) {
         const origin: Vec2 = [p[0] - direction[1] * offset, p[1] + direction[0] * offset];
@@ -67,7 +92,7 @@ export function supportStations(
     }
     start = end;
   }
-  return [...stations].sort((a, b) => b - a);
+  return [...stations].sort((a, b) => a - b);
 }
 
 function cross(a: Vec2, b: Vec2): number { return a[0] * b[1] - a[1] * b[0]; }

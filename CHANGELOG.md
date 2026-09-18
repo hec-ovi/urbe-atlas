@@ -1,5 +1,7 @@
 # Changelog
 
+0.8.3: highway columns are planned from the clear stretches a crossing street cuts the deck into. One stands at each end of a stretch, so a crossing is carried from both of its edges, and the rest are spread evenly inside it. A crossing up to 28 m wide is bridged at the 30 m pitch; the widest the district modules build is the 27.6 m avenue with its median, curbs and underpass sidewalks.
+
 0.8.2: `schema/progress.ts` publishes the pipeline, twelve stages with a stable id, the phase label and a plain sentence naming what each one leaves behind, plus the same plain summary of what a finished blueprint carries and what it leaves to later stages. The generation dialog reads both.
 
 0.8.1: the creation form carries the street design. Lane width per road class, the four sidewalk band widths, crossing headroom and the paving finish are editable, and the dimensions the district modules fix are stated beside them. Its values are what an omitted street design resolves to, so an untouched form generates the same city as bare defaults.

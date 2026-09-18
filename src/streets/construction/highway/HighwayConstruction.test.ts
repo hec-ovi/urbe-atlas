@@ -80,21 +80,40 @@ describe('staged highway construction', () => {
     expect(supportHighwayEnvelopes(envelopes)).toEqual(highwayStructures(edges));
   });
 
-  it('fits the full support pitch across a district avenue and both underpass sidewalks', () => {
+  it('stands a column at each edge of a district avenue and spreads the rest evenly', () => {
+    // 27.6 m of avenue, its curbs and both underpass sidewalks: wider than the pitch
+    // less a column, so the deck is carried from both edges at once.
     const crossing: Polygon = [[101.7, -8], [129.3, -8], [129.3, 8], [101.7, 8]];
     const envelopes = highwayEnvelopes([graphEdge()]);
     const structures = supportHighwayEnvelopes(envelopes, [crossing]);
     expect(structures[0].supports.map(support => support.position)).toEqual([
-      [75, 0], [100.7, 0], [130.7, 0], [160.7, 0],
+      [80.35, 0], [100.7, 0], [130.3, 0], [155.15, 0],
     ]);
     let previous = envelopes[0].ramps.start;
     for (const support of structures[0].supports) {
       expect(support.position[0] - previous).toBeLessThanOrEqual(HIGHWAY_DECK.supportPitch);
+      expect(support.position[0] - previous).toBeGreaterThanOrEqual(HIGHWAY_DECK.supportSize);
       expect(area(support.footprint)).toBe(4);
       expect(intersection([support.footprint], [crossing])).toEqual([]);
       previous = support.position[0];
     }
+    const flatEnd = 240 - envelopes[0].ramps.end;
+    expect(flatEnd - previous).toBeLessThanOrEqual(HIGHWAY_DECK.supportPitch);
     expect(supportHighwayEnvelopes(envelopes, [crossing])).toEqual(structures);
+  });
+
+  it('bridges the widest crossing the pitch allows and refuses a wider one', () => {
+    const envelopes = highwayEnvelopes([graphEdge()]);
+    const band = (width: number): Polygon => {
+      const start = 120 - width / 2, end = start + width;
+      return [[start, -8], [end, -8], [end, 8], [start, 8]];
+    };
+    // A column stands 1 m clear of each edge, so 28 m of crossing still bridges at 30 m.
+    const widest = supportHighwayEnvelopes(envelopes, [band(28)])[0].supports.map(support => support.position[0]);
+    expect(widest).toContain(105);
+    expect(widest).toContain(135);
+    expect(() => supportHighwayEnvelopes(envelopes, [band(28.1)]))
+      .toThrow(expect.objectContaining({ code: 'E_INVARIANT' }));
   });
 
   it('rejects an assigned profile that omits a ramp breakpoint', () => {

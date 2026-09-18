@@ -168,7 +168,7 @@
             }
           ]
         },
-        {"type": "note", "text": "Avenue lanes stop at 3.5 m: the highway deck follows the avenue profile, and a wider one leaves no room for its support columns."},
+        {"type": "note", "text": "Avenue lanes stop at 3.5 m. Where the highway deck crosses an avenue it spans the whole street between two columns, and 30 m is all one deck span gets."},
         {"type": "note", "text": "Each side of a street reserves 4.2 m of paving, divided into four bands starting at the curb. A 0.2 m curb and a 0.5 m gutter sit outside it; both are fixed by the district paving modules, as is the 4.2 m total."},
         {
           "type": "grid",
