@@ -8,20 +8,25 @@ export class GridCellIndex {
     this.points = [...points].sort((a, b) => a.x - b.x || a.y - b.y);
   }
 
-  near(a: GridPoint, b: GridPoint): GridPoint[] {
-    const minX = Math.min(a.x, b.x) - 0.5, maxX = Math.max(a.x, b.x) + 0.5;
-    const minY = Math.min(a.y, b.y) - 0.5, maxY = Math.max(a.y, b.y) + 0.5;
+  /** Visits the same points as `near`, in the same order, without building an array. */
+  forEachNear(a: GridPoint, b: GridPoint, visit: (point: GridPoint) => void): void {
+    const minX = (a.x < b.x ? a.x : b.x) - 0.5, maxX = (a.x < b.x ? b.x : a.x) + 0.5;
+    const minY = (a.y < b.y ? a.y : b.y) - 0.5, maxY = (a.y < b.y ? b.y : a.y) + 0.5;
     let low = 0, high = this.points.length;
     while (low < high) {
-      const mid = Math.floor((low + high) / 2);
+      const mid = (low + high) >> 1;
       if (this.points[mid].x < minX) low = mid + 1;
       else high = mid;
     }
-    const found: GridPoint[] = [];
     for (let i = low; i < this.points.length && this.points[i].x <= maxX; i++) {
       const p = this.points[i];
-      if (p.y >= minY && p.y <= maxY) found.push(p);
+      if (p.y >= minY && p.y <= maxY) visit(p);
     }
+  }
+
+  near(a: GridPoint, b: GridPoint): GridPoint[] {
+    const found: GridPoint[] = [];
+    this.forEachNear(a, b, (point) => { found.push(point); });
     return found;
   }
 }

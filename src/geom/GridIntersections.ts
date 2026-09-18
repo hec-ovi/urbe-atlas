@@ -3,7 +3,19 @@ import type { GridPath, GridPoint } from './schema';
 export interface GridSegment { a: GridPoint; b: GridPoint }
 
 const same = (a: GridPoint, b: GridPoint): boolean => a.x === b.x && a.y === b.y;
-export const pointKey = (p: GridPoint): string => `${p.x},${p.y}`;
+
+/** One value per distinct grid point, for the maps that dedupe vertices and cells. */
+export type PointKey = number | string;
+
+/** Beyond this the packed key would stop being an exact integer, so the string form takes over. */
+const PACKED_LIMIT = 33554432; // 2 ** 25 grid units
+const PACKED_STRIDE = 67108864; // 2 ** 26
+
+export const pointKey = (p: GridPoint): PointKey => (
+  p.x > -PACKED_LIMIT && p.x < PACKED_LIMIT && p.y > -PACKED_LIMIT && p.y < PACKED_LIMIT
+    ? p.x * PACKED_STRIDE + p.y
+    : `${p.x},${p.y}`
+);
 
 function determinant(a: GridPoint, b: GridPoint, c: GridPoint): bigint {
   return (BigInt(b.x) - BigInt(a.x)) * (BigInt(c.y) - BigInt(a.y))
@@ -19,11 +31,11 @@ function orientation(a: GridPoint, b: GridPoint, c: GridPoint): number {
 }
 
 /** Exact vertex contact in the interior of an integer-grid segment. */
-export function interiorContact(point: GridPoint, edge: GridSegment): boolean {
-  return !same(point, edge.a) && !same(point, edge.b)
-    && point.x >= Math.min(edge.a.x, edge.b.x) && point.x <= Math.max(edge.a.x, edge.b.x)
-    && point.y >= Math.min(edge.a.y, edge.b.y) && point.y <= Math.max(edge.a.y, edge.b.y)
-    && orientation(edge.a, edge.b, point) === 0;
+export function interiorContact(point: GridPoint, a: GridPoint, b: GridPoint): boolean {
+  if (same(point, a) || same(point, b)) return false;
+  if (a.x < b.x ? point.x < a.x || point.x > b.x : point.x < b.x || point.x > a.x) return false;
+  if (a.y < b.y ? point.y < a.y || point.y > b.y : point.y < b.y || point.y > a.y) return false;
+  return orientation(a, b, point) === 0;
 }
 
 /** Nearest integer; an exact half goes toward positive infinity like snap(). */
@@ -46,31 +58,56 @@ function crossing(a: GridSegment, b: GridSegment): GridPoint {
 }
 
 export function segments(paths: GridPath[]): GridSegment[] {
-  return paths.flatMap((path) => path.flatMap((a, i) => {
-    const b = path[(i + 1) % path.length];
-    return same(a, b) ? [] : [{ a, b }];
-  }));
+  const out: GridSegment[] = [];
+  for (const path of paths) {
+    for (let i = 0; i < path.length; i++) {
+      const a = path[i];
+      const b = path[i + 1 === path.length ? 0 : i + 1];
+      if (!same(a, b)) out.push({ a, b });
+    }
+  }
+  return out;
 }
 
-/** X sweep rejects unrelated edges before exact orientation predicates. */
+/**
+ * X sweep rejects unrelated edges before exact orientation predicates. Bounds live in
+ * parallel arrays and the active list compacts in place, so a sweep allocates nothing
+ * per edge; the sort runs over indices and stays stable, matching the edge order.
+ */
 export function crossingCells(edges: GridSegment[]): GridPoint[] {
-  const ordered = edges.map((edge) => ({
-    ...edge,
-    minX: Math.min(edge.a.x, edge.b.x), maxX: Math.max(edge.a.x, edge.b.x),
-    minY: Math.min(edge.a.y, edge.b.y), maxY: Math.max(edge.a.y, edge.b.y),
-  })).sort((a, b) => a.minX - b.minX || a.minY - b.minY || a.maxX - b.maxX || a.maxY - b.maxY);
-  const cells = new Map<string, GridPoint>();
-  let active: typeof ordered = [];
-  for (const edge of ordered) {
-    active = active.filter((other) => other.maxX >= edge.minX);
-    for (const other of active) {
-      if (other.maxY < edge.minY || other.minY > edge.maxY) continue;
+  const count = edges.length;
+  const minX = new Float64Array(count), maxX = new Float64Array(count);
+  const minY = new Float64Array(count), maxY = new Float64Array(count);
+  const order = new Array<number>(count);
+  for (let i = 0; i < count; i++) {
+    const { a, b } = edges[i];
+    minX[i] = a.x < b.x ? a.x : b.x; maxX[i] = a.x < b.x ? b.x : a.x;
+    minY[i] = a.y < b.y ? a.y : b.y; maxY[i] = a.y < b.y ? b.y : a.y;
+    order[i] = i;
+  }
+  order.sort((p, q) => minX[p] - minX[q] || minY[p] - minY[q] || maxX[p] - maxX[q] || maxY[p] - maxY[q]);
+
+  const cells = new Map<PointKey, GridPoint>();
+  const active = new Array<number>(count);
+  let live = 0;
+  for (const i of order) {
+    let kept = 0;
+    for (let s = 0; s < live; s++) {
+      const j = active[s];
+      if (maxX[j] >= minX[i]) active[kept++] = j;
+    }
+    live = kept;
+    const edge = edges[i];
+    for (let s = 0; s < live; s++) {
+      const j = active[s];
+      if (maxY[j] < minY[i] || minY[j] > maxY[i]) continue;
+      const other = edges[j];
       if (orientation(edge.a, edge.b, other.a) * orientation(edge.a, edge.b, other.b) >= 0
         || orientation(other.a, other.b, edge.a) * orientation(other.a, other.b, edge.b) >= 0) continue;
       const cell = crossing(edge, other);
       cells.set(pointKey(cell), cell);
     }
-    active.push(edge);
+    active[live++] = i;
   }
   return [...cells.values()];
 }
