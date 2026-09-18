@@ -1,4 +1,5 @@
 import type { Polygon, StreetEdge, StreetNode, Vec2 } from '../../../schema/blueprint';
+import type { DistrictKind } from '../../../schema/params';
 import type { RoadProfile, SidewalkProfile } from '../construction/schema/design';
 import type { StreetRun } from '../construction/schema/sections';
 import type { ModuleBlock, ModuleConstruction, ModuleFormat, ModuleFrontagePlan, ModuleCornerPlan } from '../construction/modules/schema';
@@ -11,7 +12,8 @@ export interface GridLayoutInput {
   profiles: RoadProfile[];
   /** Reserve a seeded interior four-lane through-run before sizing blocks. Default false. */
   highway?: boolean;
-  sideAt: (point: Vec2, streetClass: 'street' | 'road') => { profile: SidewalkProfile; finish: string };
+  /** The sidewalk, paving finish and district zone the land at this point carries. */
+  sideAt: (point: Vec2, streetClass: 'street' | 'road') => { profile: SidewalkProfile; finish: string; zone: DistrictKind };
   /** Complete outer sidewalks with a shared profile and finish. `exclusions` (water) stop the ring at the shoreline. */
   perimeter?: { profile: SidewalkProfile; finish: string; exclusions?: Polygon[] };
 }

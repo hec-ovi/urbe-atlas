@@ -90,7 +90,7 @@ export function validateReservations(value: StreetReservations, city: Reservatio
     const frontage = frontages.get(bay.frontageId), owner = owners.get(bay.ownerId);
     if (!frontage || !owner || frontage.ownerId !== bay.ownerId || frontage.pavedWidth !== (district ? 4.2 : 6)
       || frontage.edgeIds.some(id => edges.get(id)?.class === 'highway')) fail('parking lacks an eligible frontage', { parkingId: bay.id });
-    if (!Number.isSafeInteger(bay.slotCount) || bay.slotCount < 1 || bay.slotCount > 3 || bay.slotLength !== 6 || bay.depth !== (district ? 2 : 2.5) || bay.endRun !== 2
+    if (!Number.isSafeInteger(bay.slotCount) || bay.slotCount < 1 || bay.slotCount > 6 || bay.slotLength !== 6 || bay.depth !== (district ? 2 : 2.5) || bay.endRun !== 2
       || !near(bay.end - bay.start, bay.slotCount * 6 + 4) || bay.slots.length !== bay.slotCount
       || !near(bay.walkingClearance, frontage!.pavedWidth - bay.depth) || bay.walkingClearance < 2
       || !near(bay.support.start, bay.start - 2) || !near(bay.support.end, bay.end + 2)

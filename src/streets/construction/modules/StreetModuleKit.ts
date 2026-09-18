@@ -160,7 +160,7 @@ export class StreetModuleKit {
     if (input.parking !== undefined) {
       if (!Array.isArray(input.parking)) fail();
       for (const bay of input.parking) {
-        if (!bay || ![0, 1, 2, 3].includes(bay.side) || ![1, 2, 3].includes(bay.slots)
+        if (!bay || ![0, 1, 2, 3].includes(bay.side) || !Number.isSafeInteger(bay.slots) || bay.slots < 1 || bay.slots > 6
           || !Number.isSafeInteger(bay.start) || bay.start < (bay.profile ? 8 : 6) || bay.start % 2 !== 0
           || (bay.profile !== undefined && bay.profile !== 'native')
           || (this.sizing.format === 'district' && bay.profile !== 'native')

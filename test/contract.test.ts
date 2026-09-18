@@ -499,11 +499,17 @@ describe('parameters', () => {
       const edge = city.streets.edges.find((edge) => edge.id === median.edgeId)!;
       expect(edge.class).toBe('road');
       expect(edge.crossSection!.lanes).toHaveLength(4);
+      expect(edge.crossSection!.median).toEqual({ width: 3.4 });
       expect(edge.width).toBeCloseTo(17.4, 8);
       expect([median.width, median.pavedWidth, median.curbWidth, median.gutterWidth]).toEqual([3.4, 2, 0.2, 0.5]);
     }
+    // Every street parks on one kerb, on the 2 m grid street construction closes a run on.
+    expect(construction.reservations!.parking.length).toBeGreaterThan(city.blocks.length / 2);
     for (const parking of construction.reservations!.parking) {
       expect([parking.depth, parking.slotLength, parking.endRun, parking.walkingClearance]).toEqual([2, 6, 2, 2.2]);
+      expect([parking.start % 2, parking.end % 2, parking.support.start % 2, parking.support.end % 2]).toEqual([0, 0, 0, 0]);
+      expect(parking.end - parking.start).toBe(parking.slotCount * 6 + 4);
+      expect(parking.slots).toHaveLength(parking.slotCount);
     }
     expect(construction.reservations!.owners.some((owner) => owner.kind === 'perimeter')).toBe(true);
   });

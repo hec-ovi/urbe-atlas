@@ -82,7 +82,7 @@ describe('dimensioned city crossings', () => {
   it('places marking fields on real roadway, clear of gutters', () => {
     const design = resolveStreetDesign();
     const layout = GridLayout.plan({ seed: 'urbe', size: { width: 1000, depth: 1000 }, profiles: design.profiles,
-      sideAt: () => ({ profile: design.sidewalkProfiles[1], finish: 'plain' }) });
+      sideAt: () => ({ profile: design.sidewalkProfiles[1], finish: 'plain', zone: 'residential' }) });
     const nodeIds = new Set(layout.nodes.filter((node) => node.edgeIds.length === 4).slice(0, 4).map((node) => node.id));
     const ground: GroundSurface[] = [...ModuleGround.cover(layout.modules), ...layout.roadway
       .map((polygon) => ({ surface: 'roadway' as const, polygon, top: 0, bottom: -0.2 }))];

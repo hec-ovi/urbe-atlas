@@ -1,5 +1,7 @@
 # Changelog
 
+0.12.0: every street parks on one kerb. A block reserves a parking bay on its south and west frontages, up to six 6 x 2 m slots as the zone gives and the frontage fits, on the 2 m station grid; a highway frontage and a divided avenue carry none. Selected four-lane avenues keep their 3.4 m ornamental median. Package 0.12.0, blueprint 0.26.0.
+
 0.11.0: the clear street between two junction boxes is a whole multiple of 2 m, every building parcel allows two floors in at least 9 m, and a lot that cannot is published as a `park` with no envelope. One element never kills a plan: a junction box, a crossing, a corridor, a lot or the subway that fails its own check is published in its simplest valid form and listed in `report.degraded` with its id, kind and reason. Package 0.11.0, blueprint 0.26.0.
 
 0.10.0: the plan is rectangles and blocks repeat. Blocks and lots are axis-aligned rectangles sized in whole 8 m modules, streets are straight runs between square junction boxes, and a generator invariant checks every published land and ground ring. `meta.blockTemplates` publishes one tiling per block size and zone; each block names the template it carries. The default city is 3000 x 3000 m and its plan is 7.9 MB. Coordinates land on the 1 mm grid. Package 0.10.0, blueprint 0.26.0.

@@ -95,7 +95,7 @@ export interface BlockModuleInput {
   /** Distance intervals along each side's counterclockwise straight run. */
   reserved?: [Vec2[], Vec2[], Vec2[], Vec2[]];
   /** Native 6 m slots require 6 m source or 4 m district panels. Omitted profile is source-only. */
-  parking?: { side: QuarterTurn; start: number; slots: 1 | 2 | 3; profile?: 'native' }[];
+  parking?: { side: QuarterTurn; start: number; slots: number; profile?: 'native' }[];
 }
 
 export interface ModuleFrontagePlan {

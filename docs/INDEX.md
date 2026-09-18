@@ -1,6 +1,6 @@
 # Box map
 
-Package 0.11.0, blueprint 0.26.0, architecture 1.0.0.
+Package 0.12.0, blueprint 0.26.0, architecture 1.0.0.
 
 - src/streets/layout/medians: constructs selected reserved avenue islands with 2 m paved centers, square ends, curb/gutter and ornament anchors. Input/output: `src/streets/layout/medians/schema.ts`. src/streets/layout/medians/CONTRACT.md. Depends on layout, module records and geometry; reserves no traffic lanes.
 
@@ -12,7 +12,7 @@ Package 0.11.0, blueprint 0.26.0, architecture 1.0.0.
 
 - src/landmarks: exact floors for selected elevator-hosted commercial towers, with saved parameters that reproduce the result. Input: `src/landmarks/schema.ts`, output: `schema/blueprint.ts`. src/landmarks/CONTRACT.md. Depends on the root blueprint and its zoning hosting guarantees; the root generator applies it before validation.
 
-- src/streets/layout: rectangular street grid sized in whole 8 m modules, with uniform district blocks, selected central avenue median reservations, an interior highway, outer sidewalks that stop at excluded land, and whole-module parking. Input/output: `src/streets/layout/schema.ts`. src/streets/layout/CONTRACT.md. Depends on street construction dimensions, street modules and Atlas seed streams.
+- src/streets/layout: rectangular street grid sized in whole 8 m modules, with uniform district blocks, selected central avenue median reservations, an interior highway, outer sidewalks that stop at excluded land, and a kerbside parking bay on one side of every street. Input/output: `src/streets/layout/schema.ts`. src/streets/layout/CONTRACT.md. Depends on street construction dimensions, street modules and Atlas seed streams.
 
 - src/streets/construction/modules: dimensioned panels, curbs, gutters, square corners and rectangular parking bays, with source and district construction formats on shared 2 m stations; the perimeter ring skips every unit standing on excluded land. Input/output: `src/streets/construction/modules/schema.ts`. src/streets/construction/modules/CONTRACT.md. Depends on Atlas coordinates, errors and geometry; construction and renderers consume its repeated placements.
 

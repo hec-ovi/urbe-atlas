@@ -35,7 +35,7 @@ export class CityLayout {
         const finish = params.pavingDesign?.layouts.find(value => value.id === finishId)?.familyId
           ?? (design.moduleFormat !== 'district' ? 'maintained' : district.kind === 'industrial' ? 'industrial-yellow'
             : district.tier === 'high_rich' || district.tier === 'rich' && central ? 'luxury-blue' : district.tier === 'rich' ? 'luxury-red' : 'ordinary');
-        return { profile, finish };
+        return { profile, finish, zone: district.kind };
       },
     });
     if (plan.highwayRunId) {

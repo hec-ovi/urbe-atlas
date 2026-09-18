@@ -25,7 +25,7 @@ const input: GridLayoutInput = {
   profiles: [1, 2, 4].map(count => ({ id: `lanes:${count}`, classes: [count === 4 ? 'road' : 'street'],
     lanes: Array.from({ length: count }, (_, i) => ({ width: 3.5, direction: i < count / 2 ? 'forward' : 'backward' })),
     shoulders: { left: 0, right: 0 } })),
-  sideAt: (point, kind) => ({ finish: 'maintained', profile: {
+  sideAt: (point, kind) => ({ finish: 'maintained', zone: 'residential', profile: {
     id: kind === 'road' ? 'wide' : point[0] < 500 ? 'normal' : 'narrow',
     curb: 0.2, border: kind === 'road' ? 1 : 0, furnishing: kind === 'road' ? 1 : 0,
     walking: kind === 'road' ? 3 : point[0] < 500 ? 4 : 2, frontage: kind === 'road' ? 1 : 0,
@@ -34,7 +34,7 @@ const input: GridLayoutInput = {
 };
 const districtInput: GridLayoutInput = { seed: 'district-review', moduleFormat: 'district', size: { width: 800, depth: 800 },
   profiles: districtDesign.profiles, highway: true, districtCenters: [[400, 400]],
-  sideAt: ([x, z]) => ({ profile: districtDesign.sidewalkProfiles[0], finish: x + z < 800 ? 'luxury-blue' : 'luxury-red' }),
+  sideAt: ([x, z]) => ({ profile: districtDesign.sidewalkProfiles[0], finish: x + z < 800 ? 'luxury-blue' : 'luxury-red', zone: 'residential' }),
   perimeter: { profile: districtDesign.sidewalkProfiles[0], finish: 'luxury-red' } };
 const grid = GridLayout.plan(input);
 
@@ -56,7 +56,7 @@ function highwayPlan(format: ModuleFormat): GridLayoutPlan {
   const design = format === 'district' ? districtDesign : sourceDesign;
   const plan = GridLayout.plan({ seed: 'underpass-supports', size: { width: 800, depth: 800 },
     moduleFormat: format, profiles: design.profiles, highway: true,
-    sideAt: () => ({ profile: design.sidewalkProfiles[format === 'district' ? 0 : 2], finish: 'maintained' }) });
+    sideAt: () => ({ profile: design.sidewalkProfiles[format === 'district' ? 0 : 2], finish: 'maintained', zone: 'residential' }) });
   const highway = new Set(plan.runs.find(run => run.id === plan.highwayRunId)!.edges.map(edge => edge.edgeId));
   for (const edge of plan.edges) if (highway.has(edge.id)) {
     edge.class = 'highway'; edge.level = 8; edge.sidewalk = { left: 0, right: 0 };
@@ -125,11 +125,14 @@ it('connects whole-panel blocks through one street graph and covers its rectangl
   expect(planning.frontages.every(frontage => frontage.cornerIds.every(id => id === null || corners.has(id)))).toBe(true);
 });
 
-it('repeats catalog pieces and places sparse parking and rails on their cleared frontages', () => {
+it('repeats catalog pieces and places kerbside parking and rails on their cleared frontages', () => {
   const parking = grid.modules.parking!;
   expect(parking.length).toBeGreaterThan(0);
-  expect(parking.length).toBeLessThan(grid.blocks.length / 3);
-  expect(new Set(parking.map(bay => bay.blockId)).size).toBe(parking.length);
+  // One kerb per street: a block reserves its south and west frontages, never the other two.
+  expect([...new Set(parking.map(bay => bay.side))].sort()).toEqual([0, 3]);
+  for (const blockId of new Set(parking.map(bay => bay.blockId))) {
+    expect(parking.filter(bay => bay.blockId === blockId).length).toBeLessThanOrEqual(2);
+  }
   const ground = ModuleGround.cover(grid.modules);
   for (const bay of parking) {
     expect(bay.start % 2).toBe(0);

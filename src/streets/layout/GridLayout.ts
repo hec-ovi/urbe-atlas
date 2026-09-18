@@ -1,5 +1,6 @@
 import type { StreetEdge, StreetNode, Vec2 } from '../../../schema/blueprint';
 import type { StreetRun } from '../construction/schema/sections';
+import type { SidewalkProfile } from '../construction/schema/design';
 import type { BlockModuleInput, QuarterTurn, SidewalkWidth } from '../construction/modules/schema';
 import { StreetModuleKit } from '../construction/modules/StreetModuleKit';
 import { Rng } from '../../core/rng';
@@ -9,6 +10,7 @@ import { crossSection, sideSection } from './Sections';
 import { parkingSection, supportsNativeParking } from './ParkingSections';
 import { LayoutPlanning } from './LayoutPlanning';
 import { MedianSelection } from './MedianSelection';
+import { ParkingBays } from './ParkingBays';
 import { measure, moduleSizing } from '../construction/modules/Format';
 import type { GridLayoutInput, GridLayoutPlan } from './schema';
 
@@ -37,7 +39,7 @@ export class GridLayout {
     const runs: StreetRun[] = [];
     const horizontal: StreetEdge[][] = z.roads.map(() => []);
     const vertical: StreetEdge[][] = x.roads.map(() => []);
-    const sideAt: GridLayoutInput['sideAt'] = (point, kind) => input.perimeter
+    const sideAt = (point: Vec2, kind: 'street' | 'road'): { profile: SidewalkProfile; finish: string } => input.perimeter
       && (point[0] < x.roads[0].position || point[0] > x.roads.at(-1)!.position
         || point[1] < z.roads[0].position || point[1] > z.roads.at(-1)!.position)
       ? input.perimeter : input.sideAt(point, kind);
@@ -104,20 +106,17 @@ export class GridLayout {
           });
         }
         const sidewalks = frontages.map((value, side) => measure(value.crossSection!.sidewalks[side < 2 ? 'left' : 'right'].geometry!.pavedWidth - sizing.separator)) as BlockModuleInput['sidewalks'];
-        const rng = details.fork(`parking:${row}:${column}`);
         const parking: BlockModuleInput['parking'] = [];
-        const eligible = sidewalks.map((width, side) => ({ width, side: side as QuarterTurn,
-          length: panels[side % 2] - sidewalks[(side + 1) % 4] - sidewalks[(side + 3) % 4] }))
-          .filter(candidate => candidate.width === (district ? 4 : 6) && candidate.length >= 32
-            && frontages[candidate.side].crossSection!.runId !== highwayRunId
-            && supportsNativeParking(frontages[candidate.side].crossSection!.sidewalks[candidate.side < 2 ? 'left' : 'right']));
-        if (eligible.length && rng.chance(0.15)) {
-          const selected = eligible[rng.int(0, eligible.length - 1)];
-          const slots = selected.length >= 38 && rng.chance(0.25) ? 3 : 2;
-          parking.push({ side: selected.side, start: rng.int(4, Math.floor((selected.length - 12 - slots * 6) / 2)) * 2, slots, profile: 'native' });
-          const side = selected.side < 2 ? 'left' : 'right';
-          const section = frontages[selected.side].crossSection!;
-          section.sidewalks[side] = parkingSection(section.sidewalks[side]);
+        for (const side of ParkingBays.KERBS) {
+          const key = side < 2 ? 'left' : 'right';
+          const section = frontages[side].crossSection!;
+          if (sidewalks[side] !== (district ? 4 : 6) || section.runId === highwayRunId
+            || !supportsNativeParking(section.sidewalks[key])
+            || !ParkingBays.allows(side, frontages[side].class, section.median !== undefined)) continue;
+          const bay = ParkingBays.bay(panels[side % 2] - sidewalks[(side + 1) % 4] - sidewalks[(side + 3) % 4], selected.zone);
+          if (!bay) continue;
+          parking.push({ side, ...bay, profile: 'native' });
+          section.sidewalks[key] = parkingSection(section.sidewalks[key]);
         }
         const guardrails: BlockModuleInput['guardrails'] = [];
         for (let side = 0; side < 4 && guardrails.length < 2; side++) {
