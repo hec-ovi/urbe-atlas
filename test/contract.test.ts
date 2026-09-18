@@ -6,7 +6,7 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { ARCHITECTURE_VERSION, AtlasError, BLUEPRINT_VERSION, generateCity } from '../src';
 import { bandWidth } from '../src/geom/band';
-import { intersection } from '../src/geom/clip';
+import { difference, intersection } from '../src/geom/clip';
 import { orientedBoundingBox } from '../src/geom/obb';
 import { area as polygonArea, bounds, distanceToOutline, pointInPolygon } from '../src/geom/polygon';
 import { length as pathLength } from '../src/geom/polyline';
@@ -504,13 +504,22 @@ describe('parameters', () => {
       expect([median.width, median.pavedWidth, median.curbWidth, median.gutterWidth]).toEqual([3.4, 2, 0.2, 0.5]);
     }
     // Every street parks on one kerb, on the 2 m grid street construction closes a run on.
+    const ground = city.volumetric.ground;
+    const notches = new Map(construction.reservations!.owners.map((owner) =>
+      [owner.id, owner.groundIndices.filter((index) => ground[index].surface === 'roadway')]));
     expect(construction.reservations!.parking.length).toBeGreaterThan(city.blocks.length / 2);
     for (const parking of construction.reservations!.parking) {
       expect([parking.depth, parking.slotLength, parking.endRun, parking.walkingClearance]).toEqual([2, 6, 2, 2.2]);
       expect([parking.start % 2, parking.end % 2, parking.support.start % 2, parking.support.end % 2]).toEqual([0, 0, 0, 0]);
       expect(parking.end - parking.start).toBe(parking.slotCount * 6 + 4);
       expect(parking.slots).toHaveLength(parking.slotCount);
+      // A bay is exactly the ground record it replaces, on its own owner.
+      expect(notches.get(parking.ownerId)!.filter((index) => difference([ground[index].polygon], [parking.footprint]).length === 0
+        && difference([parking.footprint], [ground[index].polygon]).length === 0)).toHaveLength(1);
     }
+    // No block keeps a notch without a bay: the two sets are one to one.
+    expect(construction.reservations!.owners.filter((owner) => owner.kind === 'block')
+      .reduce((total, owner) => total + notches.get(owner.id)!.length, 0)).toBe(construction.reservations!.parking.length);
     expect(construction.reservations!.owners.some((owner) => owner.kind === 'perimeter')).toBe(true);
   });
 

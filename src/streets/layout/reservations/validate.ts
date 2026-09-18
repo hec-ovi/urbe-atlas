@@ -10,6 +10,8 @@ const same = (a: unknown, b: unknown): boolean => JSON.stringify(a) === JSON.str
 const near = (a: number, b: number): boolean => Number.isFinite(a) && Math.abs(a - b) <= 1e-8;
 // Translating before the shoelace sum prevents cancellation at large city coordinates.
 const localArea = (polygon: Polygon): number => area(polygon.map(([x, z]) => [x - polygon[0][0], z - polygon[0][1]]));
+// The same land, whatever vertex a ring starts on.
+const sameRing = (a: Polygon, b: Polygon): boolean => !difference([a], [b]).length && !difference([b], [a]).length;
 function indexed<T extends { id: string }>(rows: T[], name: string): Map<string, T> {
   const out = new Map<string, T>();
   for (const row of rows) {
@@ -86,6 +88,13 @@ export function validateReservations(value: StreetReservations, city: Reservatio
     }
   }
   indexed(value.parking, 'parking');
+  // A bay replaces one authored roadway record: the notch its module cut in the sidewalk.
+  const notches = new Map<string, number[]>(), replaced = new Set<number>();
+  for (const bay of value.parking) {
+    if (!notches.has(bay.ownerId)) {
+      notches.set(bay.ownerId, owners.get(bay.ownerId)?.groundIndices.filter(index => ground[index].surface === 'roadway') ?? []);
+    }
+  }
   for (const bay of value.parking) {
     const frontage = frontages.get(bay.frontageId), owner = owners.get(bay.ownerId);
     if (!frontage || !owner || frontage.ownerId !== bay.ownerId || frontage.pavedWidth !== (district ? 4.2 : 6)
@@ -98,12 +107,16 @@ export function validateReservations(value: StreetReservations, city: Reservatio
     const at = (station: number, depth: number): number[] => [frontage!.start[0] + frontage!.inward[1] * station + frontage!.inward[0] * depth,
       frontage!.start[1] - frontage!.inward[0] * station + frontage!.inward[1] * depth];
     const expected = [at(bay.start, 0), at(bay.end, 0), at(bay.end, bay.depth), at(bay.start, bay.depth)];
+    const notch = notches.get(bay.ownerId)!.filter(index => !replaced.has(index) && sameRing(ground[index].polygon, bay.footprint));
     if (bay.footprint.length !== 4 || bay.footprint.some((p, i) => !point(p) || p.some((n, axis) => Math.abs(n - expected[i][axis]) > 1e-8))
       || bay.slots.some(slot => slot.length !== 4 || !slot.every(point) || Math.abs(localArea(slot) - bay.slotLength * bay.depth) > 1e-6)
-      || difference(bay.slots, [bay.footprint]).length
-      || difference([bay.footprint], owner!.groundIndices.filter(index => ground[index].surface === 'roadway').map(index => ground[index].polygon)).length) {
+      || difference(bay.slots, [bay.footprint]).length || notch.length !== 1) {
       fail('parking differs from its authored ground footprint', { parkingId: bay.id });
     }
+    replaced.add(notch[0]);
+  }
+  for (const [ownerId, indices] of notches) {
+    if (indices.some(index => !replaced.has(index))) fail('authored parking ground has no reservation', { ownerId });
   }
   const protectedIds = new Set<string>(), stations = indexed(city.transit.subwayStations, 'station');
   for (const record of value.protected) {
