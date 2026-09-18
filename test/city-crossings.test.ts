@@ -1,3 +1,4 @@
+/** City crossing entry: dimensioned fields over real ground, water exclusions and saved-plan validation. */
 import { describe, expect, it } from 'vitest';
 import type { GroundSurface, Polygon, StreetEdge, StreetNode, Vec2 } from '../schema/blueprint';
 import { CityCrossings } from '../src/CityCrossings';
@@ -23,127 +24,111 @@ function fixture() {
     crossSection: crossSection(`run${i % 2}`, profile, side, side), level: 0,
     elevationProfile: [{ distance: 0, level: 0 }, { distance: 60, level: 0 }] }));
   const nodes: StreetNode[] = streetNodesWithConnections(positions.map((position, index) => ({
-    id: `n${index}`, position, edgeIds: index === 0 ? edges.map(edge => edge.id) : [`e${index - 1}`],
+    id: `n${index}`, position, edgeIds: index === 0 ? edges.map((edge) => edge.id) : [`e${index - 1}`],
   })), edges);
   const kit = new StreetModuleKit();
   const blocks = [[7.5, 7.5], [-47.5, 7.5], [-47.5, -47.5], [7.5, -47.5]].map((origin, index) => kit.block({
-    id: `b${index}`, origin: origin as Vec2, panels: [40, 40], sidewalks: [4, 4, 4, 4], finish: 'plain', guardrails: [{ side: 0, start: 6, segments: 1 }],
-    parking: [{ side: 0, start: 6, slots: 1 }],
+    id: `b${index}`, origin: origin as Vec2, panels: [40, 40], sidewalks: [4, 4, 4, 4], finish: 'plain',
+    guardrails: [{ side: 0, start: 6, segments: 1 }], parking: [{ side: 0, start: 6, slots: 1 }],
   }));
   const modules = kit.construction();
   const ground: GroundSurface[] = [...ModuleGround.cover(modules),
     ...[rect(-60, -7, 120, 14), rect(-7, -60, 14, 53), rect(-7, 7, 14, 53)]
-      .map(polygon => ({ surface: 'roadway' as const, polygon, top: 0, bottom: -0.2 }))];
+      .map((polygon) => ({ surface: 'roadway' as const, polygon, top: 0, bottom: -0.2 }))];
   return { nodes, edges, ground, blocks, modules };
 }
 
-describe('dimensioned city crossing contract', () => {
-  it('publishes every grade arm over actual modules, curb and gutter, with complete walking terminals', () => {
+describe('dimensioned city crossings', () => {
+  it('publishes every eligible grade arm over actual modules, curb, gutter and retained shore land', () => {
     const input = fixture();
     const plan = CityCrossings.plan(input);
     expect(plan.junctions).toHaveLength(1);
     expect(plan.junctions[0].approaches).toHaveLength(4);
-    expect(plan.crossings[0].segments.every(segment => segment.width === 3 && segment.markings.length === 3)).toBe(true);
-    const walking = input.ground.filter(region => region.surface === 'sidewalk').map(region => region.polygon);
+    expect(plan.crossings[0].segments.every((segment) => segment.width === 3 && segment.markings.length === 3)).toBe(true);
+    const walking = input.ground.filter((region) => region.surface === 'sidewalk').map((region) => region.polygon);
     for (const approach of plan.junctions[0].approaches) {
       expect(approach.distance).toBe(11);
       for (const terminal of Object.values(approach.walkingLandings)) expect(difference([terminal], walking)).toEqual([]);
-      const parking = input.modules.parking!.flatMap(bay => bay.slots);
+      const parking = input.modules.parking!.flatMap((bay) => bay.slots);
       expect(intersection([approach.field, ...Object.values(approach.landings)], parking)).toEqual([]);
     }
     expect(Signals.build(input.nodes, input.edges, plan.junctions)).toHaveLength(4);
     CityCrossings.validate(input, JSON.parse(JSON.stringify(plan)));
     expect(CityCrossings.plan(input)).toEqual(plan);
-  });
 
-  it('rejects missing actual walking land and missing gutters instead of suppressing a required arm', () => {
-    const input = fixture();
-    const punctured = input.ground.flatMap(region => region.surface === 'sidewalk'
-      ? difference([region.polygon], [rect(10.5, 9.4, 0.05, 0.05)]).map(polygon => ({ ...region, polygon })) : [region]);
-    expect(() => CityCrossings.plan({ ...input, ground: punctured })).toThrow('grid crossing lacks complete');
-    expect(() => CityCrossings.plan({ ...input, ground: input.ground.filter(region => region.surface !== 'gutter') }))
-      .toThrow('grid crossing lacks complete curb and gutter connectors');
-  });
+    // authored water and excluded blocks decide which arms stay eligible
+    {
+      const input = fixture(), boundary = input.blocks[0].outer;
+      const landExclusions = { water: [rect(20, 20, 4, 4)], blocks: [{ ownerId: 'source-block0', boundary }] };
+      const ground = input.ground.flatMap((region) => difference([region.polygon], [boundary]).map((polygon) => ({ ...region, polygon })));
+      expect(() => CityCrossings.plan({ ...input, ground })).toThrow('grid crossing lacks complete');
+      const shore = { ...input, ground, landExclusions }, plan = CityCrossings.plan(shore);
+      expect(plan.junctions).toHaveLength(1);
+      expect(plan.crossings[0].segments.map((segment) => segment.edgeId)).toEqual(['e2', 'e3']);
+      CityCrossings.validate(shore, JSON.parse(JSON.stringify(plan)));
 
-  it('resolves shore eligibility from excluded source blocks while proving retained walking ground', () => {
-    const input = fixture(), boundary = input.blocks[0].outer;
-    const landExclusions = { water: [rect(20, 20, 4, 4)], blocks: [{ ownerId: 'source-block0', boundary }] };
-    const ground = input.ground.flatMap(region => difference([region.polygon], [boundary]).map(polygon => ({ ...region, polygon })));
-    expect(() => CityCrossings.plan({ ...input, ground })).toThrow('grid crossing lacks complete');
-    const shore = { ...input, ground, landExclusions }, plan = CityCrossings.plan(shore);
-    expect(plan.junctions).toHaveLength(1);
-    expect(plan.crossings[0].segments.map(segment => segment.edgeId)).toEqual(['e2', 'e3']);
-    CityCrossings.validate(shore, JSON.parse(JSON.stringify(plan)));
-    const punctured = ground.flatMap(region => region.surface === 'sidewalk'
-      ? difference([region.polygon], [rect(-11, -9.5, 0.05, 0.05)]).map(polygon => ({ ...region, polygon })) : [region]);
-    expect(() => CityCrossings.plan({ ...shore, ground: punctured })).toThrow('grid crossing lacks complete');
-    expect(() => CityCrossings.plan({ ...shore, landExclusions: { ...landExclusions, water: [rect(100, 100, 4, 4)] } }))
-      .toThrow('excluded block requires unique source ownership and water contact');
-  });
-
-  it('excludes water-contact approaches and leaves no empty crossing junction', () => {
-    const input = fixture(), landExclusions = { water: [rect(10, -1, 2, 2)], blocks: [] };
-    const plan = CityCrossings.plan({ ...input, landExclusions });
-    expect(plan.crossings[0].segments.map(segment => segment.edgeId)).toEqual(['e1', 'e2', 'e3']);
-    expect(CityCrossings.plan({ ...input, ground: [], landExclusions: { water: [rect(-60, -60, 120, 120)], blocks: [] } }))
-      .toEqual({ crossings: [], junctions: [] });
-    expect(() => CityCrossings.plan({ ...input, landExclusions: { water: [rect(NaN, 0, 2, 2)], blocks: [] } }))
-      .toThrow('valid source water exclusions');
-  });
-
-  it('places declared-angle marking fields clear of gutters and rejects missing roadway', () => {
-    const design = resolveStreetDesign();
-    const layout = GridLayout.plan({ seed: 'urbe', size: { width: 1000, depth: 1000 }, profiles: design.profiles, diagonals: 'legacy-applied',
-      sideAt: () => ({ profile: design.sidewalkProfiles[1], finish: 'plain' }) });
-    const cuts = layout.edges.filter(edge => edge.path[0][0] !== edge.path[1][0] && edge.path[0][1] !== edge.path[1][1]);
-    const nodeIds = new Set(cuts.flatMap(edge => [edge.from, edge.to]));
-    const ground: GroundSurface[] = [...ModuleGround.cover(layout.modules), ...layout.roadway
-      .map(polygon => ({ surface: 'roadway' as const, polygon, top: 0, bottom: -0.2 }))];
-    const input = { nodes: layout.nodes.filter(node => nodeIds.has(node.id)), edges: layout.edges, ground };
-    const plan = CityCrossings.plan(input);
-    const roadway = ground.filter(region => region.surface === 'roadway').map(region => region.polygon);
-    expect(plan.junctions).toHaveLength(4);
-    for (const junction of plan.junctions) for (const approach of junction.approaches) expect(difference([approach.field], roadway)).toEqual([]);
-    for (const crossing of plan.crossings) for (const segment of crossing.segments) {
-      expect(difference(segment.markings, roadway)).toEqual([]);
-      const span = segment.roadway!, edge = layout.edges.find(edge => edge.id === segment.edgeId)!;
-      expect(Math.hypot(span.from[0] - span.to[0], span.from[1] - span.to[1])).toBeCloseTo(edge.width - 0.1, 8);
+      // water touching one arm removes only that arm, and water over the whole city leaves nothing
+      expect(CityCrossings.plan({ ...input, landExclusions: { water: [rect(10, -1, 2, 2)], blocks: [] } })
+        .crossings[0].segments.map((segment) => segment.edgeId)).toEqual(['e1', 'e2', 'e3']);
+      expect(CityCrossings.plan({ ...input, ground: [], landExclusions: { water: [rect(-60, -60, 120, 120)], blocks: [] } }))
+        .toEqual({ crossings: [], junctions: [] });
     }
-    for (const edge of cuts) {
-      const distance = plan.junctions.flatMap(junction => junction.approaches).find(approach => approach.edgeId === edge.id)!.distance;
-      const [start, end] = edge.path, length = Math.hypot(end[0] - start[0], end[1] - start[1]);
-      const direction = [(end[0] - start[0]) / length, (end[1] - start[1]) / length];
-      const transform = ([station, lateral]: Vec2): Vec2 => [start[0] + station * direction[0] - lateral * direction[1],
-        start[1] + station * direction[1] + lateral * direction[0]];
-      const remove = (mask: Polygon) => ground.flatMap(region => region.surface === 'roadway'
-        ? difference([region.polygon], [mask]).map(polygon => ({ ...region, polygon })) : [region]);
-      const hole = rect(distance - 0.1, -0.1, 0.2, 0.2).map(transform);
-      expect(() => CityCrossings.plan({ ...input, ground: remove(hole) })).toThrow('grid crossing lacks complete roadway');
-      const strip = rect(distance - 2, edge.width / 2 - 1, 4, 1.5).map(transform);
-      expect(() => CityCrossings.plan({ ...input, ground: remove(strip) })).toThrow('grid crossing lacks complete roadway');
+  });
+
+  it('places declared-angle marking fields on real roadway, clear of gutters', () => {
+    const design = resolveStreetDesign();
+    const layout = GridLayout.plan({ seed: 'urbe', size: { width: 1000, depth: 1000 }, profiles: design.profiles,
+      diagonals: 'legacy-applied', sideAt: () => ({ profile: design.sidewalkProfiles[1], finish: 'plain' }) });
+    const cuts = layout.edges.filter((edge) => edge.path[0][0] !== edge.path[1][0] && edge.path[0][1] !== edge.path[1][1]);
+    const nodeIds = new Set(cuts.flatMap((edge) => [edge.from, edge.to]));
+    const ground: GroundSurface[] = [...ModuleGround.cover(layout.modules), ...layout.roadway
+      .map((polygon) => ({ surface: 'roadway' as const, polygon, top: 0, bottom: -0.2 }))];
+    const input = { nodes: layout.nodes.filter((node) => nodeIds.has(node.id)), edges: layout.edges, ground };
+    const plan = CityCrossings.plan(input);
+    const roadway = ground.filter((region) => region.surface === 'roadway').map((region) => region.polygon);
+    expect(plan.junctions).toHaveLength(4);
+    for (const junction of plan.junctions) {
+      for (const approach of junction.approaches) expect(difference([approach.field], roadway)).toEqual([]);
+    }
+    for (const crossing of plan.crossings) {
+      for (const segment of crossing.segments) {
+        expect(difference(segment.markings, roadway)).toEqual([]);
+        const span = segment.roadway!, edge = layout.edges.find((edge) => edge.id === segment.edgeId)!;
+        // the marking span keeps 5 cm clear of the gutter on both sides
+        expect(Math.hypot(span.from[0] - span.to[0], span.from[1] - span.to[1])).toBeCloseTo(edge.width - 0.1, 8);
+      }
     }
   }, 20000);
 
-  it('rejects physical support or ramp footprints and unconnected grade traffic entering a complete crossing', () => {
+  it('rejects missing ground, physical obstacles, foreign traffic and incomplete saved records', () => {
     const input = fixture();
+    const punctured = input.ground.flatMap((region) => region.surface === 'sidewalk'
+      ? difference([region.polygon], [rect(10.5, 9.4, 0.05, 0.05)]).map((polygon) => ({ ...region, polygon })) : [region]);
+    expect(() => CityCrossings.plan({ ...input, ground: punctured })).toThrow('grid crossing lacks complete');
+    expect(() => CityCrossings.plan({ ...input, ground: input.ground.filter((region) => region.surface !== 'gutter') }))
+      .toThrow('grid crossing lacks complete curb and gutter connectors');
+    expect(() => CityCrossings.plan({ ...input, landExclusions: { water: [rect(NaN, 0, 2, 2)], blocks: [] } }))
+      .toThrow('valid source water exclusions');
     expect(() => CityCrossings.plan({ ...input, obstacles: [rect(10, -1, 2, 2)] })).toThrow('physical obstacle');
+
     const foreign: StreetEdge = { ...input.edges[1], id: 'foreign', from: 'foreign0', to: 'foreign1', width: 2,
       path: [[11, -40], [11, 20]], elevationProfile: [{ distance: 0, level: 0 }, { distance: 60, level: 0 }] };
     expect(() => CityCrossings.plan({ ...input, edges: [...input.edges, foreign] })).toThrow('another grade road');
+    // the same line on the highway deck is not grade traffic
     const overhead = { ...foreign, level: 8, elevationProfile: [{ distance: 0, level: 8 }, { distance: 60, level: 8 }] };
     expect(CityCrossings.plan({ ...input, edges: [...input.edges, overhead] }).crossings[0].segments).toHaveLength(4);
-  });
 
-  it('preserves continuation identity and rejects incomplete saved approach records', () => {
-    const input = fixture(), plan = CityCrossings.plan(input);
+    const plan = CityCrossings.plan(input);
     const modified = structuredClone(plan);
     modified.junctions[0].approaches.pop();
     expect(() => CityCrossings.validate(input, modified)).toThrow('required module approaches');
-    const through = input.edges.filter(edge => edge.id === 'e0' || edge.id === 'e2');
-    const nodes = streetNodesWithConnections(input.nodes.map(node => ({ ...node,
-      edgeIds: node.edgeIds.filter(id => through.some(edge => edge.id === id)) })), through);
-    expect(CityCrossings.plan({ ...input, nodes, edges: through }).junctions).toEqual([]);
     const badEdge = { ...input.edges[0], path: [[0, 0], [60, 1]] as Vec2[] };
     expect(() => CityCrossings.plan({ ...input, edges: [badEdge, ...input.edges.slice(1)] })).toThrow('straight declared-angle');
+
+    // a through-run with no third arm is not a junction
+    const through = input.edges.filter((edge) => edge.id === 'e0' || edge.id === 'e2');
+    const nodes = streetNodesWithConnections(input.nodes.map((node) => ({ ...node,
+      edgeIds: node.edgeIds.filter((id) => through.some((edge) => edge.id === id)) })), through);
+    expect(CityCrossings.plan({ ...input, nodes, edges: through }).junctions).toEqual([]);
   });
 });

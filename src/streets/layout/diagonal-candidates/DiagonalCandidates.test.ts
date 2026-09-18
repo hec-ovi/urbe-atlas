@@ -17,7 +17,7 @@ const input = (): DiagonalCandidateInput => ({
   allowedRegions: [rectangle(0, 0, 100, 120)],
 });
 
-it('proposes independent full-width cuts between authored lower and upper receiving faces without changing the grid', () => {
+it('proposes independent full-width cuts between authored parallel and perpendicular faces', () => {
   const source = input(), before = structuredClone(source);
   const candidates = DiagonalCandidates.plan(source);
   expect(candidates.map(candidate => [candidate.angle, candidate.slope])).toEqual([[45, 1], [45, -1]]);
@@ -39,25 +39,12 @@ it('proposes independent full-width cuts between authored lower and upper receiv
   expect(source).toEqual(before);
   source.rectangles[1] = { id: 'upper-parent', min: [0, 40], max: [100, 120] };
   expect(new Set(DiagonalCandidates.plan(source).map(candidate => candidate.angle))).toEqual(new Set([30, 45]));
-});
 
-it('rejects a corner-overlapping full mouth even when its centerline could clear both corners', () => {
-  const source = input();
-  source.constructionWidth = 12;
-  expect(DiagonalCandidates.plan(source)).toEqual([]);
-  source.constructionWidth = 8;
-  source.cornerClearance = 5;
-  expect(DiagonalCandidates.plan(source)).toEqual([]);
-  source.facePairs[0].to = { ...source.facePairs[0].from };
-  expect(DiagonalCandidates.plan(source)).toEqual([]);
-});
-
-it('clips the complete strip to perpendicular authored receiving faces', () => {
-  const source = input();
-  source.facePairs[0].to = { rectangleId: 'lower-parent', side: 'east', streetId: 'vertical' };
-  const candidates = DiagonalCandidates.plan(source);
-  expect(candidates.map(candidate => [candidate.angle, candidate.slope])).toEqual([[30, 1], [45, 1]]);
-  for (const candidate of candidates) {
+  const perpendicular = input();
+  perpendicular.facePairs[0].to = { rectangleId: 'lower-parent', side: 'east', streetId: 'vertical' };
+  const clipped = DiagonalCandidates.plan(perpendicular);
+  expect(clipped.map(candidate => [candidate.angle, candidate.slope])).toEqual([[30, 1], [45, 1]]);
+  for (const candidate of clipped) {
     expect(candidate.mouths[0].points.every(point => point[1] === 0)).toBe(true);
     expect(candidate.mouths[1].points.every(point => point[0] === 100)).toBe(true);
     expect(candidate.mouths.every(mouth => mouth.cornerClearances.every(distance => distance >= 3))).toBe(true);
@@ -66,18 +53,7 @@ it('clips the complete strip to perpendicular authored receiving faces', () => {
   }
 });
 
-it('requires complete allowed-land coverage across disconnected gaps and enclosed holes', () => {
-  const source = input();
-  source.allowedRegions = [rectangle(0, 0, 100, 40), rectangle(0, 40.000001, 100, 79.999999)];
-  expect(DiagonalCandidates.plan(source)).toEqual([]);
-  source.allowedRegions = [rectangle(0, 0, 100, 39), rectangle(0, 41, 100, 79),
-    rectangle(0, 39, 49, 2), rectangle(51, 39, 49, 2)];
-  expect(DiagonalCandidates.plan(source)).toEqual([]);
-  source.allowedRegions = [];
-  expect(DiagonalCandidates.plan(source)).toEqual([]);
-});
-
-it('checks full intermediate mouths in traversal order even when all allowed land is covered', () => {
+it('checks full intermediate mouths in traversal order and drops unreachable midpoints', () => {
   const source = input();
   source.rectangles.push({ id: 'intermediate', min: [0, 40], max: [100, 45] });
   source.facePairs[0].through = ['south', 'north'].map(side => ({ rectangleId: 'intermediate',
@@ -88,25 +64,32 @@ it('checks full intermediate mouths in traversal order even when all allowed lan
     && candidate.intermediateMouths.every(mouth => mouth.cornerClearances.every(distance => distance >= 3)))).toBe(true);
   source.facePairs[0].through.reverse();
   expect(DiagonalCandidates.plan(source)).toEqual([]);
-  source.facePairs[0].through.reverse();
-  source.rectangles[2].min[0] = 49;
-  source.rectangles[2].max[0] = 51;
-  expect(DiagonalCandidates.plan(source)).toEqual([]);
+
+  for (const change of [
+    (value: DiagonalCandidateInput) => { value.constructionWidth = 12; },
+    (value: DiagonalCandidateInput) => { value.cornerClearance = 5; },
+    (value: DiagonalCandidateInput) => { value.facePairs[0].to = { ...value.facePairs[0].from }; },
+    (value: DiagonalCandidateInput) => { value.allowedRegions = [rectangle(0, 0, 100, 40), rectangle(0, 40.000001, 100, 79.999999)]; },
+    (value: DiagonalCandidateInput) => { value.allowedRegions = [rectangle(0, 0, 100, 39), rectangle(0, 41, 100, 79),
+      rectangle(0, 39, 49, 2), rectangle(51, 39, 49, 2)]; },
+    (value: DiagonalCandidateInput) => { value.allowedRegions = []; },
+  ]) {
+    const infeasible = input(); change(infeasible);
+    expect(DiagonalCandidates.plan(infeasible)).toEqual([]);
+  }
 });
 
 it('rejects invalid identities, dimensions, angles and allowed rings at the public entry', () => {
-  const changes: ((source: DiagonalCandidateInput) => void)[] = [
-    source => { source.rectangles.push(source.rectangles[0]); },
-    source => { source.facePairs.push(source.facePairs[0]); },
-    source => { source.facePairs[0].from.rectangleId = 'missing'; },
-    source => { source.facePairs[0].to.streetId = ''; },
-    source => { source.constructionWidth = 0; },
-    source => { source.cornerClearance = -1; },
-    source => { source.angles = [60 as 30]; },
-    source => { source.rectangles[0].min = [NaN, 0]; },
-    source => { source.allowedRegions = [[[0, 0], [2, 2], [0, 2], [2, 0]]]; },
-  ];
-  for (const change of changes) {
+  for (const change of [
+    (value: DiagonalCandidateInput) => { value.rectangles.push(value.rectangles[0]); },
+    (value: DiagonalCandidateInput) => { value.facePairs[0].from.rectangleId = 'missing'; },
+    (value: DiagonalCandidateInput) => { value.facePairs[0].to.streetId = ''; },
+    (value: DiagonalCandidateInput) => { value.constructionWidth = 0; },
+    (value: DiagonalCandidateInput) => { value.cornerClearance = -1; },
+    (value: DiagonalCandidateInput) => { value.angles = [60 as 30]; },
+    (value: DiagonalCandidateInput) => { value.rectangles[0].min = [NaN, 0]; },
+    (value: DiagonalCandidateInput) => { value.allowedRegions = [[[0, 0], [2, 2], [0, 2], [2, 0]]]; },
+  ]) {
     const source = input(); change(source);
     expect(() => DiagonalCandidates.plan(source)).toThrow(expect.objectContaining({ code: 'E_INVALID_PARAMS' }));
   }

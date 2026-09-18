@@ -60,9 +60,13 @@ describe('staged highway construction', () => {
     expect(() => supportHighwayEnvelopes(envelopes, [blocked]))
       .toThrow(expect.objectContaining({ code: 'E_INVARIANT' }));
     expect(envelopes[0]).not.toHaveProperty('supports');
+    const network: HighwayConstructionEdge[] = [{ ...graphEdge(), class: 'street' }];
+    expect(highwayEnvelopes(network)).toEqual([]);
+    expect(supportHighwayEnvelopes([])).toEqual([]);
+    expect(highwayStructures(network)).toEqual([]);
   });
 
-  it('uses the same canonical ramps for reversed routing edges and early envelopes', () => {
+  it('uses the same canonical ramps for reversed routing edges and rejects conflicting profiles', () => {
     const edges = assignedEdges();
     expect(edges[0].elevationProfile).toEqual([
       { distance: 0, level: 0 }, { distance: 60, level: 10 }, { distance: 100, level: 10 },
@@ -78,13 +82,25 @@ describe('staged highway construction', () => {
     ]);
     expect(envelopes[0].path).toEqual([[0, 0], [100, 0], [240, 0]]);
     expect(supportHighwayEnvelopes(envelopes)).toEqual(highwayStructures(edges));
+
+    const missingBreakpoint = assignedEdges();
+    missingBreakpoint[0].elevationProfile.splice(1, 1);
+    expect(() => highwayEnvelopes(missingBreakpoint)).toThrow(/edge e0 elevation profile conflicts/);
+    const incomplete = assignedEdges();
+    incomplete[0].elevationProfile.pop();
+    expect(() => highwayEnvelopes(incomplete)).toThrow(/edge e0 has an incomplete elevation profile/);
+    const widened = assignedEdges();
+    widened[1].width += 1;
+    expect(() => highwayEnvelopes(widened)).toThrow(/dimensions disagree with edge e1/);
   });
 
-  it('stands a column at each edge of a district avenue and spreads the rest evenly', () => {
+  it('stands a column at each edge of a blocked stretch and bridges the widest the pitch allows', () => {
+    const envelopes = highwayEnvelopes([graphEdge()]);
+    const band = (start: number, width: number): Polygon =>
+      [[start, -8], [start + width, -8], [start + width, 8], [start, 8]];
     // 27.6 m of avenue, its curbs and both underpass sidewalks: wider than the pitch
     // less a column, so the deck is carried from both edges at once.
-    const crossing: Polygon = [[101.7, -8], [129.3, -8], [129.3, 8], [101.7, 8]];
-    const envelopes = highwayEnvelopes([graphEdge()]);
+    const crossing = band(101.7, 27.6);
     const structures = supportHighwayEnvelopes(envelopes, [crossing]);
     expect(structures[0].supports.map(support => support.position)).toEqual([
       [80.35, 0], [100.7, 0], [130.3, 0], [155.15, 0],
@@ -97,47 +113,13 @@ describe('staged highway construction', () => {
       expect(intersection([support.footprint], [crossing])).toEqual([]);
       previous = support.position[0];
     }
-    const flatEnd = 240 - envelopes[0].ramps.end;
-    expect(flatEnd - previous).toBeLessThanOrEqual(HIGHWAY_DECK.supportPitch);
+    expect(240 - envelopes[0].ramps.end - previous).toBeLessThanOrEqual(HIGHWAY_DECK.supportPitch);
     expect(supportHighwayEnvelopes(envelopes, [crossing])).toEqual(structures);
-  });
-
-  it('bridges the widest crossing the pitch allows and refuses a wider one', () => {
-    const envelopes = highwayEnvelopes([graphEdge()]);
-    const band = (width: number): Polygon => {
-      const start = 120 - width / 2, end = start + width;
-      return [[start, -8], [end, -8], [end, 8], [start, 8]];
-    };
     // A column stands 1 m clear of each edge, so 28 m of crossing still bridges at 30 m.
-    const widest = supportHighwayEnvelopes(envelopes, [band(28)])[0].supports.map(support => support.position[0]);
+    const widest = supportHighwayEnvelopes(envelopes, [band(106, 28)])[0].supports.map(support => support.position[0]);
     expect(widest).toContain(105);
     expect(widest).toContain(135);
-    expect(() => supportHighwayEnvelopes(envelopes, [band(28.1)]))
+    expect(() => supportHighwayEnvelopes(envelopes, [band(105.95, 28.1)]))
       .toThrow(expect.objectContaining({ code: 'E_INVARIANT' }));
-  });
-
-  it('rejects an assigned profile that omits a ramp breakpoint', () => {
-    const edges = assignedEdges();
-    edges[0].elevationProfile.splice(1, 1);
-    expect(() => highwayEnvelopes(edges)).toThrow(/edge e0 elevation profile conflicts/);
-  });
-
-  it('rejects an assigned profile that does not cover its complete path', () => {
-    const edges = assignedEdges();
-    edges[0].elevationProfile.pop();
-    expect(() => highwayEnvelopes(edges)).toThrow(/edge e0 has an incomplete elevation profile/);
-  });
-
-  it('rejects conflicting dimensions within one run', () => {
-    const edges = assignedEdges();
-    edges[1].width += 1;
-    expect(() => highwayEnvelopes(edges)).toThrow(/dimensions disagree with edge e1/);
-  });
-
-  it('returns no construction for an empty highway network', () => {
-    const edges: HighwayConstructionEdge[] = [{ ...graphEdge(), class: 'street' }];
-    expect(highwayEnvelopes(edges)).toEqual([]);
-    expect(supportHighwayEnvelopes([])).toEqual([]);
-    expect(highwayStructures(edges)).toEqual([]);
   });
 });

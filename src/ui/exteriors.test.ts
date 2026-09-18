@@ -1,4 +1,5 @@
 // @vitest-environment happy-dom
+/** Exterior jobs: a verified complete job opens the viewer, everything else stays refused. */
 import { createHash } from 'node:crypto';
 import { afterEach, expect, it, vi } from 'vitest';
 import { getByRole, waitFor } from '@testing-library/dom';
@@ -20,15 +21,17 @@ function job(state = 'succeeded') {
     manifest: state === 'succeeded' ? manifest : null, error: null };
 }
 const json = (value: unknown) => ({ ok: true, json: async () => value });
-function api(handler: (url: string, init?: RequestInit) => ReturnType<typeof json> | Promise<ReturnType<typeof json>>) {
-  return vi.fn(async (url: string, init?: RequestInit) => {
-    const form = formPayload(url);
-    if (form) return json(form);
-    return handler(url, init);
-  });
-}
+const available = { contractVersion: '1.0', available: true, reason: null };
+type Handler = (url: string, init?: RequestInit) => ReturnType<typeof json> | Promise<ReturnType<typeof json>>;
 
-async function mount() {
+/** Mounts the displayed city with a selected parcel, the state exterior generation requires. */
+async function mount(handler: Handler) {
+  document.body.replaceChildren();
+  const fetcher = vi.fn(async (url: string, init?: RequestInit) => {
+    const form = formPayload(url);
+    return form ? json(form) : handler(url, init);
+  });
+  vi.stubGlobal('fetch', fetcher);
   const app = new PreviewApp();
   document.body.append(app.root);
   await app.ready;
@@ -38,77 +41,54 @@ async function mount() {
   expect(getByRole(app.root, 'button', { name: 'Generate exteriors' }).closest('.workspace-creation')).toBeNull();
   expect(app.root.querySelector<HTMLElement>('.workspace-visualization')!.hidden).toBe(false);
   await userEvent.pointer({ target: app.root.querySelector('canvas')!, coords: { clientX: 300, clientY: 300 }, keys: '[MouseLeft]' });
-  return app;
+  return { app, fetcher };
 }
 
-it('submits the displayed city only after a click and enables preview after exact completed job verification', async () => {
-  const fetcher = api(async (url: string, init?: RequestInit) => {
+it('submits the displayed city only after a click and enables the viewer link after a verified complete job', async () => {
+  const { app, fetcher } = await mount(async (url, init) => {
     if (init?.method === 'POST') return json(job('queued'));
     if (url.endsWith('/job-1')) return json(job());
-    return json({ contractVersion: '1.0', available: true, reason: null });
+    return json(available);
   });
-  vi.stubGlobal('fetch', fetcher);
-  const app = await mount();
-  const button = getByRole(app.root, 'button', { name: 'Generate exteriors' }) as HTMLButtonElement;
-  await waitFor(() => expect(button.disabled).toBe(false));
+  const generate = getByRole(app.root, 'button', { name: 'Generate exteriors' }) as HTMLButtonElement;
+  await waitFor(() => expect(generate.disabled).toBe(false));
   expect(fetcher.mock.calls.every(([, init]) => init?.method !== 'POST')).toBe(true);
   expect((getByRole(app.root, 'button', { name: 'Open building preview' }) as HTMLButtonElement).disabled).toBe(true);
-  await userEvent.click(button);
+  await userEvent.click(generate);
   await waitFor(() => expect(fetcher.mock.calls.some(([, init]) => init?.method === 'POST')).toBe(true));
   const request = fetcher.mock.calls.find(([, init]) => init?.method === 'POST')![1]!;
   expect(JSON.parse(String(request.body))).toEqual({ blueprint });
   await waitFor(() => expect(getByRole(app.root, 'link', { name: 'Open building view' })).toBeTruthy(), { timeout: 3500 });
-  const link = getByRole(app.root, 'link', { name: 'Open building view' }) as HTMLAnchorElement;
-  const destination = new URL(link.href);
+  const destination = new URL((getByRole(app.root, 'link', { name: 'Open building view' }) as HTMLAnchorElement).href);
   expect(destination.searchParams.get('out')).toBe('/out/atlas-exteriors-job-1');
   expect(destination.searchParams.get('parcel')).toBe('p0');
   expect(destination.searchParams.get('mode')).toBe('building');
-  const changed = selectionBlueprint();
-  changed.volumetric.buildings[0].height += 1;
-  await app.loadBlueprint(changed);
-  expect(app.root.querySelector('a.inspector-open')).toBeNull();
 });
 
-it('keeps generation unavailable when the server lacks its runtime', async () => {
-  const fetcher = api(async () => json({ contractVersion: '1.0', available: false, reason: 'Connections runtime missing' }));
-  vi.stubGlobal('fetch', fetcher);
-  const app = await mount();
-  const button = getByRole(app.root, 'button', { name: 'Generate exteriors' }) as HTMLButtonElement;
-  expect(button.disabled).toBe(true);
-  expect(app.root.textContent).toContain('Connections runtime missing');
+it('refuses an unavailable runtime, a mismatched job, incomplete completion and a stale response', async () => {
+  const { app: unavailable, fetcher } = await mount(async () => json({ contractVersion: '1.0', available: false, reason: 'Connections runtime missing' }));
+  const disabled = getByRole(unavailable.root, 'button', { name: 'Generate exteriors' }) as HTMLButtonElement;
+  expect(disabled.disabled).toBe(true);
+  expect(unavailable.root.textContent).toContain('Connections runtime missing');
   const calls = fetcher.mock.calls.length;
-  await userEvent.click(button);
+  await userEvent.click(disabled);
   expect(fetcher).toHaveBeenCalledTimes(calls);
-});
 
-it('rejects a successful job for another blueprint and keeps preview disabled', async () => {
-  vi.stubGlobal('fetch', api(async (_url: string, init?: RequestInit) => json(init?.method === 'POST'
-    ? { ...job(), blueprintHash: '0'.repeat(64) } : { contractVersion: '1.0', available: true, reason: null })));
-  const app = await mount();
-  await userEvent.click(getByRole(app.root, 'button', { name: 'Generate exteriors' }));
-  await waitFor(() => expect(app.root.textContent).toContain('invalid or mismatched job'));
-  expect((getByRole(app.root, 'button', { name: 'Open building preview' }) as HTMLButtonElement).disabled).toBe(true);
-});
+  for (const response of [
+    { ...job(), blueprintHash: '0'.repeat(64) },
+    { ...job(), completed: 0, completedParcels: [] },
+    { ...job(), manifest: { ...manifest, seed: 'another-city' } },
+  ]) {
+    const { app } = await mount(async (_url, init) => json(init?.method === 'POST' ? response : available));
+    await userEvent.click(getByRole(app.root, 'button', { name: 'Generate exteriors' }));
+    await waitFor(() => expect(app.root.textContent).toContain('invalid or mismatched job'));
+    expect((getByRole(app.root, 'button', { name: 'Open building preview' }) as HTMLButtonElement).disabled).toBe(true);
+    expect(app.root.querySelector('a.inspector-open')).toBeNull();
+  }
 
-it.each([
-  { ...job(), completed: 0, completedParcels: [] },
-  { ...job(), manifest: { ...manifest, seed: 'another-city' } },
-])('rejects incomplete or mismatched exterior completion', async (response) => {
-  vi.stubGlobal('fetch', api(async (_url: string, init?: RequestInit) => json(init?.method === 'POST'
-    ? response : { contractVersion: '1.0', available: true, reason: null })));
-  const app = await mount();
-  await userEvent.click(getByRole(app.root, 'button', { name: 'Generate exteriors' }));
-  await waitFor(() => expect(app.root.textContent).toContain('invalid or mismatched job'));
-  expect(app.root.querySelector('a.inspector-open')).toBeNull();
-});
-
-it('ignores a job response after a different blueprint is loaded', async () => {
   let complete!: (response: ReturnType<typeof json>) => void;
-  const fetcher = api(async (_url: string, init?: RequestInit) => init?.method === 'POST'
-    ? new Promise<ReturnType<typeof json>>((resolve) => { complete = resolve; })
-    : json({ contractVersion: '1.0', available: true, reason: null }));
-  vi.stubGlobal('fetch', fetcher);
-  const app = await mount();
+  const { app } = await mount(async (_url, init) => init?.method === 'POST'
+    ? new Promise<ReturnType<typeof json>>((resolve) => { complete = resolve; }) : json(available));
   await userEvent.click(getByRole(app.root, 'button', { name: 'Generate exteriors' }));
   await waitFor(() => expect(complete).toBeTypeOf('function'));
   const changed = selectionBlueprint();

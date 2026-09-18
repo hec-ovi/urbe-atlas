@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import type { Polygon, Vec2 } from '../../../../schema/blueprint';
-import { coordinateCover, GRID_STEP, hasInteriorBeyondPrecision } from '../../../geom/clip';
+import type { Polygon, StreetEdge, Vec2 } from '../../../../schema/blueprint';
+import { coordinateCover, GRID_STEP, hasInteriorBeyondPrecision, snapPoint } from '../../../geom/clip';
 import { edgeMaskView } from '../../../geom/partition/EdgeMasks';
+import { StreetCorridors } from '../../construction/StreetCorridors';
 import { CrossingIntervals } from './CrossingIntervals';
 import { FootprintRegions } from './FootprintRegions';
 import { StationFrame } from './StationFrame';
@@ -23,6 +24,7 @@ function transform(polygon: Polygon, a: Vec2, b: Vec2): Polygon {
     [a[0] + ux * station - uz * lateral, a[1] + uz * station + ux * lateral]);
 }
 
+/** Every published interval places a complete footprint on allowed, unforbidden, unexcluded land. */
 function verifyFootprints(query: StationIntervalInput): void {
   const before = JSON.stringify(query);
   const result = CrossingIntervals.find(query);
@@ -60,216 +62,152 @@ function expectIntervals(query: StationIntervalInput, expected: StationInterval[
 }
 
 describe('CrossingIntervals public full-band query', () => {
-  it('shares exact field inputs across interval queries without changing their bounds', () => {
-    const query = input({ allowed: [rectangle(0, 10, -5, 5), rectangle(20, 30, -5, 5)],
-      forbidden: [rectangle(1, 3, -5, 5)], excluded: [rectangle(25, 27, -5, 5)] });
-    const prepared = { ...query, allowed: new FootprintRegions(query.allowed),
-      forbidden: new FootprintRegions(query.forbidden!), excluded: new FootprintRegions(query.excluded!) };
-    const expected = CrossingIntervals.find(query);
+  it('bounds complete footprints over allowed land, shares prepared fields and rejects malformed input', () => {
+    const allowance = GRID_STEP / Math.SQRT2;
+    const separated = input({ allowed: [rectangle(0, 10, -5, 5), rectangle(20, 30, -5, 5)] });
+    expectIntervals(separated, [{ from: 1.5, to: 8.5 + allowance }, { from: 21.5 - allowance, to: 28.5 }]);
+    expectIntervals(input({ allowed: [[[0, -5], [30, -5], [30, 5], [17, 5], [17, 2], [13, 2], [13, 5], [0, 5]]] }),
+      [{ from: 1.5, to: 11.5 + allowance }, { from: 18.5 - allowance, to: 28.5 }]);
+    expect(CrossingIntervals.find(input({ width: 30 }))).toEqual([{ from: 15, to: 15 }]);
+
+    const prepared = { ...separated, allowed: new FootprintRegions(separated.allowed) };
+    const expected = CrossingIntervals.find(separated);
+    separated.allowed.length = 0;
     expect(CrossingIntervals.find(prepared)).toEqual(expected);
-    query.allowed.length = 0;
-    expect(CrossingIntervals.find(prepared)).toEqual(expected);
-    expect(CrossingIntervals.find(query)).toEqual([]);
+    expect(CrossingIntervals.find(separated)).toEqual([]);
+
+    for (const overrides of [{ allowed: [rectangle(100, 130, -5, 5)] }, { allowed: [rectangle(0, 2, -5, 5)] },
+      { forbidden: [rectangle(0, 30, -5, 5)] }, { excluded: [rectangle(0, 30, -5, 5)] }, { width: 31 }]) {
+      expect(CrossingIntervals.find(input(overrides))).toEqual([]);
+    }
+    for (const overrides of [{ a: [NaN, 0] }, { b: [0, 0] }, { width: 0 }, { width: Infinity },
+      { width: Number.MIN_VALUE }, { sourceOffset: -1 }, { sourceOffset: Infinity }, { lateral: [4, -4] },
+      { lateral: [0, Infinity] }, { allowed: null }, { allowed: [[[0, 0], [1, 0]]] },
+      { forbidden: [[[0, 0], [1, 0], [2, 0]]] }, { excluded: null }]) {
+      expect(() => CrossingIntervals.find(input(overrides as Partial<StationIntervalInput>)))
+        .toThrowError(expect.objectContaining({ code: 'E_INVALID_PARAMS' }));
+    }
   });
 
-  it('fits an oblique full footprint and retains metric stations', () => {
+  it('separates precision-only contact from a genuine intrusion for forbidden and excluded masks', () => {
+    const sliver = rectangle(10, 20, 3.9995, 5);
+    expect(CrossingIntervals.find(input({ forbidden: [sliver] }))).toEqual([{ from: 1.5, to: 28.5 }]);
+    expectIntervals(input({ excluded: [sliver] }), [{ from: 1.5, to: 8.5 }, { from: 21.5, to: 28.5 }]);
+    expectIntervals(input({ forbidden: [rectangle(10, 20, 3.998, 5)] }),
+      [{ from: 1.5, to: 8.5005 }, { from: 21.4995, to: 28.5 }]);
+    const tangent = input({ excluded: [rectangle(0, 30, 4, 5)] });
+    expect(CrossingIntervals.find(tangent)).toEqual([{ from: 1.5, to: 28.5 }]);
+    verifyFootprints(tangent);
+    expectIntervals(input({ forbidden: [[[8, -8], [10, -8], [22, 8], [20, 8]]] }),
+      [{ from: 1.5, to: 9.501 }, { from: 20.499, to: 28.5 }]);
+  });
+
+  it('retains metric stations on oblique bands and through encoded path offsets', () => {
     const a: Vec2 = [10, 20], b: Vec2 = [34, 52];
-    const query = input({ a, b, allowed: [transform(rectangle(5, 35, -6, 6), a, b)] });
-    const result = CrossingIntervals.find(query);
+    const oblique = input({ a, b, allowed: [transform(rectangle(5, 35, -6, 6), a, b)] });
+    const result = CrossingIntervals.find(oblique);
     expect(result).toHaveLength(1);
     expect(result[0].from).toBeGreaterThan(6.499);
     expect(result[0].from).toBeLessThanOrEqual(6.5);
     expect(result[0].to).toBeGreaterThanOrEqual(33.5);
     expect(result[0].to).toBeLessThan(33.501);
-    verifyFootprints(query);
-  });
+    verifyFootprints(oblique);
 
-  it('bounds stations through the canonical oblique source edges', () => {
-    const a: Vec2 = [0.000499, 0.000499], b: Vec2 = [100, 100];
-    const frame = new StationFrame(a, b);
-    const allowed = [[frame.edgePoint(8, 0), frame.edgePoint(frame.length, 0),
-      frame.edgePoint(frame.length, 7), frame.edgePoint(0, 7),
-      frame.edgePoint(0, 1), frame.edgePoint(8, 1)]];
-    const query = input({ a, b, lateral: [0, 7], allowed });
-    expect(CrossingIntervals.find(query)).toHaveLength(1);
-    verifyFootprints(query);
-  });
+    const encoded = input({ a, b, sourceOffset: 2 ** 30,
+      allowed: [transform(rectangle(0, 40, -6, 6), a, b)],
+      excluded: [transform(rectangle(12, 20, -5, 1), a, b)] });
+    expect(CrossingIntervals.find(encoded)).toHaveLength(2);
+    verifyFootprints(encoded);
 
-  it('bounds cancellation when a source path offset encodes a local station', () => {
-    const query = input({ sourceOffset: 2 ** 30, allowed: [rectangle(5, 25, -5, 5)] });
-    expect(CrossingIntervals.find(query)).toHaveLength(1);
-    verifyFootprints(query);
-  });
-
-  it('retains exact source-cap fits only when the path encoding can represent their centre', () => {
-    const exact = input({ width: 30, sourceOffset: 2 ** 30 });
-    expect(CrossingIntervals.find(exact)).toEqual([{ from: 15, to: 15 }]);
-    verifyFootprints(exact);
+    expect(CrossingIntervals.find(input({ width: 30, sourceOffset: 2 ** 30 }))).toEqual([{ from: 15, to: 15 }]);
     expect(CrossingIntervals.find(input({ width: 30, sourceOffset: 2 ** 54 }))).toEqual([]);
   });
 
-  it('returns both separated valid intervals without spanning missing land', () => {
-    const query = input({ allowed: [rectangle(0, 10, -5, 5), rectangle(20, 30, -5, 5)] });
-    const allowance = GRID_STEP / Math.SQRT2;
-    expectIntervals(query, [{ from: 1.5, to: 8.5 + allowance }, { from: 21.5 - allowance, to: 28.5 }]);
+  it('proves coverage, overlap and exact enclosures against an immutable field', () => {
+    const source: Polygon = [[0, 0], [10, 0], [10, 4], [0, 4]];
+    const masks: Polygon[] = [[[0, 0.0006], [10, 0.0006], [10, 4], [0, 4]]];
+    const field = new FootprintRegions(masks);
+    expect(field.empty).toBe(false);
+    expect(new FootprintRegions([]).empty).toBe(true);
+    expect(FootprintRegions.covers(source, [])).toBe(false);
+    expect(field.covers(source)).toBe(true);
+    expect(FootprintRegions.covers(source, [[[0, 0.0008], [10, 0.0008], [10, 4], [0, 4]]])).toBe(false);
+    expect(FootprintRegions.covers(source, [[[0, 0], [5, 0], [5, 4], [0, 4]], [[5, 0], [10, 0], [10, 4], [5, 4]]])).toBe(true);
+    expect(FootprintRegions.covers(source, [[[0, 0], [10, 0], [10, 4], [6, 4], [6, 2], [4, 2], [4, 4], [0, 4]]])).toBe(false);
+
+    const expected = FootprintRegions.inside(source, masks);
+    const first = field.inside(source);
+    expect(first).toEqual(expected);
+    first[0][0][0] = 100;
+    masks[0][1][0] = 1;
+    expect(field.inside(source)).toEqual(expected);
+    expect(field.covers(source)).toBe(true);
+    expect(FootprintRegions.covers(source, masks)).toBe(false);
+    expect(FootprintRegions.outside(source, [])).toEqual([source]);
+
+    const boundary = new FootprintRegions([[[0, 3.9995], [10, 3.9995], [10, 5], [0, 5]]]);
+    expect(boundary.overlapsArea(source)).toBe(true);
+    expect(boundary.intersects(source)).toBe(false);
+    const interior = new FootprintRegions([[[0, 3], [10, 3], [10, 5], [0, 5]]]);
+    expect(interior.intersects(source)).toBe(true);
+    expect(interior.overlapsArea([[20, 0], [30, 0], [30, 4], [20, 4]])).toBe(false);
+    expect(interior.missing(source).length).toBeGreaterThan(0);
+
+    const enclosures = interior.insideEnclosures(source);
+    const boundaries = interior.inside(source);
+    expect(enclosures).toHaveLength(boundaries.length);
+    boundaries.forEach((ring, index) => ring.forEach(([x, z], vertex) => {
+      const { lower, upper } = enclosures[index][vertex];
+      expect(lower[0]).toBeLessThanOrEqual(x);
+      expect(upper[0]).toBeGreaterThanOrEqual(x);
+      expect(lower[1]).toBeLessThanOrEqual(z);
+      expect(upper[1]).toBeGreaterThanOrEqual(z);
+    }));
+
+    const invalid: Polygon = [[0, 0], [1, 0], [2, 0]];
+    for (const query of [() => FootprintRegions.covers(invalid, [source]),
+      () => FootprintRegions.covers(source, [invalid]),
+      () => FootprintRegions.covers(source, [source, [[100, 100], [104, 104], [100, 104], [103, 100]]])]) {
+      expect(query).toThrowError(expect.objectContaining({ code: 'E_INVARIANT' }));
+    }
   });
 
-  it('rejects a concave missing-land cut that leaves the centreline intact', () => {
-    const query = input({ allowed: [[[0, -5], [30, -5], [30, 5], [17, 5],
-      [17, 2], [13, 2], [13, 5], [0, 5]]] });
-    const allowance = GRID_STEP / Math.SQRT2;
-    expectIntervals(query, [{ from: 1.5, to: 11.5 + allowance }, { from: 18.5 - allowance, to: 28.5 }]);
-  });
-
-  it('excludes the full station range of an oblique transverse lane intrusion', () => {
-    const query = input({ forbidden: [[[8, -8], [10, -8], [22, 8], [20, 8]]] });
-    expectIntervals(query, [{ from: 1.5, to: 9.501 }, { from: 20.499, to: 28.5 }]);
-  });
-
-  it('returns no interval when no whole footprint fits', () => {
-    expect(CrossingIntervals.find(input({ allowed: [] }))).toEqual([]);
-    expect(CrossingIntervals.find(input({ allowed: [rectangle(100, 130, -5, 5)] }))).toEqual([]);
-    expect(CrossingIntervals.find(input({ allowed: [rectangle(0, 2, -5, 5)] }))).toEqual([]);
-    expect(CrossingIntervals.find(input({ forbidden: [rectangle(0, 30, -5, 5)] }))).toEqual([]);
-    expect(CrossingIntervals.find(input({ excluded: [rectangle(0, 30, -5, 5)] }))).toEqual([]);
-    expect(CrossingIntervals.find(input({ width: 31 }))).toEqual([]);
-  });
-
-  it('retains exact fits between tangent blockers and at both segment ends', () => {
-    const query = input({ forbidden: [rectangle(0, 13.5, -5, 5), rectangle(16.5, 30, -5, 5)] });
-    expectIntervals(query, [{ from: 14.9995, to: 15.0005 }]);
-    expect(CrossingIntervals.find(input({ width: 30 }))).toEqual([{ from: 15, to: 15 }]);
-  });
-
-  it('keeps a boundary-only one-grid-cell sliver at the declared precision', () => {
-    const query = input({ forbidden: [rectangle(10, 20, 3.999, 5)] });
-    expect(CrossingIntervals.find(query)).toEqual([{ from: 1.5, to: 28.5 }]);
-    verifyFootprints(query);
-  });
-
-  it('blocks a genuine intrusion wider than the declared precision', () => {
-    const query = input({ forbidden: [rectangle(10, 20, 3.998, 5)] });
-    expectIntervals(query, [{ from: 1.5, to: 8.5005 }, { from: 21.4995, to: 28.5 }]);
-  });
-
-  it('keeps complete fields outside intersecting source traffic at an axis contact', () => {
-    const query = input({ a: [100, 0], b: [200, 0], lateral: [-3.5, 3.5],
-      allowed: [rectangle(100, 200, -3.5, 3.5)],
-      excluded: [rectangle(96.5, 103.5, 0, 100)] });
-    const intervals = CrossingIntervals.find(query);
-    expect(intervals).toHaveLength(1);
-    expect(intervals[0].from).toBeGreaterThanOrEqual(5);
-    expect(intervals[0].from).toBeLessThan(5.000001);
-    verifyFootprints(query);
-  });
-
-  it('distinguishes exact exclusions from precision-only boundary slivers', () => {
-    const sliver = rectangle(10, 20, 3.9995, 5);
-    const query = input({ excluded: [sliver], forbidden: [rectangle(0, 30, -5, -3.9995)] });
-    expectIntervals(query, [{ from: 1.5, to: 8.5 }, { from: 21.5, to: 28.5 }]);
-    expect(CrossingIntervals.find(input({ forbidden: [sliver] }))).toEqual([{ from: 1.5, to: 28.5 }]);
-    const tangent = input({ excluded: [rectangle(0, 30, 4, 5)] });
-    expect(CrossingIntervals.find(tangent)).toEqual([{ from: 1.5, to: 28.5 }]);
-    verifyFootprints(tangent);
-  });
-
-  it('bounds exact oblique exclusions through encoded path stations', () => {
+  it('anchors the directed frame on canonical endpoints and subdivides one shared source edge', () => {
     const a: Vec2 = [10, 20], b: Vec2 = [34, 52];
-    const query = input({ a, b, sourceOffset: 2 ** 30,
-      allowed: [transform(rectangle(0, 40, -6, 6), a, b)],
-      excluded: [transform(rectangle(12, 20, -5, 1), a, b)] });
-    expect(CrossingIntervals.find(query)).toHaveLength(2);
-    verifyFootprints(query);
-  });
+    const frame = new StationFrame(a, b);
+    expect(frame.length).toBe(40);
+    expect(frame.u).toEqual([0.6, 0.8]);
+    expect(frame.v).toEqual([-0.8, 0.6]);
+    expect(frame.point(10, 2)).toEqual([14.4, 29.2]);
+    expect(frame.project(frame.edgePoint(10, 2))).toBeCloseTo(10, 12);
+    expect(frame.edgePoint(0, 2)).toEqual(snapPoint([a[0] + frame.v[0] * 2, a[1] + frame.v[1] * 2]));
+    expect(frame.edgePoint(frame.length, 2)).toEqual(snapPoint([b[0] + frame.v[0] * 2, b[1] + frame.v[1] * 2]));
+    frame.edgePoint(0, 2)[0] = 999;
+    expect(frame.edgePoint(0, 2)).toEqual([8.4, 21.2]);
+    expect(a).toEqual([10, 20]);
+    const decimal = new StationFrame([0.1, 0.2], [0.3, 0.4]);
+    expect(decimal.edgePoint(decimal.length / 10, 0)).toEqual([0.12, 0.22]);
 
-  it('rejects a terminal 0.768 mm outside its allowed source edge', () => {
-    const query = input({ lateral: [-3.5, 3.5], allowed: [rectangle(0, 30, -3.499232, 3.5)] });
-    expect(CrossingIntervals.find(query)).toEqual([]);
-  });
-
-  it('rejects a thin long missing spike even when its width has no precision interior', () => {
-    const query = input({ b: [100, 0], lateral: [0, 0.001], allowed: [rectangle(0, 10, -1, 1)] });
-    const intervals = CrossingIntervals.find(query);
-    expect(intervals).toHaveLength(1);
-    expect(intervals[0].from).toBe(1.5);
-    expect(intervals[0].to).toBeGreaterThan(8.5);
-    expect(intervals[0].to).toBeLessThan(8.501);
-    verifyFootprints(query);
-  });
-
-  it('retains nearby allowed sources whose coordinate covers reach the full band', () => {
-    const query = input({ lateral: [0, 0.001],
-      allowed: [rectangle(0, 30, -1, -0.0001), rectangle(0, 30, 0.0011, 1)] });
-    expect(CrossingIntervals.find(query)).toEqual([{ from: 1.5, to: 28.5 }]);
-    verifyFootprints(query);
-  });
-
-  it('permits the covered tail of a missing wedge with a genuine intrusion at its head', () => {
-    const query = input({ b: [100, 0], lateral: [-3.5, 3.5],
-      allowed: [[[0, -3.4989], [100, -3.5], [100, 3.5], [0, 3.5]]] });
-    const frame = new StationFrame(query.a, query.b);
-    const missingAt = (station: number) => {
-      const from = station - query.width / 2, to = station + query.width / 2;
-      const field = [frame.edgePoint(from, -3.5), frame.edgePoint(to, -3.5),
-        frame.edgePoint(to, 3.5), frame.edgePoint(from, 3.5)];
-      return FootprintRegions.outside(field, coordinateCover(query.allowed));
-    };
-    expect(missingAt(1.5)).not.toEqual([]);
-    expect(missingAt(75)).toEqual([]);
-    const intervals = CrossingIntervals.find(query);
-    expect(intervals.some(interval => interval.from <= 75 && interval.to >= 75)).toBe(true);
-    expect(intervals.some(interval => interval.from <= 1.5 && interval.to >= 1.5)).toBe(false);
-    verifyFootprints(query);
-  });
-
-  it('preserves directed asymmetric bands and ignores unrelated obstacles', () => {
-    const query = input({ a: [30, 0], b: [0, 0], lateral: [2, 6],
-      allowed: [rectangle(0, 30, -7, -1)], forbidden: [rectangle(0, 30, 1, 7)] });
-    expect(CrossingIntervals.find(query)).toEqual([{ from: 1.5, to: 28.5 }]);
-    verifyFootprints(query);
-  });
-
-  it('preserves a shared oblique source seam through a short published footprint query', () => {
-    const a: Vec2 = [116.439, 592.546], b: Vec2 = [149.67, 598.289];
-    const seam: Vec2 = [136.778, 596.06];
-    const allowed: Polygon[] = [[a, [90, 550], [180, 550], [180, 590], b, seam],
-      [a, b, [180, 650], [90, 650], [90, 610]]];
-    const query = input({ a, b, lateral: [-10.5, 10.5], allowed });
-    const station = 5.000482064290629;
-    const field: Polygon = [[121.676, 582.795], [124.633, 583.306], [121.056, 604], [118.1, 603.489]];
-    const intervals = CrossingIntervals.find(query);
-    expect(intervals.some(interval => interval.from <= station && interval.to >= station)).toBe(true);
-    const before = JSON.stringify({ field, allowed });
-    const missing = FootprintRegions.outside(field, allowed);
-    expect(missing).toHaveLength(1);
-    expect(hasInteriorBeyondPrecision(missing)).toBe(false);
-    expect(hasInteriorBeyondPrecision(FootprintRegions.inside(field, [[a, seam, b]]))).toBe(false);
-    expect(FootprintRegions.outside(field, allowed)).toEqual(missing);
-    expect(JSON.stringify({ field, allowed })).toBe(before);
-    verifyFootprints(query);
-  });
-
-  it('preserves real missing and forbidden regions in source-accurate queries', () => {
-    const field = rectangle(0, 3, -4, 4);
-    const mask = rectangle(0, 3, 3.998, 5);
-    expect(hasInteriorBeyondPrecision(FootprintRegions.inside(field, [mask]))).toBe(true);
-    expect(hasInteriorBeyondPrecision(FootprintRegions.outside(field, [rectangle(0, 3, -4, 3.998)]))).toBe(true);
-    expect(FootprintRegions.inside(field, [])).toEqual([]);
-    expect(FootprintRegions.outside(field, [])).toEqual([field]);
-    expect(() => FootprintRegions.outside([[0, 0], [1, 0], [2, 0]], [mask]))
-      .toThrowError(expect.objectContaining({ code: 'E_INVARIANT' }));
-  });
-
-  it('rejects malformed public inputs with the declared error', () => {
-    for (const overrides of [
-      { a: [NaN, 0] }, { b: [0, 0] }, { width: 0 }, { width: Infinity }, { width: Number.MIN_VALUE },
-      { sourceOffset: -1 }, { sourceOffset: Infinity },
-      { lateral: [4, -4] }, { lateral: [0, Infinity] }, { allowed: null },
-      { allowed: [[[0, 0], [1, 0]]] }, { forbidden: [[[0, 0], [1, 0], [2, 0]]] },
-      { excluded: null }, { excluded: [[[0, 0], [1, 0], [2, 0]]] },
-    ]) {
-      expect(() => CrossingIntervals.find(input(overrides as Partial<StationIntervalInput>)))
-        .toThrowError(expect.objectContaining({ code: 'E_INVALID_PARAMS' }));
+    const path: Vec2[] = [[132.698, 720.685], [138, 672.125], [141.583, 649.454]];
+    const edge: StreetEdge = { id: 'source', class: 'street', from: 'a', to: 'b', path, width: 7,
+      sidewalk: { left: 6.5, right: 6.5 }, districtIds: [], level: 0,
+      elevationProfile: [{ distance: 0, level: 0 }, { distance: 71.80097893291506, level: 0 }] };
+    const ownRoad = StreetCorridors.reservations([edge]).edges[0].roadway;
+    const strip = (bent: StationFrame, from: number, to: number): Polygon =>
+      [bent.edgePoint(from, -3.5), bent.edgePoint(to, -3.5), bent.edgePoint(to, 3.5), bent.edgePoint(from, 3.5)];
+    for (let i = 1; i < path.length; i++) {
+      const bent = new StationFrame(path[i - 1], path[i]);
+      const long = strip(bent, 0, bent.length);
+      expect(hasInteriorBeyondPrecision(FootprintRegions.outside(long, ownRoad))).toBe(false);
+      for (const station of [2, bent.length - 2]) {
+        const field = strip(bent, station - 1.5, station + 1.5);
+        expect(hasInteriorBeyondPrecision(FootprintRegions.outside(field, [long]))).toBe(false);
+        for (const offset of [-1, 1]) {
+          const stripe = strip(bent, station + offset - 0.25, station + offset + 0.25);
+          expect(hasInteriorBeyondPrecision(FootprintRegions.outside(stripe, [field]))).toBe(false);
+          expect(hasInteriorBeyondPrecision(FootprintRegions.outside(stripe, ownRoad))).toBe(false);
+        }
+      }
     }
   });
 });

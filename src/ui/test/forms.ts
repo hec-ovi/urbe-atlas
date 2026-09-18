@@ -2,9 +2,6 @@ import { vi } from 'vitest';
 import creation from '../../cities/forms/creation.json';
 import visualization from '../../cities/forms/visualization.json';
 
-export const CREATION_FORM = creation;
-export const VISUALIZATION_FORM = visualization;
-
 export function formPayload(url: string): unknown | undefined {
   if (url === '/api/forms/creation') return creation;
   if (url === '/api/forms/visualization') return visualization;

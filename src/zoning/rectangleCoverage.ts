@@ -1,4 +1,4 @@
-import type { Polygon, Vec2 } from '../schema/blueprint';
+import type { Polygon, Vec2 } from '../../schema/blueprint';
 
 /** Independent area oracle clips the land to a rectangle without coordinate quantization. */
 export function rectangleCoverageGap(polygon: Polygon, min: Vec2, max: Vec2): number {
