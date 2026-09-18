@@ -7,7 +7,7 @@ Purpose: deterministically plans one bounded water body and classifies the exact
 - Hydrology request: [schema/hydrology-request.schema.json](schema/hydrology-request.schema.json). `planHydrology(request)` accepts the city seed, size, boundary and optional hydrology type (`lagoon`, `river`, or `sea-coast`). An omitted config means no hydrology and consumes no random stream.
 - Crossing classification plan: [schema/hydrology-plan.schema.json](schema/hydrology-plan.schema.json). A non-null prior plan is the geometry being classified.
 - Crossing paths: [schema/hydrology-crossings.schema.json](schema/hydrology-crossings.schema.json). `{ network, refId, path, width, level, corridor? }` records identify the public corridors. Optional `corridor` contains exact simple CCW constructed polygons, including unequal sides. `withHydrologyStructures(plan, crossings)` intersects them with water. Omission uses the centered full-width path.
-- City validation: `checkCityHydrology(blueprint)` accepts the root city schema. A city with `streets.construction` uses the published street corridor geometry; older cities use centered widths.
+- City validation: `checkCityHydrology(blueprint)` accepts the root city schema. A city with `streets.construction` uses the published street corridor geometry; a city without it uses centered widths.
 
 ## Outputs
 
@@ -35,8 +35,4 @@ Purpose: deterministically plans one bounded water body and classifies the exact
 - Same seed, size, boundary and type produce byte-identical output. The hydrology stream never changes no-water generation.
 - Surface and shoreline rings are CCW, finite, non-self-intersecting, snapped to the 1 mm grid and bounded by the requested city extent.
 - A shoreline has one construction-band polygon per segment and closes implicitly without a duplicate final point.
-- Exact corridor reservations equal the source footprint intersected with its named water body on the 1 mm geometry grid. Shoreline containment checks the geometric remainder outside its 1 mm boundary allowance, independent of contact length. Separate components remain separate structures; land and the clear narrow side are never reserved. Legacy centered crossings retain full-width classification. City validation checks every reservation's geometry, source, kind, width and level.
-
-## How to modify this blackbox safely
-
-Keep all geometry and validation inside `src/hydro`. Update both schemas and this contract together, then run the blackbox tests and the Atlas integration/property tests.
+- Exact corridor reservations equal the source footprint intersected with its named water body on the 1 mm geometry grid. Shoreline containment checks the geometric remainder outside its 1 mm boundary allowance, independent of contact length. Separate components remain separate structures; land and the clear narrow side are never reserved. Width-only inputs publish a clipped centered path and keep full-width classification. City validation checks every reservation's geometry, source, kind, width and level.

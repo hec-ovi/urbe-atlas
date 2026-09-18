@@ -26,7 +26,7 @@ Generator flags: `--size N`, `--max-floors N`, `--no-highways`, `--no-subways`, 
 
 ## Out
 
-Package 0.10.0 publishes blueprint 0.26.0. District street construction uses uniform 4.2 m sidewalk paving, 2 m-deep parking and blue, red or yellow block finishes. Selected central avenues add 3.4 m ornamental medians outside the traffic lanes. Frontage/corner supports link to the saved ground array, native parking footprints and protected station/highway references. [Reservation contract](src/streets/layout/reservations/CONTRACT.md).
+Package 0.10.0 publishes blueprint 0.26.0 and architecture 1.0.0. District street construction uses uniform 4.2 m sidewalk paving, 2 m-deep parking and blue, red or yellow block finishes. Selected central avenues add 3.4 m ornamental medians outside the traffic lanes. Frontage/corner supports link to the saved ground array, native parking footprints and protected station/highway references. [Reservation contract](src/streets/layout/reservations/CONTRACT.md).
 
 One JSON blueprint (`schema/blueprint.ts`):
 
@@ -50,7 +50,7 @@ Saved examples live in `samples/`: `city-urbe-tiny.json` (400 m) and `city-urbe.
 
 Rows and columns determine the main street intersections directly. Road widths and whole 8 m modules determine the block rectangles: one axis carries at most two sizes, and blocks grow with the square root of the city beyond a kilometre. Shared panel, curb, gutter, corner, parking and guardrail modules define the street geometry; the generator tiles each block size and zone once into standard lots, instances that tiling at every block of the same size, and validates the result. The preview renders repeated modules with instanced geometry.
 
-[The box map](docs/INDEX.md) lists the contracts. [Generation measurements](docs/PERFORMANCE.md) record complete-city CPU time, memory and the test conditions.
+[The box map](docs/INDEX.md) lists the contracts. [Generation measurements](docs/PERFORMANCE.md) record sample blueprint sizes and a CLI reproduction.
 
 ## In the urbe family
 

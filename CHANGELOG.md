@@ -1,128 +1,51 @@
 # Changelog
 
-0.10.0: the plan is rectangles and blocks repeat. Blocks and lots are axis-aligned rectangles sized in whole 8 m modules, streets are straight runs between square junction boxes, and a generator invariant checks every published land and ground ring. The lot tiler is keyed by block width, depth and zone, so `meta.blockTemplates` publishes one tiling per size and zone and each block names the one it carries. The default city is 3000 x 3000 m and its plan is 7.9 MB: coordinates are published on the 1 mm grid, square corners cut the ground cover to a third, and every consumer keeps reading blueprint 0.26.0.
+0.10.0: the plan is rectangles and blocks repeat. Blocks and lots are axis-aligned rectangles sized in whole 8 m modules, streets are straight runs between square junction boxes, and a generator invariant checks every published land and ground ring. `meta.blockTemplates` publishes one tiling per block size and zone; each block names the template it carries. The default city is 3000 x 3000 m and its plan is 7.9 MB. Coordinates land on the 1 mm grid. Package 0.10.0, blueprint 0.26.0.
 
 0.9.1: tests cover the contract surface once each.
 
-0.9.0: blueprint 0.26.0 publishes plain street corridor reservations. A straight corridor ends in a square cap of plain segments, only a bend adds a fan and its step is 15 degrees, so `streets.construction.planningReservations` is 6 percent of a 1 km blueprint instead of 76, and that blueprint is 4.3 MB instead of 16.8. Corridor sweep model 2.0.0, or 2.1.0 with explicit side geometry.
+0.9.0: blueprint 0.26.0 publishes plain street corridor reservations. A straight corridor ends in a square cap of plain segments. Only a bend adds a fan, at a 15 degree step. Corridor sweep model 2.0.0, or 2.1.0 with explicit side geometry.
 
-0.8.3: highway columns are planned from the clear stretches a crossing street cuts the deck into. One stands at each end of a stretch, so a crossing is carried from both of its edges, and the rest are spread evenly inside it. A crossing up to 28 m wide is bridged at the 30 m pitch; the widest the district modules build is the 27.6 m avenue with its median, curbs and underpass sidewalks.
+0.8.3: highway columns stand at each end of the clear stretches a crossing street cuts the deck into, with the rest spread evenly inside. A crossing up to 28 m wide is bridged at the 30 m pitch. The widest district avenue with median, curbs and underpass sidewalks is 27.6 m.
 
-0.8.2: `schema/progress.ts` publishes the pipeline, twelve stages with a stable id, the phase label and a plain sentence naming what each one leaves behind, plus the same plain summary of what a finished blueprint carries and what it leaves to later stages. The generation dialog reads both.
+0.8.2: `schema/progress.ts` publishes twelve pipeline stages plus `GENERATION_RESULT`.
 
-0.8.1: the creation form carries the street design. Lane width per road class, the four sidewalk band widths, crossing headroom and the paving finish are editable, and the dimensions the district modules fix are stated beside them. Its values are what an omitted street design resolves to, so an untouched form generates the same city as bare defaults.
+0.8.1: the creation form carries the street design: lane width per road class, four sidewalk band widths, crossing headroom and paving finish.
 
-0.8.0: blueprint 0.25.0 publishes `meta.lotSizes`, six standard lot rectangles from 16x32 to 56x56 m. Blocks are subdivided into rows of those sizes, every ordinary parcel carries the `lotSize` it is exactly, land no standard lot covers stays open area, and 10 to 30 parcels per city are flagged `landmark` on their own merged plot.
+0.8.0: blueprint 0.25.0 publishes `meta.lotSizes`, six standard lot rectangles from 16x32 to 56x56 m. Ordinary parcels carry `lotSize`. 10 to 30 parcels per city are `landmark` on a merged plot.
 
-0.7.2: the outer sidewalk ring stops at any shoreline that reaches the city boundary. Ring units and corners standing in water are not placed, a side cut by water publishes one frontage per remaining stretch, and the vacated land becomes open ground.
+0.7.2: the outer sidewalk ring stops at a shoreline that reaches the city boundary.
 
-0.7.1: central luxury blocks use blue with red on surrounding rich blocks.
+0.7.1: central luxury blocks use blue, surrounding rich blocks use red.
 
-0.7.0: blueprint 0.24.0 uses uniform district sidewalk modules, whole-block finishes, 2 m parking and separately reserved ornamental avenue medians. Source street designs retain their dimensions.
+0.7.0: blueprint 0.24.0 uses uniform district sidewalk modules, whole-block finishes, 2 m parking and 3.4 m ornamental avenue medians.
 
-0.6.2: native parking sides reserve their full 3.5 m walking strip on the actual rear sidewalk, retaining physical geometry and highway structures.
+0.6.2: native parking sides reserve a 3.5 m walking strip on the rear sidewalk.
 
-0.6.1: building envelopes allocate the default 4 m clear height with a 0.5 m floor allowance, preserving taller building programs.
+0.6.1: building envelopes allocate 4 m clear height plus 0.5 m floor allowance (4.5 m nominal pitch).
 
-0.6.0: blueprint 0.23.0 publishes independent diagonal corridor candidates by default, with complete original-face clearance and separate construction/reservation dimensions. Explicit `legacy-applied` preserves constructed local cuts.
+0.5.0: blueprint 0.22.0 carries `architecture`. Physical underpass modules carry grade sidewalks beneath elevated highways. Optional `landmarkFloors` set exact tower heights. City creation uses templates, URL inspection and a blocking generation dialog.
 
-0.5.1: source street reservations retain frontage/corner supports, exact ground ownership, native six-metre parking and protected station/highway references.
+0.21.0 blueprint: a seeded four-lane highway crosses the city interior on an 8 m deck.
 
-0.5.0: blueprint 0.22.0 carries `architecture`, the movement plan: reserved widths, driving and walking lanes, legal turns, crossings with signal phases, and highway ramps. SKILL.md tells an agent how to call Atlas.
+0.20.0 blueprint: public transit is subway-only. Bus and train collections stay empty.
 
-0.5.0: physical underpass modules carry grade sidewalks beneath elevated highways, with complete curb, gutter and panel construction. Highway frontages reserve their corner land for these connections.
+0.4.0: blueprint 0.17.0 publishes continuous street profiles, exact lanes and independent pedestrian bands reserved before parcels.
 
-0.5.0: optional landmark floor selections give elevator-hosted commercial towers exact heights within district caps. Saved parameters reproduce the selected envelopes and planning prisms.
+0.3.0: blueprint 0.16.0 publishes a shared half-metre building grid and rectangular footprints.
 
-0.21.0 blueprint: a seeded four-lane highway crosses the city interior. Blocks reserve its full width, and supports keep clear of ground-level streets and sidewalks.
+0.2.23: production build publishes `dist/cli.mjs` and the browser preview under `dist/preview/`.
 
-0.20.0 blueprint: public transit is subway-only. Highway decks, subway entrance reservations and subway access paths remain available. Legacy surface-transit collections are empty.
+0.2.22: optional lagoon, river and sea-coast hydrology.
 
-0.19.0 blueprint: square and elongated rectangular blocks use whole panel groups. Sparse 30/45 degree block cuts connect to the main grid through fixed sidewalk, curb and gutter junction templates. Physical beds retain shared planning boundaries.
+0.2.17: one continuous 3D access path per subway entrance.
 
-0.18.1 blueprint: sparse 2-6 m guardrail groups and occasional tree pairs occupy selected frontages, with open gaps and finished-pavement clearance.
+0.2.11: highway structures publish deck, ramps and 2 x 2 m supports at most 30 m apart.
 
-0.18 blueprint: orthogonal streets use whole-panel block dimensions, shared physical sidewalk modules, 20 cm curbs, 30 cm gutters, guardrails and sparse parking bays. The preview instances module geometry.
+0.2.10: traffic signals and street furniture (`planting`).
 
-0.5.0: city creation uses templates, fresh entry seeds and URL-based saved-city inspection. Server stage progress appears in a blocking dialog with confirmed worker cancellation. Exact geometry queries use indexed winding and prepared masks.
+0.2.8: stations publish platform, box and shafts.
 
-0.4.0: blueprint 0.17.0 publishes continuous 7, 14 and 21 m street profiles, exact lanes and independent pedestrian bands reserved before parcels. Grade rail and complete outboard subway entrance bays reserve land from the zoning forecast; water contacts include actual asymmetric corridors. Shared grid-cell normalization preserves simple ground rings. The preview exposes rectangular footprint selection.
+0.2.0: blueprint 0.4.0 carries levels (highway 8 m, subway -12 m).
 
-0.3.0: blueprint 0.16.0 publishes a shared half-metre building grid and defaults to complete rectangular footprints. Zoning and buildability share exact contained, core-valid fits with deterministic best-area selection; lot-following footprints remain an explicit parameter.
-
-0.2.28: full-width street corridors own roadway through outer edges and small junction faces. Alley corridors retain continuous raised pedestrian paving through block cleanup and corner construction; frontage curbs follow the shared roadway boundary.
-
-0.2.27: highway deck meshes omit zero-area triangles where a ramp slab closes at grade, while retaining the shared miter and continuous top, side, and underside faces.
-
-0.2.26: station-access diagnostics remain visible through the subway shaft and platform, so the full route from each street entrance to its platform handoff can be inspected in the 3D preview.
-
-0.2.25: rail paths advance through each route once. Subway terminal platforms and their access paths are built from that canonical line, so each endpoint reaches its own terminal without a reciprocal overlap.
-
-0.2.24: right-clicking a parcel in either Atlas map opens that exact parcel in the configured building viewer while preserving the assembled output selection. The inspector keeps the same destination as a fallback and shows configuration errors when no output is available.
-
-0.2.23: the production build publishes the reusable generator CLI at `dist/cli.mjs` and the browser preview under `dist/preview/`. Preview startup prepares the CLI before serving. The public generate command executes the prepared artifact without modifying Atlas.
-
-0.2.22: optional lagoon, river and sea-coast hydrology reserves deterministic water surfaces before infrastructure placement. The blueprint publishes fitted shorelines, material bindings and typed bridge or tunnel contacts; land, buildings, stations and supports remain clear. The 2D and 3D previews expose the water plan.
-
-0.2.21: blueprint 0.13.2 searches bus routes on node-and-elevation states and validates every consecutive edge pair against the node's published connection groups. A route cannot transfer between a grade street and an elevated highway crossing. Bus stop placement rejects offset points that fold outside their edge's sidewalk band.
-
-0.2.20: the browser preview has a dark creation and inspection workspace. The complete parameter contract is editable with presets, synchronized sliders and exact values, inline validation, seed randomization, and painted preparing, generating, rendering and error states. Visualization adds exact filters for ground, zones, streets, transit, furniture and diagnostic layers, layer isolation, a map legend and summary, fit and blueprint download actions, and hover plus right-click measurements for parcels, streets, highway ramps, supports and stations. The 3D highway deck reads every published elevation-profile breakpoint.
-
-0.2.19: blueprint 0.13.1 treats every curb and sidewalk polygon as a highway-column exclusion. A blocked column moves laterally under its deck or shifts backward while retaining a 30 m maximum span. Generation fails with `E_INVARIANT` when no valid support fits.
-
-0.2.18: blueprint 0.13.0 publishes exact distance-to-height profiles on every street edge and highway structure. A city-edge highway ramp rises linearly from grade to the 8 m deck over its computed run, retaining a breakpoint inside an edge when needed. Each street node groups incident edges by endpoint height, so routing cannot turn between a grade street and an elevated crossing.
-
-0.2.17: blueprint 0.12.0 publishes one continuous 3D access path per subway entrance. Four switchback stair flights stay inside the shaft, descend from grade to -12 m without a vertical edge, then a level passage reaches an explicit handoff inside the platform. Invariants reject missing, discontinuous, vertical or off-level paths.
-
-0.2.16: the 3D preview builds one envelope prism per parcel and traces the floor elevations on its facade. Parcel geometry contains only visible faces, keeping the city-wide GPU workload proportional to its visible surfaces.
-
-0.2.15: nested generator parameters fail closed at runtime. Malformed size and district ranges, null maps, unknown district or wealth keys, unknown feature names, non-boolean toggles and non-finite numeric values return `E_INVALID_PARAMS`. Browser parameter import runs that same resolver before changing the form.
-
-0.2.14: interior streets follow the shared city axes. Curves come from the boundary field or the radial downtown selected at irregularity 0.4 and above. A real-entry test measures every default interior segment against those axes. Block construction removes sub-0.5 m boolean source edges before reading their direction, and moves a sub-0.5 m curb fragment into the sidewalk surface, closing direction-flip and sliver cases. Samples regenerated.
-
-0.2.13: the flat preview defers 3D mesh preparation until 3D is first selected, keeping the default interaction proportional to 2D map work. Mixed indexed and non-indexed station geometry is normalized before merging, so regional platforms and their entrance posts render together in one mesh.
-
-0.2.12: blueprint 0.11.0 closes the at-grade railway right-of-way. A rail line publishes its full corridor width (4 m train bed, 6 m subway tunnel diameter). Train track and platforms are planned before parcel subdivision and reserve 1 m beyond their edges, so a building cannot intersect them. Train platforms remain outside highway decks, and subway entrances choose sidewalk space clear of buildings. Highway columns move laterally under the deck or shift their following pitch backward when track or an entrance shaft crosses beneath, keeping both structures clear and the supported span at 30 m or less. A bounded placement search reports a blocked support position as an invariant failure. The preview reads each rail line's width.
-
-0.2.11: blueprint 0.10.0 publishes highway construction once for every renderer. Every maximal highway run carries its ordered edge IDs, continuous deck path, width, level, thickness, city-edge ramps and 2 x 2 m supports on the 1 mm grid at no more than 30 m intervals. Parcel subdivision reserves the deck plus 1 m beyond each edge, and invariants reject a deck or support that enters a building footprint. The preview consumes the published structures.
-
-0.2.10: blueprint 0.9.0 dresses the street. `streets.signals` puts one head on every arm of a junction where three or more streets meet at grade and one is a road (a junction is signalled whole or not at all), each with its pole on the kerb its approach keeps to, a `facing` back down the arm and a `mast` reaching square across the lanes to the centerline: 4.4 m on a street, 6.75 m on a road. `streets.planting` is one flat list for the city, each point carrying its `edgeId`, a `kind` from a closed set (tree, pole, bin) and its spacing: 8 m in downtown and commercial districts, 12 m elsewhere, in the kerb-side furnishing strip and always 6 m clear of a crossing, a stop, a station entrance or a door. A default city gets 111 heads at 30 junctions and 1,418 points; a 3 km city 993 at 255 and 11,585. The preview draws all of it behind four new switches.
-
-0.2.9: blueprint 0.8.0 squares the districts. A district is a rectangle on the city grid, cut by halving the planned centers with lines perpendicular to a grid axis and clipped to the city outline, and `meta.gridAngle` publishes the angle those cuts and the streets share. `irregularity` is the only thing that leaves the grid: it slides a cut off the midpoint and leans it up to 15 degrees, in proportion (a 3 km city at 0.35 leans its cuts 0.3 to 4.4 degrees; at 0 they are exact). Stations slide along their line to a sidewalk-reachable position. Alleys enter the blueprint only when all street faces remain disjoint.
-
-0.2.8: blueprint 0.7.0 gives a station a volume anything routing near it can measure. New fields on `Station`: `platform` (footprint polygon in plan), `box` (`{ bottom, top }` in meters on +Y, the platform floor and its ceiling: 5 m of headroom on a subway, 3 m at grade) and `shafts` (one per entrance, in entrance order, each `{ footprint, top, bottom, passage }`, empty for a station at grade). A tunnel or a link keeps clear by missing the platform footprint between `box.bottom` and `box.top`, and each shaft footprint between its own `bottom` and `top`.
-
-0.2.7: blueprint 0.6.0 gives the kerb its own ground. A 0.15 m curb strip sits between roadway and sidewalk as a fifth ground surface and as `Block.curb`, built as the outer band of the same ring the block and its sidewalk come from, so it runs unbroken through every junction return with both edges parallel to it (18,647 boundary samples on the default city, none uncovered; smallest piece 6.5 m2). An alley borders no roadway and takes no kerb. The preview draws and switches it like any other surface.
-
-0.2.6: blueprint 0.5.0 gives a station its shape. Every station publishes its platform box in plan along the track (140 x 8 m metro island, 180 x 6 m regional, docs/RESEARCH.md), and an underground one publishes a shaft per entrance: a stair footprint on the sidewalk running grade to platform level, with a passage from its foot to the platform. Entrances stand on the sidewalk beside the platform, so the passage is under 30 m (NFPA 130 egress travel), machine checked. The 3D preview draws a station from the street down: headhouse, shaft, passage, platform.
-
-0.2.5: a highway deck is one slab per route, end to end. A run grows both ways from its seed edge, so a chain is cut only where the network ends or forks (15 decks on a 3 km city, 1 on a default one), and it ramps to the ground only at a terminus within 30 m of the city edge; a junction inside the city keeps the deck up.
-
-0.2.4: a highway is a through route. A streamline that stopped inside the city left its deck dead-ending over a block, so those chains are demoted to road before widths and blocks are read (the stretch gains sidewalks and parcels), and an invariant fails any highway end more than 30 m from the city edge. The 3D preview draws one deck per highway run, continuous through its junctions, ramping only where it leaves the city. Samples regenerated.
-
-0.2.3: the parcel link opens the engine's building viewer for the seed's assembled world by default; the subway shows inside a translucent earth slab under the city.
-0.2.2: preview 3D: streets and decks are segment quads with round joints inside their own width (no corner ever reaches a block), tunnels sit depth-tested under a ground that turns translucent while the subway shows, and a right click over a building opens a popup with a way into its own view; left clicks only orbit.
-0.2.1: one city grid angle for every gridded district (square, monotonous blocks), a radial downtown only from irregularity 0.4, boundary bending in proportion to irregularity; default size 1000 x 1000 m and default irregularity 0.35, so a default city is square throughout. Preview 3D: merged geometry (a few dozen draw calls), highway decks with thickness, ramps at their ends and piers, at-grade streets under the ground plate, subways as tunnels with platforms and surface entrances, train platforms, and one switch per ground surface, parcel type, street class and transit mode.
-0.2.0: blueprint 0.4.0 carries levels: street edges (highways on an 8 m deck), rail lines and stations (trains at grade, subways at -12 m). The preview gains the city in 3D (parcels stacked floor by floor in their type colour, ground, streets and highway decks with piers, tracks at their level, stations) behind a flat/3D switch, and a sidebar of two tabs, creation and visualization, each hideable.
-0.1.11: core hosting rectangles derived from interior's published core feasibility (constants mirrored in `src/zoning/core.ts`, a test fails when `../interior/schemas/core-feasibility.json` moves): a mode's band length by its plate depth, with the stair shaft sized for the longest flight the recipe allows, plus one 0.5 m snap and twice the deepest facade on both axes. Walkup 11.14 x 9.74 m, walkup with two stairs 17.64 x 9.74 m, compact elevator core 12.14 x 13.74 m, standard 20.14 x 9.74 m. Heavy types host the compact rectangle, light types the walkup one (a two-stair one over 460 m2); the bands are the rectangles' short sides, 12.14 m heavy and 9.74 m light; envelope floors stay within the best core hosted (4 with one stair, 6 with two, no cap with an elevator core). Samples regenerated; blueprint 0.3.3.
-
-0.1.10: footprint bands include the shell wall in front of interior's core: `HEAVY_BAND` 12 m (interior's 11 m core band plus up to 0.5 m of wall each side) for offices, corpo, hotel, hospital, mall and factory, `LIGHT_BAND` 8.5 m for residential, commerce, restaurant, coffee_shop, clinic, police and military. Samples regenerated; blueprint 0.3.2.
-
-0.1.9: every parcel footprint keeps its type's minimum band end to end, machine checked: 11 m for offices, corpo, hotel, hospital, mall and factory (elevator core types, whose footprints also host the 10.4 x 8.0 m core), 7.5 m for residential, commerce, restaurant, coffee_shop, clinic, police and military. The band is the width between the footprint's two long sides along its whole length; oblique end cuts are caps. The zoner only assigns a lot types whose band it hosts, a footprint is the lot inset by its setback and trimmed to that band, and a heavy type a footprint cannot host falls to the district's main light type (commerce or residential). Samples regenerated; blueprint 0.3.1.
-
-
-0.1.7: alley street class, enabled by default and controlled by `features.alleys` (`--no-alleys`): a pedestrian-only cut with no carriageway and 3 to 5 m of sidewalk-full ground, driven through long blocks, dense in poor and commercial districts and elsewhere only where a block runs long enough to need a mid-block connector. Cars never enter one: bus stops and routes are planned on the driveable graph alone, and crossings skip alley arms. The street graph is built twice, once to read the blocks and once with the alleys inside it, so an alley is a node-and-edge member of the same planar network. Samples regenerated; blueprint 0.3.0.
-
-0.1.6: street centerlines stay runs of street: a streamline join only ever continues the line it is drawing, and every edge joins two different nodes with no repeated point and no vertex turning more than 120 degrees, so no sidewalk band folds back over its own roadway; the volumetric ground cover is machine checked as a partition, with roadway, sidewalk, block and open polygons pairwise disjoint; the small-size fuzz grid asserts both across all its sizes and seeds; samples regenerated; blueprint 0.2.5.
-
-0.1.5: curb corners round off at intersections with a seeded 1.5 to 3 m arc on the block outline and the sidewalk band; block and sidewalk rings are machine checked as simple polygons; samples regenerated; blueprint 0.2.4.
-
-0.1.4: every parcel footprint hosts a 7.9 x 5.5 m walkup core (a lot below it merges into a neighbour parcel or becomes open area); every envelope admits one floor at the minimum floor height of its type's family; rail lines and their stations enter the blueprint only when they serve at least 2 stations, and station entrances are verified against their edge's sidewalk band; third committed sample city-urbe-tiny.json (seed urbe-tiny, 400 m, 6 floors, highways, trains and subways off); all three samples regeneration-tested byte-identical, plus a fuzz test over small sizes and seeds; blueprint 0.2.3.
-
-0.1.3: default district count scales with city area (about 2 per sqrt km2, a village gets 1-3); second committed sample city-urbe-small.json (seed urbe-small, 800 m); both samples regeneration-tested byte-identical.
-
-0.1.2: envelopes above 6 floors guarantee a 10.4 x 8.0 m core rectangle in the footprint (capped to 6 otherwise), machine checked; population reflects capped capacity; blueprint 0.2.2.
-
-0.1.1: every transit route and line serves at least 2 stops, machine checked; blueprint 0.2.1.
-
-0.1: full generator behind CONTRACT.md v0.2: tensor field street hierarchy inside an irregular boundary, blocks with sidewalk rings, OBB parcel subdivision, statistics grounded zoning with 3D envelopes, bus, subway and train networks, low poly volumetric output, invariant checks. Preview UI (pan, zoom, legend, layer toggles), generate CLI, fixed seed sample in samples/.
+0.1: `generateCity` behind CONTRACT.md, preview UI, generate CLI, samples/.

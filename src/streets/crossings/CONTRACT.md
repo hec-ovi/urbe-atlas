@@ -26,7 +26,7 @@ Junctions retain original node and connection-group identities (`nodeId:connecti
 
 `landings` are complete crossing-only connectors from the marked field to each walking-band center. They can include an unmarked roadway margin before the physical curb. `walkingLandings` are their terminal half-band strips, wholly on pedestrian ground and the declared walking band. These connectors grant no ordinary walking access to roadway.
 
-The ordered crossing traversal is `[segment.from, segment.roadway.from, segment.roadway.to, segment.to]`. These exact band-center anchors follow each connector and the carriageway; a straight endpoint chord does not replace them. Legacy segments without `roadway` retain `[from, to]`. Traversal retains the declared crossing width and proves complete segment and join coverage against the field and connectors.
+The ordered crossing traversal is `[segment.from, segment.roadway.from, segment.roadway.to, segment.to]`. These exact band-center anchors follow each connector and the carriageway; a straight endpoint chord does not replace them. Segments without `roadway` use `[from, to]`. Traversal retains the declared crossing width and proves complete segment and join coverage against the field and connectors.
 
 `station` is the full field interval in directed edge metres. `cut` is its junction-facing boundary: the lower station at an edge's `from` end and the upper station at its `to` end. Left/right still follow the directed edge. Lane paint approaching a junction ends before the opposite, exterior field boundary.
 

@@ -1,45 +1,30 @@
-# Research conclusions (2026 state of the art)
+# Research conclusions
 
-Compact decisions from the deep research pass. Full reasoning lives in the agents' digests; this file keeps what the implementation applies.
+Decisions the generator applies. Subway, furniture and facility numbers are the sources behind the published contracts.
 
-## Street network: tensor fields
-- Approach: composite tensor field = weighted sum of basis fields with radial decay (grid bases, radial bases, boundary field along the city outline, low-amplitude noise rotation). Mixed morphology (grid patches + radial + organic) is field addition, no stitching. Reference: Chen et al. SIGGRAPH 2008.
-- Irregular city boundary generated first (radial noise + chord cuts + arcs), fed in as a boundary basis and used to clip streamlines. This kills the perfect-square look at the source.
-- Three streamline passes coarse to fine with separation dsep ratio 20:5:1 (highway ~400 m, road ~100 m, street ~20-40 m), RK4 integration, seeds of each pass taken from the previous pass endpoints so tiers connect by construction.
-- Post-passes in order: join dangling streamlines, simplify (RDP), build planar graph (spatial-index intersections + quadtree snapping, snap radius < min dsep), delete residual stubs, rightmost-turn face walk for blocks, flood-fill reachability as a hard invariant.
-- Reference code: ProbableTrain/MapGenerator (TS, LGPL, read only, do not vendor), t-mw/citygen (MIT), TheJanusStream/symbios-tensor (Rust, MIT, closest pipeline match).
-- No implementation gives connectivity for free; the reachability check is a hard test.
+## Plan
 
-## PRNG and determinism
-- Core RNG: sfc32 seeded via splitmix32 (corrected reference version, discard first 12 outputs). One named sub-stream per subsystem (boundary, field, streets.highway/road/street, districts, blocks, parcels, transit.subway), each derived by hashing label + index into the parent seed: retuning one subsystem never reshuffles another.
-- Determinism hygiene: no Math.random/Date anywhere in generation; explicit total-order sorts with id tie-breaks; no iteration over identity-keyed Sets/Maps; Math.sin/cos are not spec-identical across engines, so trig results snap to the fixed-point grid immediately.
+- Axis-aligned rectangles on an 8 m module. Streets are straight segments between rectangular junction boxes. One axis carries at most two block sizes. Blocks run about 120 m and grow with the square root of the city beyond a kilometre (the default 3 km city runs 200 m blocks).
+- Six standard lots, every dimension a multiple of 8 m: 16x32, 24x32, 24x40, 40x40, 40x56, 56x56 m. Industrial districts take only the four larger sizes. 10 to 30 landmark plots per city merge two or three neighbouring lots.
+- Districts are rectangles on the city grid, clipped to the city outline. Default count is about 2 per sqrt(km2): a village [1, 2-3], the default 3 km city [4, 8].
 
-## Geometry kernel and parcels
-- One kernel: clipper2-ts (pure TS, zero deps, BSL-1.0, active 2026). Integer fixed-point coords at 1 unit = 1 mm; every vertex snaps to that grid before any boolean/offset. Wrapped in an internal geom module so it stays swappable. Turf unsuitable for planar offsets.
-- Sidewalks by block insetting: sidewalkRing = block minus inflatePaths(block, -width), miter joins with limit ~2. Corner continuity is structural. Buildable area = the inset polygon.
-- Subdivision, selected per block: regular blocks (OBB fill ratio > 0.75) recursive OBB split with orthogonal-split frontage fallback; irregular/curved blocks offset-strip subdivision (inset by lot depth, cut the perimeter ring at lot-width spacing, leftover core = open area); big-box/mall/factory 1-3 lots, no recursion. Straight skeleton skipped for v1 (WASM dep, sliver heuristics).
-- Sliver control: reject parcels under lotAreaMin / lotWidthMin / frontageMin or over aspect cap, merge into the neighbor sharing the longest edge (never delete, that breaks coverage).
-- Lot dimension bands (m): row housing 6-8 frontage x 27-30 depth; detached 8-12 x 30; apartment min frontage ~24; commercial 15-40 x 30-60; big-box site 1.6-2.4 ha; residential block length cap ~305.
+## Geometry and determinism
 
-## Street and sidewalk widths (defaults, m)
-- Lane 3.0 urban, 3.35 on transit routes. Carriageway: street 6.7-8.5, road 8.5-9.75, highway 3.75/lane.
-- Sidewalk through zone: 1.5 min, 1.8 desired, 2.4 adjacent to traffic; 1.5-2.1 residential, 2.4-3.7 downtown/commercial; wider on roads than streets, none on highways.
+- One kernel: clipper2-ts. Integer fixed-point coordinates at 1 unit = 1 mm; every vertex snaps to that grid before boolean or offset work. Named sub-streams per subsystem, derived from the seed; no `Math.random` in generation.
+
+## Streets
+
+- District modules: 1/2/4 lanes at 4/7/14 m carriageway, 4.2 m paved sidewalks (4 m panels plus a 0.2 m inner separator), 0.2 m curb, 0.5 m gutter, 2 m parking. Selected central four-lane runs reserve a 3.4 m ornamental median (2 m paving, 0.2 m curb and 0.5 m gutter per side).
+- Highway deck 8 m, terminal ramps 60 m, support pitch 30 m, 2 x 2 m columns, 1 m construction clearance. A crossing footprint must stay under 28 m.
+- Street trees 8 m apart in downtown and commercial districts, 12 m elsewhere (NACTO). Furniture stands in the kerb-side furnishing band, 6 m clear of a crossing, station entrance or door. A light pole every third station. Signals: one head per arm of an at-grade junction of 3+ streets where one is a road; the mast reaches the roadway centerline (right-hand traffic).
 
 ## Subways
-- Reference subway spacing (core/mid/outer, m): 700/1000/1400.
+
 - Service target: round(3.5*(P/1M)^0.6), clamped to 1-6 lines. The pre-parcel population forecast fixes this target.
-- Station dimensions (m): metro island platform 140 long x 8 wide (car 20-23 m, 6-car train, Delhi Metro practice; island width typical 6-10, egress-derived minimum 6-7.3). Cut-and-cover metro platform at -12 m: a standard two-level box (concourse over platform) runs 12-17 m deep. Street stair shaft 8 m along the street by up to 3 m across (NFPA 130 minimum stair 1.12 m, built 2.4-3.6 m); concourse corridor 4 m (code 1.5-2.4, typical 3-5). NFPA 130 caps platform-to-exit travel at 100 m.
-- Street furniture (m): street trees 8 apart in downtown and commercial districts, 12 elsewhere (NACTO Urban Street Design Guide: 6-9 dense retail, 9-15 residential); furniture stands in the kerb-side furnishing zone, up to 0.6 wide or 40% of a narrow sidewalk, so the through zone stays clear; 6 clear of a crossing, a station entrance or a door. A light pole every third point, so 24 to 36 apart (practice 25-30). Signals: heads on every arm of an at-grade junction of 3+ streets where one is a road; the mast reaches from the kerb to the roadway centerline (right-hand traffic), 4.4 m on a street, 6.75 on a road, inside the 4.9-16.8 range of standard mast arms.
-- Every subway station belongs to a line; the network is connected and each line serves at least two stations.
+- Station dimensions (m): metro island platform 140 long x 8 wide. Cut-and-cover platform at -12 m. Street stair shaft 8 m along the street by 3 m across, 1 m apron. NFPA 130 caps platform-to-exit travel at 100 m; an underground entrance is at most 30 m from its platform.
 
-## Urban statistics and ratios
-- Facility ratios (residents per facility): hospital 75k (US 1/56k, URDPFI 1/250k), clinic 15k (URDPFI), police station 50k (URDPFI 1/90k, US 1/28k), fire by radius not ratio (1.5 mi first engine), restaurant ~590 (1.7/1000 US metro), coffee shop 3.6k (IBISWorld), supermarket/pharmacy ~5k, hotel 1 per 5.3k residents (AHLA), community mall 1 per ~100k (ICSC ladder: neighborhood 2.8-11.6k m2 GLA, community 11.6-37k, regional 37-74k).
-- Districts: real districts 4-8 km2 and 80-200k people, split into 5-10 neighborhoods of 40-80 ha (Perry unit: 65 ha, 5-9k people, 400 m walk). Pedshed 400 m bus / 800 m rail.
-- Blocks: Manhattan 80x274 m, Eixample 113x113, Portland 61x61, medieval ~40 m spacing; walkability caps: side <= 110 m (ITDP), area <= 2.4 ha preferring 0.8-1.2 (CNU). Lots: US suburban median 794 m2, rowhouse 5-6 x 24-30 m, walk-up bar 12-18 m wide.
-- Land use split of developed area: streets 27-33% (cores to 36%, suburbs ~15%), residential 35-40%, commercial ~3%, industrial 5-8%, public 8-11%, open 15-20%. Street network density target: cores > 100 intersections/km2, >= 18 km street/km2.
-- FAR by zone (real codes): residential poor 1.5-3.0 (walk-ups 4-6 floors, elevator required at 5), mid 2.0-4.0 (5-12), rich 0.5-1.5 (villas 1-3), high rich 6.5-10 (towers 12-40, 3.7 m floors); offices 6-10 (10-30 floors, 4.0 m); corpo 10-15 (30-80, 4.6 m); commerce 1-2 (1-3, 4.5 m); mall 0.4-1 (1-3, 5.5 m); hotel 3-6.5 (5-20, 3.2 m); hospital 1.5-2.5 (4-10, 4.0 m); police/military 1-2 (2-4, 3.6 m); factory 0.4 (1-2, ~10 m clear height).
-- Employment density: office 10-15 m2/worker, warehouse 70-95; jobs-housing balance 1.5 jobs per unit. Household size ~2.5.
-- Wealth geography model: radial term with a sign flip (Global North rich edges, Global South/historic Europe rich center), Hoyt elite wedge along transport toward high ground and clean waterfront with the poor sector ~180 degrees opposite, industry never adjacent to elite (place into low-tier parcels), rail/highway corridors are wealth-discontinuity edges, park adjacency premium decays to zero at ~150 m.
-- Corrections found: the WHO 9 m2 green space per capita figure is a citation myth (use 0.5-1 ha public green within 300 m instead); measured bus stop spacing is US mean 352 m and Europe wider (Berlin 412, Helsinki 611), metro ~1050 m heavy rail.
+## Urban statistics
 
-Sources: Chen et al. street_sig08 (sci.utah.edu), tmwhere.com/city_generation.html, github.com/ProbableTrain/MapGenerator, github.com/t-mw/citygen, github.com/TheJanusStream/symbios-tensor, Vanegas et al. 2012 parcels, CityEngine block parameters (doc.arcgis.com), github.com/countertype/clipper2-ts, angusj.com/clipper2, NACTO Urban Street Design Guide, Seattle Streets Illustrated, findingspress.org bus stop spacings, humantransit.org, pedestrianobservations.com, ITDP BRT guide, TCRP 19, redblobgames PRNG writeup (simblob.blogspot.com/2022/05/upgrading-prng.html), NFPA 130 means of egress, NACTO street furniture and tree spacing, ITE/FHWA mast arm practice, Delhi Metro Rail Corporation cut-and-cover station practice, FRA/Metra station platform guidelines, BART Facilities Standards.
+Facility ratios (residents per facility), applied in `src/zoning/ratios.ts`: hospital 75k, clinic 15k, police 50k, military 400k, mall 90k, hotel 5.5k, restaurant 550, coffee shop 3k, commerce 400. Gross floor area 35 m2 per resident, residential efficiency 0.8.
+
+Sources: NACTO Urban Street Design Guide, NFPA 130, Delhi Metro cut-and-cover practice, URDPFI, IBISWorld, AHLA, ICSC, clipper2-ts.

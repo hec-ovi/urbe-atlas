@@ -1,6 +1,8 @@
 # Box map
 
-- src/streets/layout/medians: constructs selected reserved avenue islands with 2 m paved centers, rounded ends, curb/gutter and ornament anchors. Input/output: `src/streets/layout/medians/schema.ts`. src/streets/layout/medians/CONTRACT.md. Depends on layout, module records and geometry; reserves no traffic lanes.
+Package 0.10.0, blueprint 0.26.0, architecture 1.0.0.
+
+- src/streets/layout/medians: constructs selected reserved avenue islands with 2 m paved centers, square ends, curb/gutter and ornament anchors. Input/output: `src/streets/layout/medians/schema.ts`. src/streets/layout/medians/CONTRACT.md. Depends on layout, module records and geometry; reserves no traffic lanes.
 
 - src/streets/layout/reservations: links source and district frontage dimensions, native parking and protected infrastructure to exact saved ground owners. Input/output: `src/streets/layout/reservations/schema.ts`. src/streets/layout/reservations/CONTRACT.md. Depends on layout, modules, Atlas blueprint and geometry.
 
@@ -28,7 +30,7 @@
 
 - src/streets/construction/datum: negotiated source side roles and heights, grade reservations and independent physical-clearance queries. src/streets/construction/datum/CONTRACT.md. Depends on street corridors, Highway envelopes, geometry and exact source-partition queries.
 
-- src/streets/alleys: block cuts with real surrounding-street terminals inside the reserved domain. src/streets/alleys/CONTRACT.md. Depends on street domain, Atlas graph paths and geometry.
+- src/streets/alleys: block cuts with real surrounding-street terminals inside the reserved domain. src/streets/alleys/CONTRACT.md. Depends on street domain, Atlas graph paths and geometry. generateCity publishes no alley edges.
 
 - src/streets/construction/highway: early highway envelopes, and columns spread evenly along the clear stretches a crossing street cuts the deck into. Input/output: `src/streets/construction/highway/schema.ts`. src/streets/construction/highway/CONTRACT.md. Depends on Atlas structure types and geometry; root route selection consumes its runs.
 
@@ -36,21 +38,29 @@
 
 - test/runtime: native event-loop turns between completed tests. test/runtime/CONTRACT.md. Depends on Vitest's public runner and Node timers; selected by vite.config.ts.
 
-- src/streets/construction/paving: curb-only fitted slabs, integer group offsets, curb stations and saved ownership validation. src/streets/construction/paving/CONTRACT.md. Depends on street construction, crossing construction, exact partition and published coverage; finish settings come from the caller.
+- src/streets/construction/paving: curb-only fitted slabs, integer group offsets, curb stations and saved ownership validation. src/streets/construction/paving/CONTRACT.md. Depends on street construction, crossing construction, exact partition and published coverage; finish settings come from the caller. Generated cities publish modules and do not invoke fitted-paving entries.
 
 - src/geom: polygon operations, exact contacts, complete coverage and numeric-view diagnostics. src/geom/CONTRACT.md. Depends on root Atlas coordinates, source-partition support enclosures and the existing integer clipping library.
+
 - atlas (root): city blueprint from shared district street modules, buildable parcels, transit, checked ground and sparse furniture fitted to paved land, every land and ground ring an axis-aligned rectangle. CONTRACT.md, schemas in schema/, generator in src/, saved source street reservations, optional stage progress in `schema/progress.ts`, reusable CLI at dist/cli.mjs. Depends on street layout/modules, geometry, crossing construction and highway envelopes; mirrors the Interior core-feasibility and Exterior floor-constant contracts.
-  - `JunctionGround`: retained legacy entry for beveled gutter, curb and paved returns with original-arm fitting fields; city generation does not use it. Root CONTRACT and `schema/junction-ground.ts`.
+  - `JunctionGround`: retained entry for beveled gutter, curb and paved returns with original-arm fitting fields; city generation does not use it. Root CONTRACT and `schema/junction-ground.ts`.
+
 - src/hydro: deterministic water, shoreline bands, land exclusions and exact bridge/tunnel contact reservations. src/hydro/CONTRACT.md. Depends on the root blueprint, geometry, errors and street construction corridors.
+
 - src/ui: URL-selected creation and city inspection, template dropdown, editable street design, blocking generation progress and cancellation. Input: `src/cities/forms/schema.ts`, jobs: `src/cities/schema.ts`, output: mounted DOM and component events. src/ui/CONTRACT.md. Depends on the city catalog, root blueprint, street modules, fitted paving and Engine exterior/manifest contracts.
+
 - src/blocks: standard lot catalog and the block templates that tile every block size and zone once, plus landmark plots and the hosting check that turns an unbuildable lot into open area. Input/output: `src/blocks/StandardLots.ts`, `schema/blueprint.ts`. Depends on Atlas geometry and the zoning hosting policy; the root generator zones what it produces.
 
 - src/zoning: district population forecasts, use eligibility, complete footprints with 3 m compact stair columns and floor envelopes with 4 m default clear height. src/zoning/CONTRACT.md. Inputs/outputs: `schema/blueprint.ts`, `schema/params.ts`, `src/zoning/population-schema.ts`. Depends on Atlas geometry, mirrored Interior core feasibility and Exterior floor policy; Buildability consumes its hosting policy.
+
 - src/transit: subway plans with full sidewalk-connected entrance bays. src/transit/CONTRACT.md. Depends on street construction and zoning capacity; reservations/ owns entrance land geometry.
+
+- src/transit/reservations: subway stair bays beside streets before lots are cut. Input/output: `src/transit/reservations/schema.ts`. src/transit/reservations/CONTRACT.md. Depends on Atlas graph, street construction and geometry.
+
 - src/streets/construction: road profiles, avenue median widths and normalized per-side curb, gutter and paved dimensions before parcels. src/streets/construction/CONTRACT.md. Input: `src/streets/construction/schema/design.ts`, output: `src/streets/construction/schema/sections.ts`. Depends on Atlas graph, geometry, districts and street module formats; corridor format support governs production reservations.
 
 - [Design references](RESEARCH.md): geometry, subway dimensions and urban statistics behind the published contracts.
 
 ## Measurements
 
-- [Generation](PERFORMANCE.md): full-city and HTTP worker timings, stage CPU costs and bounded reproduction.
+- [Generation](PERFORMANCE.md): sample blueprint sizes and a bounded CLI reproduction.
