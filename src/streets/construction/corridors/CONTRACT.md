@@ -6,11 +6,11 @@ Purpose: publishes the exact edge-local footprint queries used to plan street sp
 
 `StreetCorridors.reservations(edges)` and `StreetCorridors.model` are exported through [../StreetCorridors.ts](../StreetCorridors.ts).
 
-Input: validated street edges, [../schema/sections.ts](../schema/sections.ts). Output: [schema.ts](schema.ts), [legacy JSON schema](planning-reservations.schema.json), [explicit-side JSON schema](planning-reservations-v1.1.schema.json).
+Input: validated street edges, [../schema/sections.ts](../schema/sections.ts). Output: [schema.ts](schema.ts), [legacy JSON schema](planning-reservations.schema.json), [explicit-side JSON schema](planning-reservations-v2.1.schema.json).
 
 Each source `edgeId` carries its roadway reservation and left/right complete sidewalk and walking reservations as simple CCW polygons in metres. Left/right follow the source edge's directed path. Zero-width regions are empty arrays. An edge without functional bands uses its full sidewalk as walking space.
 
-Any explicit side geometry selects output/model version `1.1.0`. Every side then also publishes `paved` and `bands` queries for gutter-lip, gutter, curb, border, furnishing and frontage. Walking is stored once in its existing field. Legacy-only inputs retain byte-identical `1.0.0` output. Legacy sides in a mixed export have empty gutter roles and retain their original widths.
+Any explicit side geometry selects output/model version `2.1.0`. Every side then also publishes `paved` and `bands` queries for gutter-lip, gutter, curb, border, furnishing and frontage. Walking is stored once in its existing field. Legacy-only inputs use `2.0.0`. Legacy sides in a mixed export have empty gutter roles and retain their original widths.
 
 ## Authority
 
@@ -21,8 +21,9 @@ Consumers use the serialized query polygons for exact edge-local conformance and
 ## Source model
 
 - A directed side sweeps segment rectangles from the centerline to radius `carriageway / 2 + side width`.
-- Every bend adds a fan through the shortest signed angle in `[-pi, pi]`. Its `ceil(abs(angle) / maximumFanStepRadians)` stations divide the angle equally. Parallel radii share those stations.
-- Each directed side has a quarter-fan at each endpoint. Coordinates snap to the model's 1 mm grid.
+- Only a bend adds a fan, through the shortest signed angle in `[-pi, pi]`. Its `ceil(abs(angle) / maximumFanStepRadians)` stations divide the angle equally, and `maximumFanStepRadians` is 15 degrees, so a right-angle bend takes six chords. Parallel radii share those stations.
+- Each directed side ends in a square cap: two plain segments reaching the same distance past the endpoint, along the tangent and across it, as the quarter circle inscribed in them. The cap's radial corners are the neighbouring segment's own offset vertices, so a query polygon still passes exactly through every authored offset endpoint. Coordinates snap to the model's 1 mm grid.
+- A sweep unions its segment rectangles, bend fans and caps on corners only: a vertex lying exactly on the edge it interrupts is not listed. The region is unchanged, so a straight corridor publishes its plain rectangle.
 - A sidewalk or functional band is the union at its outer radius minus the union at its inner radius. Explicit band radii use the published interval start/end directly; legacy bands use the construction box's common interval resolver. Paved spans begin at the curb interval's end. No consumer chooses new lateral offsets.
 - Grade roadways union both one-sided sweeps. Highway roadway reservations use the geometry kernel's round open-line buffer. The serialized polygons include the kernel's exact normalization and hole decomposition.
 

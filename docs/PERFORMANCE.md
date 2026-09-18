@@ -11,6 +11,8 @@ Timing includes HTTP submission, worker generation and its invariants, persisten
 
 The 1 km result has 49 blocks, 306 parcels, two street cuts (30 and 45 degrees), 9 parking bays, 23 short rail groups across 20 blocks and 54 trees across 38 street segments. Seven blocks have a width/depth ratio of at least 1.5. The 2 km result has 256 blocks, 1503 parcels and 12 declared-angle cuts.
 
+2026-09-18, blueprint 0.26.0: with plain corridor reservations the same 1 km seed writes 4.31 MB of JSON in 0.81 s of unrestricted CPU on this machine, and `streets.construction.planningReservations` is 5.8 percent of it, 2002 rings with a mean of 7.9 points. The quota-limited wall times, memory and temperatures above are not re-measured.
+
 These fixtures verify completion at two sizes. Other seeds, larger cities, hydrology, unrestricted wall time and temperatures, and long-session memory retention are unmeasured by this check.
 
 ## Reproduce

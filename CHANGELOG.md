@@ -1,5 +1,7 @@
 # Changelog
 
+0.9.0: blueprint 0.26.0 publishes plain street corridor reservations. A straight corridor ends in a square cap of plain segments, only a bend adds a fan and its step is 15 degrees, so `streets.construction.planningReservations` is 6 percent of a 1 km blueprint instead of 76, and that blueprint is 4.3 MB instead of 16.8. Corridor sweep model 2.0.0, or 2.1.0 with explicit side geometry.
+
 0.8.3: highway columns are planned from the clear stretches a crossing street cuts the deck into. One stands at each end of a stretch, so a crossing is carried from both of its edges, and the rest are spread evenly inside it. A crossing up to 28 m wide is bridged at the 30 m pitch; the widest the district modules build is the 27.6 m avenue with its median, curbs and underpass sidewalks.
 
 0.8.2: `schema/progress.ts` publishes the pipeline, twelve stages with a stable id, the phase label and a plain sentence naming what each one leaves behind, plus the same plain summary of what a finished blueprint carries and what it leaves to later stages. The generation dialog reads both.

@@ -9,6 +9,7 @@ import { orientedBoundingBox } from '../src/geom/obb';
 import { area as polygonArea, pointInPolygon } from '../src/geom/polygon';
 import { PLANTING_CLEARANCE, PLANTING_SPACING } from '../src/streets/Planting';
 import { GENERATION_STAGES, type GenerationProgress } from '../schema/progress';
+import type { ExplicitSidePlanningReservation } from '../src/streets/construction/corridors/schema';
 import type { CityBlueprint, ParcelType, Vec2 } from '../schema/blueprint';
 
 const PARCEL_TYPES: ParcelType[] = [
@@ -176,6 +177,28 @@ describe('blueprint output', () => {
     for (const s of bp.transit.subwayStations) expect(onLine.has(s.id)).toBe(true);
     for (const l of bp.transit.subwayLines) {
       expect(l.stationIds.length).toBeGreaterThanOrEqual(2);
+    }
+  });
+
+  it('keeps a 1 km blueprint small: plain corridor reservations, no end-cap fans', () => {
+    const bp = defaultCity();
+    const bytes = Buffer.byteLength(JSON.stringify(bp));
+    const reservations = bp.streets.construction!.planningReservations!;
+    const reservationBytes = Buffer.byteLength(JSON.stringify(reservations));
+    expect(bytes).toBeLessThan(5_000_000);
+    expect(reservationBytes / bytes).toBeLessThan(0.15);
+
+    const edges = new Map(bp.streets.edges.map((edge) => [edge.id, edge]));
+    for (const record of reservations.edges) {
+      const edge = edges.get(record.edgeId)!;
+      if (edge.path.length > 2 || edge.class === 'highway') continue;
+      const side = (name: 'left' | 'right') => {
+        const reservation = record.sides[name] as ExplicitSidePlanningReservation;
+        return [reservation.sidewalk, reservation.walking, reservation.paved ?? [], ...Object.values(reservation.bands ?? {})];
+      };
+      for (const polygons of [[record.roadway], side('left'), side('right')].flat()) {
+        for (const ring of polygons) expect(ring.length, `${record.edgeId} straight reservation ring`).toBeLessThanOrEqual(8);
+      }
     }
   });
 

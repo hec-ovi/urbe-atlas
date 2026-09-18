@@ -1,5 +1,5 @@
 import type { Polygon, StreetEdge, Vec2 } from '../../../schema/blueprint';
-import { bufferLine, difference, snapPoint, union } from '../../geom/clip';
+import { bufferLine, difference, snapPoint, unionOnCorners } from '../../geom/clip';
 import { PolygonIndex } from '../../geom/PolygonIndex';
 import type { SectionedStreetEdge } from './schema/sections';
 import type { StreetSide } from './SidewalkSection';
@@ -7,7 +7,7 @@ import { CORRIDOR_SWEEP_MODEL, EXPLICIT_CORRIDOR_SWEEP_MODEL } from './corridors
 import type { StreetPlanningReservations, SidePlanningReservation, ExplicitSidePlanningReservation, CorridorBandRole } from './corridors/schema';
 import { resolveSidewalkGeometry } from './SidewalkGeometry';
 
-/** All parallel sweeps share angular stations, independent of their width. */
+/** All parallel bend fans share angular stations, independent of their width. */
 const ARC_STEP = CORRIDOR_SWEEP_MODEL.maximumFanStepRadians;
 
 /** Complete rights of way, including distinct left and right pedestrian widths. */
@@ -49,7 +49,7 @@ export class StreetCorridors {
       } };
     };
     return {
-      version: explicit ? '1.1.0' : '1.0.0', model: explicit ? EXPLICIT_CORRIDOR_SWEEP_MODEL : this.model,
+      version: explicit ? '2.1.0' : '2.0.0', model: explicit ? EXPLICIT_CORRIDOR_SWEEP_MODEL : this.model,
       edges: edges.map((edge) => ({
         edgeId: edge.id, roadway: roadwayOf(edge),
         sides: {
@@ -82,16 +82,17 @@ function sweptBand(edge: StreetEdge, side: StreetSide, start: number, end: numbe
   if (end <= start) return [];
   const sign = side === 'left' ? 1 : -1;
   return difference(
-    union(halfCorridor(edge.path, edge.width / 2 + end, sign)),
-    union(halfCorridor(edge.path, edge.width / 2 + start, sign)),
+    unionOnCorners(halfCorridor(edge.path, edge.width / 2 + end, sign)),
+    unionOnCorners(halfCorridor(edge.path, edge.width / 2 + start, sign)),
   );
 }
 
 /** Independent one-sided sweeps retain unequal widths through bends. */
 function corridor(path: Vec2[], left: number, right: number): Polygon[] {
-  return union([...halfCorridor(path, left, 1), ...halfCorridor(path, right, -1)]);
+  return unionOnCorners([...halfCorridor(path, left, 1), ...halfCorridor(path, right, -1)]);
 }
 
+/** Segment rectangles on their exact authored offsets, a fan at each bend, a square end. */
 function halfCorridor(path: Vec2[], width: number, side: 1 | -1): Polygon[] {
   if (width <= 0) return [];
   const polygons: Polygon[] = [];
@@ -110,12 +111,23 @@ function halfCorridor(path: Vec2[], width: number, side: 1 | -1): Polygon[] {
   const first = normals[0]; const last = normals[normals.length - 1];
   const start: Vec2 = [-first[1] * side, first[0] * side];
   const end: Vec2 = [last[1] * side, -last[0] * side];
-  polygons.push(fan(path[0], start, first, width), fan(path[path.length - 1], last, end, width));
+  polygons.push(cap(path[0], start, first, width), cap(path[path.length - 1], last, end, width));
   return polygons;
 }
 
 function shift(point: Vec2, direction: Vec2, distance: number): Vec2 {
   return snapPoint([point[0] + direction[0] * distance, point[1] + direction[1] * distance]);
+}
+
+/**
+ * A square end, reaching the same distance past the endpoint as the quarter circle
+ * inscribed in it. Its two radial corners are the neighbouring segment's own offsets,
+ * so the authored offset vertices survive the union.
+ */
+function cap(center: Vec2, from: Vec2, to: Vec2, radius: number): Polygon {
+  const corner: Vec2 = [from[0] + to[0], from[1] + to[1]];
+  const ring: Polygon = [center, shift(center, from, radius), shift(center, corner, radius), shift(center, to, radius)];
+  return from[0] * to[1] - from[1] * to[0] < 0 ? ring.reverse() : ring;
 }
 
 function fan(center: Vec2, from: Vec2, to: Vec2, radius: number): Polygon {

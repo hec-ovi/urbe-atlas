@@ -22,8 +22,8 @@ it('partitions asymmetric bent sides into exact role reservations and preserves 
   expect(edge.sidewalk).toEqual({ left: 2.5, right: 6.5 });
   const input = structuredClone(edge);
   const result = StreetCorridors.reservations([edge]);
-  expect(result.version).toBe('1.1.0');
-  expect(result.model.version).toBe('1.1.0');
+  expect(result.version).toBe('2.1.0');
+  expect(result.model.version).toBe('2.1.0');
   const equalCover = (a: Polygon[], b: Polygon[]) => {
     expect(difference(a, b)).toEqual([]);
     expect(difference(b, a)).toEqual([]);

@@ -4,6 +4,8 @@
  * which is what keeps seed -> output byte-identical.
  */
 import {
+  ClipType,
+  Clipper64,
   EndType,
   FillRule,
   JoinType,
@@ -137,6 +139,22 @@ export function union(polys: Polygon[]): Polygon[] {
   if (polys.length === 0) return [];
   const paths = clipUnion(polys.map(toPath), [], FillRule.NonZero);
   return fromPaths(paths);
+}
+
+/**
+ * Union that also drops every vertex sitting exactly on the edge it interrupts.
+ * The region is identical to `union`'s; only the seams where the input pieces met
+ * stop being listed. Use it where the pieces are construction scaffolding, not
+ * where a neighbour matches vertices.
+ */
+export function unionOnCorners(polys: Polygon[]): Polygon[] {
+  if (polys.length === 0) return [];
+  const clipper = new Clipper64();
+  clipper.preserveCollinear = false;
+  clipper.addSubject(polys.map(toPath));
+  const solution: IntPath[] = [];
+  clipper.execute(ClipType.Union, FillRule.NonZero, solution);
+  return fromPaths(solution);
 }
 
 export function difference(subject: Polygon[], clip: Polygon[]): Polygon[] {

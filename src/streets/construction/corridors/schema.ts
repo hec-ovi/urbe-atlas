@@ -5,7 +5,7 @@ export type CorridorBandRole = keyof SidewalkBands | 'gutter' | 'gutter-lip';
 
 export interface CorridorSweepModel {
   id: 'atlas-directed-corridors';
-  version: '1.0.0' | '1.1.0';
+  version: '2.0.0' | '2.1.0';
   authority: 'edge-local-planning';
   units: 'metres';
   coordinateGrid: number;
@@ -14,7 +14,7 @@ export interface CorridorSweepModel {
   radialOrigin: 'centerline';
   joins: 'shared-shortest-angle-fans';
   stations: 'equal-per-turn';
-  caps: 'quarter-fans-per-side';
+  caps: 'square-per-side';
   bandOperation: 'outer-union-minus-inner-union';
   highwayRoadway: 'kernel-round-buffer';
 }
@@ -37,7 +37,7 @@ export interface EdgePlanningReservations {
 }
 
 export interface StreetPlanningReservations {
-  version: '1.0.0' | '1.1.0';
+  version: '2.0.0' | '2.1.0';
   model: CorridorSweepModel;
   edges: EdgePlanningReservations[];
 }

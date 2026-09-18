@@ -45,7 +45,7 @@ import { applyLandmarkFloors } from './landmarks';
 import { planHydrology, withHydrologyStructures } from './hydro/Hydrology';
 import { planArchitecture } from './architecture/Architecture';
 
-export const BLUEPRINT_VERSION = '0.25.0';
+export const BLUEPRINT_VERSION = '0.26.0';
 export const HYDROLOGY_BLUEPRINT_VERSION = BLUEPRINT_VERSION;
 
 export function generateCity(input: AtlasParams, onProgress?: ProgressObserver): CityBlueprint {

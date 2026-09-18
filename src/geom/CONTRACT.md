@@ -7,6 +7,7 @@ Purpose: fixed-point polygon operations for the Atlas plan.
 Types: [schema.ts](schema.ts). Entry points: [clip.ts](clip.ts).
 
 - `union(polygons)`, `difference(subject, clip)` and `intersection(subject, clip)` return the nonzero-fill region as simple CCW rings.
+- `unionOnCorners(polygons)` returns the same region as `union`, without the vertices that lie exactly on the edge they interrupt. It suits pieces that are construction scaffolding; a caller whose neighbour matches vertices uses `union`.
 - `offset(polygons, delta, miterLimit = 2)` grows or shrinks closed regions in metres.
 - `bufferLine(points, width)` returns the region around an open line, with round ends.
 - `snap(value)` and `snapPoint(point)` return the nearest 1 mm coordinate.

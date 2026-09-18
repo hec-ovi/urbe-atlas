@@ -1,11 +1,11 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "urn:urbe:atlas:street-planning-reservations:1.1.0",
+  "$id": "urn:urbe:atlas:street-planning-reservations:2.1.0",
   "type": "object",
   "additionalProperties": false,
   "required": ["version", "model", "edges"],
   "properties": {
-    "version": { "const": "1.1.0" },
+    "version": { "const": "2.1.0" },
     "model": { "$ref": "#/$defs/model" },
     "edges": { "type": "array", "items": { "$ref": "#/$defs/edge" } }
   },
@@ -51,12 +51,12 @@
       "type": "object", "additionalProperties": false,
       "required": ["id", "version", "authority", "units", "coordinateGrid", "maximumFanStepRadians", "bandOrder", "radialOrigin", "joins", "stations", "caps", "bandOperation", "highwayRoadway"],
       "properties": {
-        "id": { "const": "atlas-directed-corridors" }, "version": { "const": "1.1.0" },
+        "id": { "const": "atlas-directed-corridors" }, "version": { "const": "2.1.0" },
         "authority": { "const": "edge-local-planning" }, "units": { "const": "metres" },
-        "coordinateGrid": { "const": 0.001 }, "maximumFanStepRadians": { "const": 0.017453292519943295 },
+        "coordinateGrid": { "const": 0.001 }, "maximumFanStepRadians": { "const": 0.2617993877991494 },
         "bandOrder": { "const": ["gutter-lip", "gutter", "curb", "border", "furnishing", "walking", "frontage"] },
         "radialOrigin": { "const": "centerline" }, "joins": { "const": "shared-shortest-angle-fans" },
-        "stations": { "const": "equal-per-turn" }, "caps": { "const": "quarter-fans-per-side" },
+        "stations": { "const": "equal-per-turn" }, "caps": { "const": "square-per-side" },
         "bandOperation": { "const": "outer-union-minus-inner-union" }, "highwayRoadway": { "const": "kernel-round-buffer" }
       }
     }
