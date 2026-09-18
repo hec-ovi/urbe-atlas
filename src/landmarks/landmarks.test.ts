@@ -20,7 +20,7 @@ const digest = (city: CityBlueprint): string => createHash('sha256').update(JSON
 beforeAll(() => {
   source = generateCity(params);
   towers = (['corpo', 'offices', 'hotel'] satisfies ParcelType[]).map(type => {
-    const parcel = source.parcels.find(candidate => candidate.type === type && candidate.envelope.maxFloors > 6);
+    const parcel = source.parcels.find(candidate => candidate.type === type && (candidate.envelope?.maxFloors ?? 0) > 6);
     expect(parcel, `${type} landmark fixture`).toBeDefined();
     return parcel!;
   });
@@ -48,18 +48,18 @@ it('sets exact envelopes and prisms, keeps the source intact and reproduces the 
       continue;
     }
     expect(parcel).toEqual({ ...prior, envelope: {
-      ...prior.envelope, minFloors: 80, maxFloors: 80,
-      maxHeight: Math.round(80 * prior.envelope.floorHeight * 100) / 100,
+      ...prior.envelope!, minFloors: 80, maxFloors: 80,
+      maxHeight: Math.round(80 * prior.envelope!.floorHeight * 100) / 100,
     } });
     expect(parcel.footprint).toBe(prior.footprint);
     expect(parcel.access).toBe(prior.access);
-    expect(authored.volumetric.buildings.find(building => building.parcelId === parcel.id)?.height).toBe(parcel.envelope.maxHeight);
+    expect(authored.volumetric.buildings.find(building => building.parcelId === parcel.id)?.height).toBe(parcel.envelope!.maxHeight);
   }
   expect(digest(generateCity(authored.meta.params))).toBe(digest(authored));
 
   const added = applyLandmarkFloors(authored, { [towers[1].id]: 70 });
   expect(added.meta.params.landmarkFloors).toEqual({ ...floors, [towers[1].id]: 70 });
-  expect(added.parcels.find(parcel => parcel.id === towers[0].id)?.envelope.minFloors).toBe(80);
+  expect(added.parcels.find(parcel => parcel.id === towers[0].id)?.envelope?.minFloors).toBe(80);
   expect(digest(applyLandmarkFloors(added, {}))).toBe(digest(added));
 });
 
@@ -67,7 +67,7 @@ it('rejects malformed maps, unknown parcels, incompatible uses and excess floors
   const original = digest(source);
   const unsupported = source.parcels.find(parcel => !['corpo', 'offices', 'hotel'].includes(parcel.type))!;
   const walkup = { ...source, parcels: source.parcels.map(parcel => parcel.id === towers[0].id
-    ? { ...parcel, envelope: { ...parcel.envelope, minFloors: 1, maxFloors: 6 } } : parcel) };
+    ? { ...parcel, envelope: { ...parcel.envelope!, minFloors: 1, maxFloors: 6 } } : parcel) };
   for (const floors of [null, { '': 80 }, { p0: 2.5 }, { p0: '80' }, { missing: 80 },
     { [unsupported.id]: 80 }, { [towers[0].id]: 111 }]) {
     expect(() => applyLandmarkFloors(source, floors as never)).toThrowError(expect.objectContaining({ code: 'E_INVALID_PARAMS' }));

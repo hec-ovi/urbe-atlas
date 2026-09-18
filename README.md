@@ -26,7 +26,7 @@ Generator flags: `--size N`, `--max-floors N`, `--no-highways`, `--no-subways`, 
 
 ## Out
 
-Package 0.10.0 publishes blueprint 0.26.0 and architecture 1.0.0. District street construction uses uniform 4.2 m sidewalk paving, 2 m-deep parking and blue, red or yellow block finishes. Selected central avenues add 3.4 m ornamental medians outside the traffic lanes. Frontage/corner supports link to the saved ground array, native parking footprints and protected station/highway references. [Reservation contract](src/streets/layout/reservations/CONTRACT.md).
+Package 0.11.0 publishes blueprint 0.26.0 and architecture 1.0.0. District street construction uses uniform 4.2 m sidewalk paving, 2 m-deep parking and blue, red or yellow block finishes. Selected central avenues add 3.4 m ornamental medians outside the traffic lanes. Frontage/corner supports link to the saved ground array, native parking footprints and protected station/highway references. [Reservation contract](src/streets/layout/reservations/CONTRACT.md).
 
 One JSON blueprint (`schema/blueprint.ts`):
 
@@ -36,11 +36,14 @@ One JSON blueprint (`schema/blueprint.ts`):
 - **transit**: connected subway lines, platforms and reserved street-level entrance bays. Each entrance has a shaft and a continuous 3D route through switchback stairs and a level passage to its platform.
 - **hydrology**, when requested: exact water-surface polygons, shoreline paths and construction bands, water material keys, and typed bridge or tunnel contacts where a street or railway crosses the water. Land, buildings and station entrances stay outside the reserved water.
 - **standard lot sizes** in `meta.lotSizes`: six rectangles from 16 x 32 m to 56 x 56 m. Every block is subdivided into rows of those sizes, every ordinary parcel names the one it is, and the land a row cannot fill stays open area. 10 to 30 parcels per city are flagged landmarks on their own merged plot, for the hospital, the police station and the singular towers.
+- **report** in `report.degraded`: the elements generation had to simplify, each with its id, kind and reason. A junction arm without clear carriageway loses its box, a crossing without complete landings keeps its box and loses its markings, a lot that carries no two-floor building is published as a park, and a subway that cannot reserve its land leaves the city without one. One element never kills a plan.
 - **block templates** in `meta.blockTemplates`: the tiling of each block size and zone the city uses, as lot offsets and sizes. A block names its template, so a consumer builds one block per template and instances it.
 - **volumetric**: one prism per parcel plus ground cover polygons, for map rendering; the preview traces floor elevations on each prism without generating hidden caps between floors
 - **stats**: population estimate and parcel counts per type and per district
 
-Building envelopes allocate at least 4.5 m per floor for the default 4 m clear height and 0.5 m allowance. Taller building programs retain their nominal pitch.
+Building envelopes allocate at least 4.5 m per floor for the default 4 m clear height and 0.5 m allowance. Taller building programs retain their nominal pitch. Every parcel that carries a building allows at least two floors, 9 m, the base and crown a building kit stacks; a lot that cannot is a park.
+
+Street lengths land on the 2 m grid: the crossing field at a junction is the box boundary, and the clear street between two boxes is a whole number of 2 m pieces, so street construction closes every run with its 8, 4 and 2 m units.
 
 The generator enforces its own coherence before it returns: every published land and ground ring an axis-aligned rectangle, connected street graph, street edges that never fold back over their own sidewalk band, every parcel reachable from a sidewalk of its access edge, continuous sidewalks linked by crossings, connected subway networks, parcels that never overlap, footprints that host their type's core rectangle behind the shell wall, ground cover that fills the city without overlaps, and water plans that keep buildings and untyped infrastructure contacts out of water. `CONTRACT.md` lists every invariant and the closed error set.
 

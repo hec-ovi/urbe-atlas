@@ -12,6 +12,7 @@ export function checkTransitClearance(bp: CityBlueprint): void {
   }
   const gradeStructures = bp.transit.subwayStations.flatMap((station) => station.shafts.map((shaft) => shaft.footprint));
   for (const parcel of bp.parcels) {
+    if (!parcel.footprint) continue;
     for (const station of bp.transit.subwayStations) {
       for (let i = 0; i < station.shafts.length; i++) {
         const shaftOverlap = overlapArea([station.shafts[i].footprint], parcel.footprint);

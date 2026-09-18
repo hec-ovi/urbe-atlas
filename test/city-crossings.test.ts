@@ -47,7 +47,8 @@ describe('dimensioned city crossings', () => {
     expect(plan.crossings[0].segments.every((segment) => segment.width === 3 && segment.markings.length === 3)).toBe(true);
     const walking = input.ground.filter((region) => region.surface === 'sidewalk').map((region) => region.polygon);
     for (const approach of plan.junctions[0].approaches) {
-      expect(approach.distance).toBe(11);
+      // the box boundary clears every other arm and lands on the 2 m grid
+      expect(approach.distance).toBe(12.5);
       for (const terminal of Object.values(approach.walkingLandings)) expect(difference([terminal], walking)).toEqual([]);
       const parking = input.modules.parking!.flatMap((bay) => bay.slots);
       expect(intersection([approach.field, ...Object.values(approach.landings)], parking)).toEqual([]);
@@ -61,7 +62,10 @@ describe('dimensioned city crossings', () => {
       const input = fixture(), boundary = input.blocks[0].outer;
       const landExclusions = { water: [rect(20, 20, 4, 4)], blocks: [{ ownerId: 'source-block0', boundary }] };
       const ground = input.ground.flatMap((region) => difference([region.polygon], [boundary]).map((polygon) => ({ ...region, polygon })));
-      expect(() => CityCrossings.plan({ ...input, ground })).toThrow('grid crossing lacks complete');
+      // an arm without its paved landings keeps its junction box and loses only its markings
+      const bare = CityCrossings.plan({ ...input, ground });
+      expect(bare.junctions[0].approaches).toHaveLength(4);
+      expect(bare.crossings[0].segments.map((segment) => segment.edgeId)).toEqual(['e2', 'e3']);
       const shore = { ...input, ground, landExclusions }, plan = CityCrossings.plan(shore);
       expect(plan.junctions).toHaveLength(1);
       expect(plan.crossings[0].segments.map((segment) => segment.edgeId)).toEqual(['e2', 'e3']);
@@ -101,18 +105,20 @@ describe('dimensioned city crossings', () => {
 
   it('rejects missing ground, physical obstacles, foreign traffic and incomplete saved records', () => {
     const input = fixture();
+    // missing paved land, a hole under a landing or an obstacle costs the markings, never the plan
     const punctured = input.ground.flatMap((region) => region.surface === 'sidewalk'
-      ? difference([region.polygon], [rect(10.5, 9.4, 0.05, 0.05)]).map((polygon) => ({ ...region, polygon })) : [region]);
-    expect(() => CityCrossings.plan({ ...input, ground: punctured })).toThrow('grid crossing lacks complete');
-    expect(() => CityCrossings.plan({ ...input, ground: input.ground.filter((region) => region.surface !== 'gutter') }))
-      .toThrow('grid crossing lacks complete curb and gutter connectors');
+      ? difference([region.polygon], [rect(11, 9.4, 0.05, 0.05)]).map((polygon) => ({ ...region, polygon })) : [region]);
+    expect(CityCrossings.plan({ ...input, ground: punctured }).crossings[0].segments).toHaveLength(3);
+    expect(CityCrossings.plan({ ...input, ground: input.ground.filter((region) => region.surface !== 'gutter') }).crossings)
+      .toEqual([]);
     expect(() => CityCrossings.plan({ ...input, landExclusions: { water: [rect(NaN, 0, 2, 2)], blocks: [] } }))
       .toThrow('valid source water exclusions');
-    expect(() => CityCrossings.plan({ ...input, obstacles: [rect(10, -1, 2, 2)] })).toThrow('physical obstacle');
+    expect(CityCrossings.plan({ ...input, obstacles: [rect(10, -1, 2, 2)] }).crossings[0].segments).toHaveLength(3);
 
     const foreign: StreetEdge = { ...input.edges[1], id: 'foreign', from: 'foreign0', to: 'foreign1', width: 2,
       path: [[11, -40], [11, 20]], elevationProfile: [{ distance: 0, level: 0 }, { distance: 60, level: 0 }] };
-    expect(() => CityCrossings.plan({ ...input, edges: [...input.edges, foreign] })).toThrow('another grade road');
+    expect(CityCrossings.plan({ ...input, edges: [...input.edges, foreign] }).junctions[0].approaches
+      .map((approach) => approach.edgeId)).not.toContain('e0');
     // the same line on the highway deck is not grade traffic
     const overhead = { ...foreign, level: 8, elevationProfile: [{ distance: 0, level: 8 }, { distance: 60, level: 8 }] };
     expect(CityCrossings.plan({ ...input, edges: [...input.edges, overhead] }).crossings[0].segments).toHaveLength(4);

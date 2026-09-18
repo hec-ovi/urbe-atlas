@@ -29,7 +29,7 @@ const PARCEL_TYPES: ParcelType[] = [
 const TIERS = ['poor', 'mid', 'rich', 'high_rich'];
 
 /** Shortest floor each type's family builds, mirrored from exterior's floor constants. */
-const MIN_FLOOR_HEIGHT: Record<ParcelType, number> = {
+const MIN_FLOOR_HEIGHT: Record<string, number> = {
   residential: 2.6, hotel: 2.8, offices: 3.4, corpo: 3.6, hospital: 3.8, clinic: 3.8,
   police: 3.0, military: 3.0, factory: 4.5, commerce: 3.0, mall: 3.0, restaurant: 3.0, coffee_shop: 3.0,
 };
@@ -74,26 +74,28 @@ describe('blueprint output', () => {
     const blockIds = new Set(bp.blocks.map((b) => b.id));
     const edgeIds = new Set(bp.streets.edges.map((e) => e.id));
     for (const p of bp.parcels) {
-      expect(PARCEL_TYPES).toContain(p.type);
+      expect([...PARCEL_TYPES, 'park']).toContain(p.type);
       expect(TIERS).toContain(p.tier);
       expect(districtIds.has(p.districtId)).toBe(true);
       expect(blockIds.has(p.blockId)).toBe(true);
       expect(edgeIds.has(p.access.edgeId)).toBe(true);
-      expect(p.footprint.length).toBeGreaterThanOrEqual(3);
-      expect(p.envelope.maxHeight).toBeCloseTo(p.envelope.maxFloors * p.envelope.floorHeight, 1);
-      expect(p.envelope.minFloors).toBeGreaterThanOrEqual(1);
-      expect(p.envelope.minFloors).toBeLessThanOrEqual(p.envelope.maxFloors);
+      if (p.type === 'park') continue;
+      expect(p.footprint!.length).toBeGreaterThanOrEqual(3);
+      const envelope = p.envelope!;
+      expect(envelope.maxHeight).toBeCloseTo(envelope.maxFloors * envelope.floorHeight, 1);
+      expect(envelope.minFloors).toBeGreaterThanOrEqual(1);
+      expect(envelope.minFloors).toBeLessThanOrEqual(envelope.maxFloors);
       // the envelope admits at least one floor of the type's family
-      expect(p.envelope.maxHeight).toBeGreaterThanOrEqual(MIN_FLOOR_HEIGHT[p.type]);
+      expect(envelope.maxHeight).toBeGreaterThanOrEqual(MIN_FLOOR_HEIGHT[p.type]);
       // band guarantee: the footprint keeps its type's band end to end
-      expect(bandWidth(p.footprint), `${p.id} ${p.type} band`).toBeGreaterThanOrEqual(minBand(p.type) - 1e-6);
+      expect(bandWidth(p.footprint!), `${p.id} ${p.type} band`).toBeGreaterThanOrEqual(minBand(p.type) - 1e-6);
       // core guarantees: the footprint OBB at least spans the rectangle its type and floors need
-      const obb = orientedBoundingBox(p.footprint);
+      const obb = orientedBoundingBox(p.footprint!);
       const spans = (rect: number[]): boolean => obb.length >= Math.max(...rect) - 1e-6 && obb.width >= Math.min(...rect) - 1e-6;
       expect(spans(WALKUP), `${p.id} walkup core`).toBe(true);
       if (HEAVY_TYPES.has(p.type)) expect(spans(COMPACT), `${p.id} ${p.type} compact core`).toBe(true);
-      if (p.envelope.maxFloors > 6) expect(spans(COMPACT) || spans(STANDARD), `${p.id} elevator core`).toBe(true);
-      else if (p.envelope.maxFloors > 4) {
+      if (envelope.maxFloors > 6) expect(spans(COMPACT) || spans(STANDARD), `${p.id} elevator core`).toBe(true);
+      else if (envelope.maxFloors > 4) {
         expect(spans(WALKUP_TWO_STAIRS) || spans(COMPACT) || spans(STANDARD), `${p.id} two-stair core`).toBe(true);
       }
     }
@@ -133,6 +135,45 @@ describe('blueprint output', () => {
         }
       }
     }
+  });
+
+  it('closes every street on the 2 m grid between its junction boxes', () => {
+    const bp = defaultCity();
+    const approaches = bp.streets.construction!.junctions!.flatMap((junction) => junction.approaches);
+    const declared = new Set(bp.report!.degraded.filter((entry) => entry.kind === 'corridor').map((entry) => entry.id));
+    const offGrid: string[] = [];
+    for (const edge of bp.streets.edges) {
+      if (edge.class === 'highway' || declared.has(edge.id)) continue;
+      // the consumer's rule: clear length from one crossing field to the next, in whole 2 m pieces
+      const first = edge.path[0], last = edge.path[edge.path.length - 1];
+      const length = distance(first, last);
+      const direction: Vec2 = [(last[0] - first[0]) / length, (last[1] - first[1]) / length];
+      const along = (point: Vec2): number => (point[0] - first[0]) * direction[0] + (point[1] - first[1]) * direction[1];
+      const fields = (nodeId: string): number[] => approaches
+        .filter((approach) => approach.edgeId === edge.id && approach.nodeId === nodeId)
+        .flatMap((approach) => approach.field.map(along));
+      const clear = Math.min(length, ...fields(edge.to)) - Math.max(0, ...fields(edge.from));
+      if (clear < 0 || Math.abs(clear - Math.round(clear / 2) * 2) > 1e-6) offGrid.push(`${edge.id}:${clear}`);
+    }
+    expect(offGrid).toEqual([]);
+    expect(declared.size).toBe(0);
+  });
+
+  it('gives every standard lot two floors and publishes a lot that cannot as a park', () => {
+    const bp = defaultCity();
+    const parks = bp.parcels.filter((parcel) => parcel.type === 'park');
+    expect(bp.parcels.length).toBeGreaterThan(parks.length);
+    for (const parcel of bp.parcels) {
+      if (parcel.type === 'park') {
+        expect(parcel.footprint, `${parcel.id} park footprint`).toBeUndefined();
+        expect(parcel.envelope, `${parcel.id} park envelope`).toBeUndefined();
+        continue;
+      }
+      expect(parcel.envelope!.maxFloors, `${parcel.id} floors`).toBeGreaterThanOrEqual(2);
+      expect(parcel.envelope!.maxHeight, `${parcel.id} height`).toBeGreaterThanOrEqual(9);
+    }
+    expect(bp.volumetric.buildings.length).toBe(bp.parcels.length - parks.length);
+    expect(bp.stats.parcelCounts.park).toBe(parks.length);
   });
 
   it('cuts every ordinary parcel to one published lot size and flags the landmarks', () => {
@@ -526,6 +567,27 @@ describe('errors', () => {
       code: 'E_INVALID_PARAMS',
       details: { field: 'streetDesign.sidewalkProfiles', profileId: 'legacy', supportedFormat: 'modules' },
     }));
+  });
+
+  it('degrades one element and reports it instead of failing the plan', () => {
+    const city = generateCity({ seed: 'hydro-river', size: { width: 500, depth: 500 }, hydrology: { type: 'river' } });
+    const degraded = city.report!.degraded;
+    expect(degraded.length).toBeGreaterThan(0);
+    for (const entry of degraded) {
+      expect(['junction-box', 'crossing', 'corridor', 'lot', 'station']).toContain(entry.kind);
+      expect(entry.id.length, entry.kind).toBeGreaterThan(0);
+      expect(entry.reason.length, entry.id).toBeGreaterThan(0);
+    }
+    // the plan stands: parcels, streets and the crossings that kept their landings
+    expect(city.parcels.length).toBeGreaterThan(0);
+    expect(city.streets.crossings.every((crossing) => crossing.segments.length > 0)).toBe(true);
+    const lost = degraded.find((entry) => entry.kind === 'crossing')!;
+    const [nodeId, edgeId] = lost.id.split(':');
+    expect(city.streets.crossings.filter((crossing) => crossing.nodeId === nodeId)
+      .flatMap((crossing) => crossing.segments).map((segment) => segment.edgeId)).not.toContain(edgeId);
+    // its junction box stays, so the street still closes on the grid
+    expect(city.streets.construction!.junctions!.flatMap((junction) => junction.approaches)
+      .some((approach) => approach.nodeId === nodeId && approach.edgeId === edgeId)).toBe(true);
   });
 
   it('rejects an incoherent saved city with E_INVARIANT', () => {

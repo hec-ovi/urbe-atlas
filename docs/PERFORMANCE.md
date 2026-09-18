@@ -1,11 +1,11 @@
 # Generation measurements
 
-Blueprint 0.26.0, package 0.10.0. Sample files in `samples/` at this version:
+Blueprint 0.26.0, package 0.11.0. Sample files in `samples/` at this version:
 
 | City | Seed | JSON | Blocks | Parcels | Templates |
 | --- | --- | ---: | ---: | ---: | ---: |
 | 400 x 400 m | `urbe-tiny` | 0.37 MB | 9 | 47 | 2 |
-| 1000 x 1000 m | `urbe` | 2.18 MB | 64 | 431 | 8 |
+| 1000 x 1000 m | `urbe` | 2.17 MB | 64 | 431 | 8 |
 
 The default 3000 x 3000 m city writes 7.9 MB. Generation reports twelve pipeline stages (`GENERATION_STAGES` in `schema/progress.ts`). Delete on a running job terminates the worker and removes the catalog record.
 

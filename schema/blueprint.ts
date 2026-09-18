@@ -27,6 +27,12 @@ export type Polyline = Vec2[];
 export type StreetClass = 'street' | 'road' | 'highway' | 'alley';
 
 export type ParcelType =
+  | BuildingParcelType
+  /** Public green: a standard lot that cannot carry a building, published with no envelope. */
+  | 'park';
+
+/** Every parcel type that carries a building. */
+export type BuildingParcelType =
   | 'residential'
   | 'hotel'
   | 'offices'
@@ -54,6 +60,25 @@ export interface CityBlueprint {
   hydrology?: HydrologyPlan;
   volumetric: Volumetric;
   stats: CityStats;
+  /** What generation simplified. Present on generated worlds; optional when reading older artifacts. */
+  report?: BlueprintReport;
+}
+
+/** The kind of element a degradation happened to. */
+export type DegradedKind = 'junction-box' | 'crossing' | 'corridor' | 'lot' | 'station';
+
+/** One element published in its simplest valid form after its own check failed. */
+export interface DegradedElement {
+  /** The published element, or the owner it belongs to. */
+  id: string;
+  kind: DegradedKind;
+  /** What failed, in plain words. */
+  reason: string;
+}
+
+/** Everything generation had to simplify. `degraded` is empty on a clean plan. */
+export interface BlueprintReport {
+  degraded: DegradedElement[];
 }
 
 export interface BlueprintMeta {
@@ -312,11 +337,12 @@ export interface Parcel {
   tier: WealthTier;
   /** Full lot polygon; lots + open areas + sidewalk tile their block. */
   lot: Polygon;
-  /** Buildable footprint: the lot inset by the type's setback, trimmed to the band the type needs end to end. */
-  footprint: Polygon;
+  /** Buildable footprint: the lot inset by the type's setback, trimmed to the band the type needs end to end. Absent on a park. */
+  footprint?: Polygon;
   /** Street access: the entrance connects to this edge's sidewalk at this point. */
   access: { edgeId: string; point: Vec2 };
-  envelope: Envelope;
+  /** Absent on a park, which carries no building. */
+  envelope?: Envelope;
   /**
    * Ordinary parcel: the `meta.lotSizes` entry its lot is exactly, in either
    * orientation. Absent on a landmark parcel.

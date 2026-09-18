@@ -1,5 +1,5 @@
 /** Local mirror of Exterior's published hard minima and generation policy. */
-import type { ParcelType } from '../../schema/blueprint';
+import type { BuildingParcelType } from '../../schema/blueprint';
 
 export const FLOOR_GENERATION_POLICY = {
   defaultClearHeight: 4,
@@ -9,7 +9,7 @@ export const FLOOR_GENERATION_POLICY = {
 
 type Family = 'residential' | 'hotel' | 'office' | 'corpo' | 'hospital' | 'security' | 'industrial' | 'commerce';
 
-const FAMILY: Record<ParcelType, Family> = {
+const FAMILY: Record<BuildingParcelType, Family> = {
   residential: 'residential',
   hotel: 'hotel',
   offices: 'office',
@@ -37,11 +37,11 @@ const MIN_FLOOR_HEIGHT: Record<Family, number> = {
 };
 
 /** Shortest floor the type's family can build, meters. */
-export function minFloorHeight(type: ParcelType): number {
+export function minFloorHeight(type: BuildingParcelType): number {
   return MIN_FLOOR_HEIGHT[FAMILY[type]];
 }
 
 /** Generation pitch for the requested clear room height and slab/ceiling allowance. */
-export function activeMinFloorHeight(type: ParcelType): number {
+export function activeMinFloorHeight(type: BuildingParcelType): number {
   return Math.max(minFloorHeight(type), FLOOR_GENERATION_POLICY.defaultClearHeight + FLOOR_GENERATION_POLICY.clearHeightAllowance);
 }

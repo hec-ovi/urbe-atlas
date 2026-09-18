@@ -3,13 +3,16 @@
  * from the zoning table in docs/RESEARCH.md (NYC/HK FAR codes, CTBUH,
  * walk-up elevator cap, warehouse clear heights).
  */
-import type { Envelope, ParcelType } from '../../schema/blueprint';
+import type { BuildingParcelType, Envelope } from '../../schema/blueprint';
 import type { WealthTier } from '../../schema/params';
 import type { Rng } from '../core/rng';
 import { activeMinFloorHeight } from './floorMinimums';
 
+/** A building kit stacks a base and a crown, so every envelope carries two floors. */
+export const MIN_ENVELOPE_FLOORS = 2;
+
 /** Nominal floor height, meters, by type. */
-const FLOOR_HEIGHT: Record<ParcelType, number> = {
+const FLOOR_HEIGHT: Record<BuildingParcelType, number> = {
   residential: 2.9,
   hotel: 3.2,
   offices: 4.0,
@@ -41,7 +44,7 @@ const RESIDENTIAL_FLOOR_HEIGHT: Record<WealthTier, number> = {
 };
 
 /** Typical floor-count band per non-residential type before tier and district caps. */
-const FLOOR_BAND: Record<Exclude<ParcelType, 'residential'>, [number, number]> = {
+const FLOOR_BAND: Record<Exclude<BuildingParcelType, 'residential'>, [number, number]> = {
   hotel: [5, 20],
   offices: [6, 30],
   corpo: [20, 60],
@@ -63,7 +66,7 @@ const TIER_FLOOR_FACTOR: Record<WealthTier, number> = {
   high_rich: 1.2,
 };
 
-export function makeEnvelope(type: ParcelType, tier: WealthTier, districtMaxFloors: number, rng: Rng): Envelope {
+export function makeEnvelope(type: BuildingParcelType, tier: WealthTier, districtMaxFloors: number, rng: Rng): Envelope {
   const { floor, cap, floorHeight } = envelopeRange(type, tier, districtMaxFloors);
   const maxFloors = Math.max(floor, Math.min(cap, floor + rng.int(0, Math.max(0, cap - floor))));
   return envelopeAt(floor, maxFloors, floorHeight);
@@ -79,7 +82,7 @@ export function expectedResidentialFloors(tier: WealthTier, districtMaxFloors: n
   return sum / (cap - floor + 1);
 }
 
-function envelopeRange(type: ParcelType, tier: WealthTier, districtMaxFloors: number): { floor: number; cap: number; floorHeight: number } {
+function envelopeRange(type: BuildingParcelType, tier: WealthTier, districtMaxFloors: number): { floor: number; cap: number; floorHeight: number } {
   let lo: number;
   let hi: number;
   let floorHeight: number;
@@ -94,8 +97,9 @@ function envelopeRange(type: ParcelType, tier: WealthTier, districtMaxFloors: nu
     floorHeight = FLOOR_HEIGHT[type];
   }
   floorHeight = Math.max(floorHeight, activeMinFloorHeight(type));
-  const cap = Math.max(1, Math.min(hi, districtMaxFloors));
-  const floor = Math.max(1, Math.min(lo, cap));
+  // The two-floor minimum holds unless the district itself caps floors below it.
+  const cap = Math.max(1, Math.min(Math.max(hi, MIN_ENVELOPE_FLOORS), districtMaxFloors));
+  const floor = Math.max(1, Math.min(Math.max(lo, Math.min(MIN_ENVELOPE_FLOORS, cap)), cap));
   return { floor, cap, floorHeight };
 }
 

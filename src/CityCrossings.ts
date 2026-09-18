@@ -1,8 +1,9 @@
-import type { CrossingSegment, GroundSurface, Polygon, StreetEdge, StreetNode, Vec2 } from '../schema/blueprint';
+import type { CrossingSegment, GroundSurface, Polygon, StreetConnection, StreetEdge, StreetNode, Vec2 } from '../schema/blueprint';
 import { CityCrossingGround, type CityCrossingRegion } from './CityCrossingGround';
-import { invariantFailure, invalidParams, unsatisfiable } from './errors';
+import { invariantFailure, invalidParams } from './errors';
 import { sidewalkBand } from './streets/construction/SidewalkSection';
 import type { CrossingPlan, CrossingValidationPlan, JunctionApproach } from './streets/crossings/schema';
+import type { Degradations } from './report/Degradations';
 
 export interface CityCrossingLandExclusions {
   water: readonly Polygon[];
@@ -18,19 +19,81 @@ export interface CityCrossingInput {
   obstacles?: readonly Polygon[];
   /** Water and complete source blocks removed by water, independent of final ground coverage. */
   landExclusions?: CityCrossingLandExclusions;
+  /** Collects arms that lost their crossing or their whole junction box. */
+  report?: Degradations;
 }
 
 const WIDTH = 3;
 const HALF = WIDTH / 2;
 const PAINT_CLEARANCE = 0.05;
 
+/**
+ * Street construction closes a run with 8, 4 and 2 m pieces, so the clear
+ * street between two junction boxes is a whole number of 2 m units. Every
+ * junction box ends on this grid, measured from the edge start; an end with no
+ * box leaves the edge's own end on it.
+ */
+const STATION_GRID = 2;
+
+/** Published grid: dimensions are exact to the millimetre. */
+const millimetres = (value: number): number => Math.round(value * 1000) / 1000;
+
+/** Where on the grid a length sits, in [0, STATION_GRID). */
+const gridResidue = (value: number): number => millimetres(value - Math.floor(value / STATION_GRID) * STATION_GRID);
+
+/** Smallest setback at or beyond `least` that lands the junction box on the grid. */
+const onStationGrid = (least: number, residue: number): number =>
+  millimetres(residue + Math.ceil(millimetres(least - residue) / STATION_GRID) * STATION_GRID);
+
+/** What one planning pass shares: the graph, its frames and the fields it tests against. */
+interface CrossingField {
+  edges: Map<string, StreetEdge>;
+  frames: Map<string, StreetFrame>;
+  nodes: StreetNode[];
+  ground: CityCrossingGround;
+  excluded: ReturnType<typeof CityCrossingGround.landExclusions>;
+  traffic: CityCrossingGround;
+}
+
+/** Junction boxes an edge keeps, by end. */
+type BoxedEnds = Map<string, { from: boolean; to: boolean }>;
+
 /** Direct crossing placement for grid streets and declared-angle block cuts. */
 export class CityCrossings {
+  /**
+   * Where one arm's box lands depends on whether the opposite end keeps one, so
+   * the first pass assumes every eligible arm does and the second places them
+   * against what survived.
+   */
   static plan(input: CityCrossingInput): CrossingPlan {
+    const field = this.field(input);
+    const eligible: BoxedEnds = new Map();
+    for (const node of field.nodes) {
+      for (const connection of node.connections) {
+        for (const edge of this.arms(node, connection, field.edges)) {
+          const ends = eligible.get(edge.id) ?? { from: false, to: false };
+          ends[edge.from === node.id ? 'from' : 'to'] = true;
+          eligible.set(edge.id, ends);
+        }
+      }
+    }
+    return this.attempt(field, this.boxedEnds(this.attempt(field, eligible), field.edges), input.report);
+  }
+
+  /** Junction box ends a finished pass published, by edge. */
+  private static boxedEnds(plan: CrossingPlan, edges: ReadonlyMap<string, StreetEdge>): BoxedEnds {
+    const boxed: BoxedEnds = new Map();
+    for (const approach of plan.junctions.flatMap(junction => junction.approaches)) {
+      const ends = boxed.get(approach.edgeId) ?? { from: false, to: false };
+      ends[edges.get(approach.edgeId)!.from === approach.nodeId ? 'from' : 'to'] = true;
+      boxed.set(approach.edgeId, ends);
+    }
+    return boxed;
+  }
+
+  private static field(input: CityCrossingInput): CrossingField {
     const edges = new Map(input.edges.map(edge => [edge.id, edge]));
     const frames = new Map(input.edges.map(edge => [edge.id, new StreetFrame(edge)]));
-    const ground = new CityCrossingGround(input.ground, input.obstacles ?? []);
-    const excluded = CityCrossingGround.landExclusions(input.landExclusions);
     const traffic = new CityCrossingGround(input.edges.flatMap(edge => {
       const frame = frames.get(edge.id)!;
       return edge.elevationProfile.flatMap((end, index, knots): CityCrossingRegion[] => {
@@ -41,28 +104,24 @@ export class CityCrossings {
           : [];
       });
     }), []);
+    return { edges, frames, traffic, nodes: [...input.nodes].sort((a, b) => a.id.localeCompare(b.id)),
+      ground: new CityCrossingGround(input.ground, input.obstacles ?? []),
+      excluded: CityCrossingGround.landExclusions(input.landExclusions) };
+  }
+
+  private static attempt(field: CrossingField, boxed: BoxedEnds, report?: Degradations): CrossingPlan {
+    const { edges, frames, nodes, ground, excluded, traffic } = field;
     const plan: CrossingPlan = { crossings: [], junctions: [] };
     const occupied = new Map<string, [number, number][]>();
-    for (const node of [...input.nodes].sort((a, b) => a.id.localeCompare(b.id))) {
+    for (const node of nodes) {
       node.connections.forEach((connection, index) => {
-        if (connection.level !== 0) return;
-        const incident = connection.edgeIds.map(id => {
-          const edge = edges.get(id);
-          if (!edge || (edge.from !== node.id && edge.to !== node.id)) throw invalidParams('grid crossing has an invalid incident edge', { nodeId: node.id, edgeId: id });
-          return edge;
-        });
-        const motor = incident.filter(edge => edge.width > 0);
-        const continuation = motor.length === 2 && motor[0].crossSection?.runId !== undefined
-          && motor[0].crossSection.runId === motor[1].crossSection?.runId;
-        if (motor.length === 0 || (incident.length < 2) || (incident.length === 2 && continuation)) return;
-        const arms = motor.filter(edge => edge.class !== 'highway' && edge.class !== 'alley'
-          && edge.sidewalk.left > 0 && edge.sidewalk.right > 0 && edge.elevationProfile.every(knot => knot.level === 0));
+        const arms = this.arms(node, connection, edges);
         if (!arms.length) return;
         const groupId = `${node.id}:connection:${index}`;
         const junction = { id: `cj${plan.junctions.length}`, groupIds: [groupId], nodeIds: [node.id],
           internalEdgeIds: [], approaches: [] as JunctionApproach[] };
         const crossing = { nodeId: node.id, junctionId: junction.id, segments: [] as CrossingSegment[] };
-        for (const edge of arms.sort((a, b) => a.id.localeCompare(b.id))) {
+        for (const edge of arms) {
           const frame = frames.get(edge.id)!;
           const left = sidewalkBand(edge, 'left', 'walking'), right = sidewalkBand(edge, 'right', 'walking');
           const lateral = edge.width / 2 + Math.max(left.offset + left.width / 4, right.offset + right.width / 4);
@@ -77,36 +136,41 @@ export class CityCrossings {
             const radius = Object.values(other.crossSection?.sidewalks ?? {}).some(side => Math.abs((side.geometry?.pavedWidth ?? 0) - 4.2) < 1e-8) ? 4.2 : 2;
             return (other.width / 2 + radius + rim + cosine * lateral) / sine;
           });
-          const offset = Math.max(0, ...offsets) + HALF;
           const starts = edge.from === node.id;
-          const distance = starts ? offset : frame.length - offset;
-          const candidate = this.candidate(edge, frame, node.id, groupId, distance);
-          const { approach, segment } = candidate;
-          const whole = [approach.field, ...Object.values(approach.landings), ...Object.values(approach.walkingLandings)];
-          if (!whole.every(polygon => excluded.clear(polygon))) continue;
-          const evidence = { nodeId: node.id, edgeId: edge.id, distance };
-          if (distance < HALF || distance > frame.length - HALF
-            || occupied.get(edge.id)?.some(([a, b]) => a < approach.station[1] && b > approach.station[0])) {
-            throw unsatisfiable('grid street cannot hold its complete crossing fields', evidence);
+          // The far side of the field is the junction box boundary: the whole
+          // field clears every other arm, then steps out to the 2 m grid.
+          const clearance = Math.max(0, ...offsets) + WIDTH;
+          // Boxes at both ends measure from the edge start; a bare end measures from the edge end.
+          const residue = starts && boxed.get(edge.id)?.to ? 0 : gridResidue(frame.length);
+          const setback = onStationGrid(clearance, residue);
+          const distance = starts ? setback - HALF : frame.length - setback + HALF;
+          const { approach, segment } = this.candidate(edge, frame, node.id, groupId, distance);
+          const marked = [...Object.values(approach.landings), ...Object.values(approach.walkingLandings)];
+          const id = `${node.id}:${edge.id}`;
+          // The box is the field on this arm's own grade carriageway. Without it the arm has no junction.
+          const box = distance >= HALF && distance <= frame.length - HALF
+            && !occupied.get(edge.id)?.some(([a, b]) => a < approach.station[1] && b > approach.station[0])
+            && excluded.clear(approach.field) && ground.covers(approach.field, ['roadway'])
+            && ground.clear(approach.field) && traffic.avoidsOtherRoads(approach.field, edge.id);
+          if (!box) {
+            report?.add('junction-box', id, 'arm has no clear grade carriageway for a junction box');
+            continue;
           }
-          if (!ground.covers(approach.field, ['roadway'])) throw unsatisfiable('grid crossing lacks complete roadway', evidence);
-          if (!Object.values(approach.landings).every(polygon => ground.covers(polygon, ['roadway', 'gutter', 'curb', 'sidewalk']))) {
-            throw unsatisfiable('grid crossing lacks complete curb and gutter connectors', evidence);
-          }
-          if (!Object.values(approach.walkingLandings).every(polygon => ground.covers(polygon, ['sidewalk']))) {
-            throw unsatisfiable('grid crossing lacks complete paved walking land', evidence);
-          }
-          if (!whole.every(polygon => ground.clear(polygon))) throw unsatisfiable('grid crossing intersects a physical obstacle', evidence);
-          // Stations clear the other approach widths; source ownership checks the complete saved fields.
-          if (!whole.every(polygon => traffic.avoidsOtherRoads(polygon, edge.id))) throw unsatisfiable('grid crossing enters another grade road', evidence);
           occupied.set(edge.id, [...(occupied.get(edge.id) ?? []), approach.station]);
           junction.approaches.push(approach);
+          // Markings need complete pedestrian land on both sides; without it the box carries no crossing.
+          const walkable = marked.every(polygon => excluded.clear(polygon) && ground.clear(polygon)
+            && traffic.avoidsOtherRoads(polygon, edge.id))
+            && Object.values(approach.landings).every(polygon => ground.covers(polygon, ['roadway', 'gutter', 'curb', 'sidewalk']))
+            && Object.values(approach.walkingLandings).every(polygon => ground.covers(polygon, ['sidewalk']));
+          if (!walkable) {
+            report?.add('crossing', id, 'junction box has no complete paved landing on both sides');
+            continue;
+          }
           crossing.segments.push(segment);
         }
-        if (junction.approaches.length) {
-          plan.junctions.push(junction);
-          plan.crossings.push(crossing);
-        }
+        if (junction.approaches.length) plan.junctions.push(junction);
+        if (crossing.segments.length) plan.crossings.push(crossing);
       });
     }
     return plan;
@@ -114,11 +178,32 @@ export class CityCrossings {
 
   static validate(input: CityCrossingInput, plan: CrossingValidationPlan): void {
     let expected: CrossingPlan;
-    try { expected = this.plan(input); }
+    try { expected = this.plan({ ...input, report: undefined }); }
     catch (error) {
       throw invariantFailure('saved grid crossing ground is incomplete', { reason: error instanceof Error ? error.message : String(error) });
     }
     if (!equal(expected, plan)) throw invariantFailure('saved grid crossings differ from their required module approaches');
+  }
+
+  /**
+   * Arms of one connection group that take a junction box: every grade
+   * carriageway with walking land on both sides, once the group is a junction
+   * rather than a level crossing or a run continuing through.
+   */
+  private static arms(node: StreetNode, connection: StreetConnection, edges: ReadonlyMap<string, StreetEdge>): StreetEdge[] {
+    if (connection.level !== 0) return [];
+    const incident = connection.edgeIds.map(id => {
+      const edge = edges.get(id);
+      if (!edge || (edge.from !== node.id && edge.to !== node.id)) throw invalidParams('grid crossing has an invalid incident edge', { nodeId: node.id, edgeId: id });
+      return edge;
+    });
+    const motor = incident.filter(edge => edge.width > 0);
+    const continuation = motor.length === 2 && motor[0].crossSection?.runId !== undefined
+      && motor[0].crossSection.runId === motor[1].crossSection?.runId;
+    if (motor.length === 0 || incident.length < 2 || (incident.length === 2 && continuation)) return [];
+    return motor.filter(edge => edge.class !== 'highway' && edge.class !== 'alley'
+      && edge.sidewalk.left > 0 && edge.sidewalk.right > 0 && edge.elevationProfile.every(knot => knot.level === 0))
+      .sort((a, b) => a.id.localeCompare(b.id));
   }
 
   private static candidate(edge: StreetEdge, frame: StreetFrame, nodeId: string, groupId: string, distance: number) {

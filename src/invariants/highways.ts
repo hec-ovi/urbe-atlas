@@ -47,6 +47,7 @@ export function checkHighwayStructures(bp: CityBlueprint): void {
     );
     const reservationBounds = reservation.map(bounds);
     for (const parcel of bp.parcels) {
+      if (!parcel.footprint) continue;
       const box = bounds(parcel.footprint);
       if (!reservationBounds.some((reserved) =>
         reserved.min[0] < box.max[0] && reserved.max[0] > box.min[0]

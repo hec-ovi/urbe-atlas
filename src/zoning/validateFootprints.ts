@@ -15,7 +15,8 @@ export function validateFootprints(city: CityBlueprint): void {
   }
   const frame = new GridFrame(grid);
   for (const parcel of city.parcels) {
-    if (parcel.footprint.length !== 4) throw invariantFailure(`parcel ${parcel.id} footprint is not a rectangle`);
+    if (parcel.type === 'park') continue;
+    if (!parcel.footprint || parcel.footprint.length !== 4) throw invariantFailure(`parcel ${parcel.id} footprint is not a rectangle`);
     const candidate = frame.candidate(parcel.footprint);
     const exact = frame.polygon(candidate);
     if (candidate.width <= 0 || candidate.depth <= 0 || parcel.footprint.some((point, index) =>

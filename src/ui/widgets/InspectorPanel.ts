@@ -64,9 +64,9 @@ export class InspectorPanel {
           ['District', parcel.districtId],
           ['Block', parcel.blockId],
           ['Lot area', `${area(parcel.lot).toFixed(1)} m²`],
-          ['Footprint', `${area(parcel.footprint).toFixed(1)} m²`],
-          ['Floors', `${parcel.envelope.minFloors} to ${parcel.envelope.maxFloors}`],
-          ['Height cap', `${parcel.envelope.maxHeight.toFixed(1)} m`],
+          ['Footprint', parcel.footprint ? `${area(parcel.footprint).toFixed(1)} m²` : 'none'],
+          ['Floors', parcel.envelope ? `${parcel.envelope.minFloors} to ${parcel.envelope.maxFloors}` : 'none'],
+          ['Height cap', parcel.envelope ? `${parcel.envelope.maxHeight.toFixed(1)} m` : 'none'],
           ['Access edge', parcel.access.edgeId],
         ]),
       );

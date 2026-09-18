@@ -3,7 +3,8 @@ import type { CityBlueprint } from '../../schema/blueprint';
 import { invariantFailure } from '../errors';
 import { COMPACT_RECT, coreFit } from '../zoning/core';
 import { isHeavy, minBand } from '../zoning/bands';
-import { activeMinFloorHeight } from '../zoning/floorMinimums';
+import { activeMinFloorHeight, FLOOR_GENERATION_POLICY } from '../zoning/floorMinimums';
+import { MIN_ENVELOPE_FLOORS } from '../zoning/envelopes';
 import { validateFootprints } from '../zoning/validateFootprints';
 import { ALLEY_WIDTH, CURB_WIDTH } from '../streets/widths';
 import { HIGHWAY_EXIT_TOLERANCE } from '../streets/Highways';
@@ -19,6 +20,7 @@ import { checkHighwayStructures } from './highways';
 import { checkTransitClearance } from './transitClearance';
 import { checkStreetElevations } from './elevations';
 import { checkCrossings } from './crossings';
+import { checkClearLengths } from './clearLengths';
 import { checkCityHydrology } from '../hydro/CityHydrologyInvariants';
 import { checkStandardLots } from './standardLots';
 import { checkRectangles } from './rectangles';
@@ -92,6 +94,16 @@ export class Invariants {
     // Footprint hosting and complete floor allocation under the active generation policy.
     validateFootprints(bp);
     for (const p of bp.parcels) {
+      if (p.type === 'park') {
+        if (p.footprint || p.envelope) throw invariantFailure(`park ${p.id} carries a building envelope`);
+        continue;
+      }
+      if (!p.footprint || !p.envelope) throw invariantFailure(`parcel ${p.id} (${p.type}) has no footprint or envelope`);
+      if (p.envelope.maxFloors < MIN_ENVELOPE_FLOORS || p.envelope.maxHeight < MIN_ENVELOPE_FLOORS * FLOOR_GENERATION_POLICY.defaultFloorHeight) {
+        throw invariantFailure(
+          `parcel ${p.id} (${p.type}) allows ${p.envelope.maxFloors} floors in ${p.envelope.maxHeight} m, under the two floors every lot carries`,
+        );
+      }
       if (!hostsBand(p.footprint, minBand(p.type))) {
         throw invariantFailure(
           `parcel ${p.id} (${p.type}) keeps a ${bandWidth(p.footprint).toFixed(2)} m band, below the ${minBand(p.type)} m its type needs`,
@@ -165,6 +177,7 @@ export class Invariants {
     }
     validateStationEntrances(bp);
     checkCrossings(bp);
+    checkClearLengths(bp);
     checkSubwayNetwork(bp.transit.subwayStations, bp.transit.subwayLines);
     checkStations(bp);
     checkTransitClearance(bp);

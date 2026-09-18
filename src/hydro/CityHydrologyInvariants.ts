@@ -19,7 +19,7 @@ export function checkCityHydrology(blueprint: CityBlueprint): void {
 
   for (const parcel of blueprint.parcels) {
     clearPolygons(`parcel ${parcel.id} lot`, [parcel.lot], water);
-    clearPolygons(`parcel ${parcel.id} footprint`, [parcel.footprint], water);
+    if (parcel.footprint) clearPolygons(`parcel ${parcel.id} footprint`, [parcel.footprint], water);
     clearPoint(`parcel ${parcel.id} access`, parcel.access.point, water);
   }
   for (const station of [...blueprint.transit.trainStations, ...blueprint.transit.subwayStations]) {

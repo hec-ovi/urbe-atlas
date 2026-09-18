@@ -1,7 +1,7 @@
 /** Zoning contract surface: hosting entries, mirrored floor constants and the population forecast. */
 import { existsSync, readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import type { BuildingGrid, ParcelType, Polygon, Vec2 } from '../../schema/blueprint';
+import type { BuildingGrid, BuildingParcelType, Polygon, Vec2 } from '../../schema/blueprint';
 import { Rng } from '../core/rng';
 import { area, bounds } from '../geom/polygon';
 import { COMPACT_RECT, INTERIOR, STANDARD_RECT, WALKUP_RECT, WALKUP_TWO_STAIRS_RECT } from './core';
@@ -68,13 +68,13 @@ describe('mirrored building constants', () => {
       .toBe(FLOOR_GENERATION_POLICY.defaultClearHeight + FLOOR_GENERATION_POLICY.clearHeightAllowance);
     for (const [type, family] of Object.entries(source.families)) {
       const hard = source.constants[family as string].minFloorHeight;
-      expect(minFloorHeight(type as ParcelType)).toBe(hard);
-      expect(activeMinFloorHeight(type as ParcelType)).toBe(Math.max(hard, source.generationPolicy.defaultFloorHeight));
+      expect(minFloorHeight(type as BuildingParcelType)).toBe(hard);
+      expect(activeMinFloorHeight(type as BuildingParcelType)).toBe(Math.max(hard, source.generationPolicy.defaultFloorHeight));
     }
   });
 
   it('allocates clear-height floors while retaining taller programs', () => {
-    const programs: [ParcelType, number][] = [
+    const programs: [BuildingParcelType, number][] = [
       ['residential', 4.5], ['hotel', 4.5], ['offices', 4.5], ['hospital', 4.5], ['clinic', 4.5],
       ['police', 4.5], ['military', 4.5], ['commerce', 4.5], ['restaurant', 4.5], ['coffee_shop', 4.5],
       ['corpo', 4.6], ['mall', 5.5], ['factory', 10],

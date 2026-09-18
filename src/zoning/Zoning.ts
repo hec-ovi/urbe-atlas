@@ -4,7 +4,7 @@
  * of population / residents-per-facility) replace scored parcels so
  * hospitals, police, commerce land where they make sense.
  */
-import type { Envelope, ParcelType, Vec2 } from '../../schema/blueprint';
+import type { Envelope, BuildingParcelType, Vec2 } from '../../schema/blueprint';
 import type { DistrictKind, WealthTier } from '../../schema/params';
 import type { Rng } from '../core/rng';
 import type { PlannedDistrict } from '../districts/DistrictPlanner';
@@ -27,7 +27,7 @@ import {
 
 export interface ZonedParcel {
   lotIndex: number;
-  type: ParcelType;
+  type: BuildingParcelType;
   tier: WealthTier;
   envelope: Envelope;
   /** Estimated residents (residential parcels only). */
@@ -48,11 +48,11 @@ export class Zoning {
 
   static assign(lots: LotInput[], districts: PlannedDistrict[], cityCenter: Vec2, rng: Rng, host: FootprintHost): ZonedParcel[] {
     // --- base types from the district mix, limited to what the lot hosts ---
-    const hosts = (index: number, type: ParcelType): boolean => lotHosts(lots[index].polygon as Vec2[], type, host);
+    const hosts = (index: number, type: BuildingParcelType): boolean => lotHosts(lots[index].polygon as Vec2[], type, host);
     const parcels: ZonedParcel[] = lots.map((lot, lotIndex) => {
       const district = districts[lot.districtIndex];
       const mix = BASE_MIX[district.kind].filter(([t]) => hosts(lotIndex, t));
-      const pool: [ParcelType, number][] = mix.length > 0 ? mix : [[Zoning.fallbackType(district.kind), 1]];
+      const pool: [BuildingParcelType, number][] = mix.length > 0 ? mix : [[Zoning.fallbackType(district.kind), 1]];
       const type = pool[rng.weighted(pool.map((m) => m[1]))][0];
       const tier = parcelTier(district.tier, district.kind, rng);
       return { lotIndex, type, tier, envelope: makeEnvelope(type, tier, district.maxFloors, rng), residents: 0 };
@@ -65,7 +65,7 @@ export class Zoning {
     const centroids = lots.map((l) => centroid(l.polygon as Vec2[]));
     const areas = lots.map((l) => area(l.polygon as Vec2[]));
     const maxD = Math.max(...centroids.map((c) => dist(c, cityCenter)), 1);
-    const facilityTypes = Object.keys(RESIDENTS_PER_FACILITY) as ParcelType[];
+    const facilityTypes = Object.keys(RESIDENTS_PER_FACILITY) as BuildingParcelType[];
     const taken = new Set<number>();
 
     for (const facility of facilityTypes) {
@@ -126,7 +126,7 @@ export class Zoning {
   }
 
   /** Light type a heavy parcel falls to when its footprint cannot host the heavy band: the district's main light use. */
-  static fallbackType(kind: DistrictKind): ParcelType {
+  static fallbackType(kind: DistrictKind): BuildingParcelType {
     const light = BASE_MIX[kind].filter(([t]) => !isHeavy(t));
     return light.reduce((best, entry) => (entry[1] > best[1] ? entry : best))[0];
   }

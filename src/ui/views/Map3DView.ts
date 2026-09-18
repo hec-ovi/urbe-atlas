@@ -248,7 +248,7 @@ export class Map3DView {
     const floorLines = new Map<string, { key: FilterKey; points: THREE.Vector3[]; hasInterior: boolean }>();
     for (const volume of bp.volumetric.buildings) {
       const parcel = byId.get(volume.parcelId);
-      if (!parcel || volume.footprint.length < 3) continue;
+      if (!parcel?.envelope || volume.footprint.length < 3) continue;
       const floors = Math.max(1, Math.round(volume.height / parcel.envelope.floorHeight));
       const floorHeight = volume.height / floors;
       const hasInterior = this.interiorParcels.has(parcel.id);
@@ -448,7 +448,7 @@ export class Map3DView {
     // the merged mesh does not know its parcels; the footprint under the hit does
     const parcel = this.parcels.find((p) =>
       (!this.filters.interiorsOnly || this.interiorParcels.has(p.id))
-      && pointInPolygon([hit.point.x, hit.point.z], p.footprint));
+      && p.footprint !== undefined && pointInPolygon([hit.point.x, hit.point.z], p.footprint));
     if (parcel) this.onParcelInspect(parcel);
   }
 }

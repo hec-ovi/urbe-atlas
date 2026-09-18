@@ -17,7 +17,7 @@ export function applyLandmarkFloors(blueprint: CityBlueprint, input: LandmarkFlo
     const details = { field: 'landmarkFloors', parcelId };
     const parcel = parcels.get(parcelId);
     if (!parcel) throw invalidParams(`landmarkFloors references unknown parcel ${parcelId}`, details);
-    if (!TYPES.has(parcel.type) || parcel.envelope.maxFloors <= 6) {
+    if (!parcel.envelope || !TYPES.has(parcel.type) || parcel.envelope.maxFloors <= 6) {
       throw invalidParams(`landmarkFloors.${parcelId} requires an elevator-hosted corpo, offices or hotel parcel`, details);
     }
     const district = districts.get(parcel.districtId);

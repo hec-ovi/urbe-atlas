@@ -1,6 +1,6 @@
 # Box map
 
-Package 0.10.0, blueprint 0.26.0, architecture 1.0.0.
+Package 0.11.0, blueprint 0.26.0, architecture 1.0.0.
 
 - src/streets/layout/medians: constructs selected reserved avenue islands with 2 m paved centers, square ends, curb/gutter and ornament anchors. Input/output: `src/streets/layout/medians/schema.ts`. src/streets/layout/medians/CONTRACT.md. Depends on layout, module records and geometry; reserves no traffic lanes.
 
@@ -42,7 +42,7 @@ Package 0.10.0, blueprint 0.26.0, architecture 1.0.0.
 
 - src/geom: polygon operations, exact contacts, complete coverage and numeric-view diagnostics. src/geom/CONTRACT.md. Depends on root Atlas coordinates, source-partition support enclosures and the existing integer clipping library.
 
-- atlas (root): city blueprint from shared district street modules, buildable parcels, transit, checked ground and sparse furniture fitted to paved land, every land and ground ring an axis-aligned rectangle. CONTRACT.md, schemas in schema/, generator in src/, saved source street reservations, optional stage progress in `schema/progress.ts`, reusable CLI at dist/cli.mjs. Depends on street layout/modules, geometry, crossing construction and highway envelopes; mirrors the Interior core-feasibility and Exterior floor-constant contracts.
+- atlas (root): city blueprint from shared district street modules, buildable parcels, transit, checked ground and sparse furniture fitted to paved land, every land and ground ring an axis-aligned rectangle, clear street lengths on the 2 m grid and a `report` of every element published in its simplest valid form. CONTRACT.md, schemas in schema/, generator in src/, saved source street reservations, optional stage progress in `schema/progress.ts`, reusable CLI at dist/cli.mjs. Depends on street layout/modules, geometry, crossing construction and highway envelopes; mirrors the Interior core-feasibility and Exterior floor-constant contracts.
   - `JunctionGround`: retained entry for beveled gutter, curb and paved returns with original-arm fitting fields; city generation does not use it. Root CONTRACT and `schema/junction-ground.ts`.
 
 - src/hydro: deterministic water, shoreline bands, land exclusions and exact bridge/tunnel contact reservations. src/hydro/CONTRACT.md. Depends on the root blueprint, geometry, errors and street construction corridors.

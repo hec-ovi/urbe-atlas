@@ -28,7 +28,7 @@ export function checkRectangles(bp: CityBlueprint): void {
   check('a block sidewalk strip', bp.blocks.flatMap(block => block.sidewalk));
   check('a block open area', bp.blocks.flatMap(block => block.openAreas));
   check('a parcel lot', bp.parcels.map(parcel => parcel.lot));
-  check('a parcel footprint', bp.parcels.map(parcel => parcel.footprint));
+  check('a parcel footprint', bp.parcels.flatMap(parcel => parcel.footprint ? [parcel.footprint] : []));
   check('a ground region', bp.volumetric.ground.map(region => region.polygon));
   check('a building volume', bp.volumetric.buildings.map(building => building.footprint));
   check('the city boundary', [bp.meta.boundary]);

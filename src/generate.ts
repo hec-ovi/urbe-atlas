@@ -47,6 +47,9 @@ import { GradeDatum } from './streets/construction/datum';
 import { applyLandmarkFloors } from './landmarks';
 import { planHydrology, withHydrologyStructures } from './hydro/Hydrology';
 import { planArchitecture } from './architecture/Architecture';
+import { Degradations } from './report/Degradations';
+import { offGridStreets } from './invariants/clearLengths';
+import { MIN_ENVELOPE_FLOORS } from './zoning/envelopes';
 
 export const BLUEPRINT_VERSION = '0.26.0';
 export const HYDROLOGY_BLUEPRINT_VERSION = BLUEPRINT_VERSION;
@@ -57,6 +60,8 @@ export function generateCity(input: AtlasParams, onProgress?: ProgressObserver):
     onProgress?.({ completed, total: GENERATION_TOTAL, phase: GENERATION_STAGES[completed]!.phase });
   };
   progress('settings');
+  // One element never kills a plan: what fails its own check is simplified here and listed in `report`.
+  const degradations = new Degradations();
   const params = resolveParams(input);
   CityConstructionSupport.assert(params.streetDesign);
   const seed = String(params.seed);
@@ -151,14 +156,15 @@ export function generateCity(input: AtlasParams, onProgress?: ProgressObserver):
     landArea: builtBlocks.reduce((sum, block, blockIndex) => blockDistrict[blockIndex] !== index ? sum : sum
       + difference(block.interior, [...waterSurfaces, ...existingInfrastructure]).reduce((total, polygon) => total + area(polygon), 0), 0),
   })));
-  const subwayPlan = params.features.subways ? planner.planSubway({
+  // A subway that cannot reserve its platforms or entrances leaves the city without one.
+  const subwayPlan = params.features.subways ? degradations.attempt('station', 'subway', () => planner.planSubway({
     districts: planned,
     districtOfNode: (nodeId) => districtOfPoint(nodeById.get(nodeId)!.position),
     cityCenter, boundary, populationEstimate: capacity.populationEstimate,
     entranceObstacles: [...waterSurfaces, ...existingInfrastructure],
     stationExclusion: waterSurfaces,
     rng: transitRng,
-  }) : undefined;
+  }), undefined) : undefined;
   const subwayBayPaving = subwayPlan?.subwayStations.flatMap((station) => station.entranceBays?.map((bay) => bay.footprint) ?? []) ?? [];
   const infrastructureNoBuild = union([...existingInfrastructure, ...subwayBayPaving]);
   // --- standard lots: every block is tiled by its size-and-zone template, leftovers stay open ---
@@ -226,22 +232,44 @@ export function generateCity(input: AtlasParams, onProgress?: ProgressObserver):
       profiles: hostingProfiles(zoned[i].type, Zoning.fallbackType(planned[l.districtIndex].kind)),
     })), footprintHost,
   );
-  for (const [blockIndex, polygons] of buildable.openAreas) blockOpenAreas[blockIndex].push(...polygons);
   if (buildable.lots.length === 0) throw unsatisfiable('no buildable parcels produced; enlarge size');
   const retypeRng = Rng.from(seed, 'retype');
-  const zonedParcels = buildable.lots.map((l) =>
-    l.profile === 0 ? zoned[l.index] : Zoning.retype(zoned[l.index], planned[rawLots[l.index].districtIndex], retypeRng.fork(l.index)),
-  );
+  const built = new Map(buildable.lots.map((lot) => [lot.index, { lot,
+    zoned: lot.profile === 0 ? zoned[lot.index] : Zoning.retype(zoned[lot.index], planned[rawLots[lot.index].districtIndex], retypeRng.fork(lot.index)) }]));
 
-  const parcels: Parcel[] = buildable.lots.map((lot, i) => {
-    const z = zonedParcels[i];
-    const raw = rawLots[lot.index];
-    const block = builtBlocks[raw.blockIndex];
-    const footprint = lot.footprint;
+  // access: the block sidewalk point nearest the lot, then the edge serving it
+  const access = (raw: RawLot): Parcel['access'] => {
+    const point = snapPoint(closestSidewalkPoint(raw.polygon, builtBlocks[raw.blockIndex].sidewalk, waterSurfaces));
+    let edgeId = sidewalkedEdges[raw.blockIndex][0];
+    let best = Infinity;
+    for (const candidate of sidewalkedEdges[raw.blockIndex]) {
+      const e = streetEdgeById.get(candidate)!;
+      for (let s = 0; s < e.path.length - 1; s++) {
+        const d = dist(point, closestOnSegment(point, e.path[s], e.path[s + 1]).point);
+        if (d < best) { best = d; edgeId = candidate; }
+      }
+    }
+    return { edgeId, point };
+  };
+
+  const parcels: Parcel[] = [];
+  const residents: number[] = [];
+  rawLots.forEach((raw, index) => {
+    const entry = built.get(index);
+    const id = `p${parcels.length}`;
+    const common = {
+      id,
+      blockId: `b${raw.blockIndex}`,
+      districtId: `d${raw.districtIndex}`,
+      tier: zoned[index].tier,
+      lot: raw.polygon,
+      access: access(raw),
+      ...(raw.sizeId ? { lotSize: raw.sizeId } : { landmark: true as const }),
+    };
     // floors stay within what the hosted core allows
-    let envelope = z.envelope;
-    if (envelope.maxFloors > lot.floorCap) {
-      const maxFloors = lot.floorCap;
+    let envelope = entry?.zoned.envelope;
+    if (entry && envelope && envelope.maxFloors > entry.lot.floorCap) {
+      const maxFloors = entry.lot.floorCap;
       envelope = {
         minFloors: Math.min(envelope.minFloors, maxFloors),
         maxFloors,
@@ -249,35 +277,18 @@ export function generateCity(input: AtlasParams, onProgress?: ProgressObserver):
         maxHeight: Math.round(maxFloors * envelope.floorHeight * 100) / 100,
       };
     }
-    // capacity follows the final lot, which a merge may have grown
-    if (z.type === 'residential') z.residents = Zoning.residentsFor(area(lot.polygon), envelope);
-    // access: the block sidewalk point nearest the lot, then the edge serving it
-    const accessPoint = snapPoint(closestSidewalkPoint(lot.polygon, block.sidewalk, waterSurfaces));
-    let bestEdge = sidewalkedEdges[raw.blockIndex][0];
-    let bestD = Infinity;
-    for (const edgeId of sidewalkedEdges[raw.blockIndex]) {
-      const e = streetEdgeById.get(edgeId)!;
-      for (let s = 0; s < e.path.length - 1; s++) {
-        const { point } = closestOnSegment(accessPoint, e.path[s], e.path[s + 1]);
-        const d = dist(accessPoint, point);
-        if (d < bestD) {
-          bestD = d;
-          bestEdge = edgeId;
-        }
-      }
+    // a lot that carries no two-floor building is public green, not a building parcel
+    if (!entry || !envelope || envelope.maxFloors < MIN_ENVELOPE_FLOORS) {
+      degradations.add('lot', id, entry ? 'lot carries fewer than two floors' : 'lot hosts no building core');
+      parcels.push({ ...common, type: 'park' });
+      residents.push(0);
+      return;
     }
-    return {
-      id: `p${i}`,
-      blockId: `b${raw.blockIndex}`,
-      districtId: `d${raw.districtIndex}`,
-      type: z.type,
-      tier: z.tier,
-      lot: lot.polygon,
-      footprint,
-      access: { edgeId: bestEdge, point: accessPoint },
-      envelope,
-      ...(raw.sizeId ? { lotSize: raw.sizeId } : { landmark: true as const }),
-    };
+    const z = entry.zoned;
+    // capacity follows the final lot, which a merge may have grown
+    if (z.type === 'residential') z.residents = Zoning.residentsFor(area(raw.polygon), envelope);
+    parcels.push({ ...common, type: z.type, footprint: entry.lot.footprint, envelope });
+    residents.push(z.residents);
   });
 
   // --- blocks and districts to schema ------------------------------------
@@ -310,7 +321,7 @@ export function generateCity(input: AtlasParams, onProgress?: ProgressObserver):
 
   progress('transit');
   // --- transit -----------------------------------------------------------
-  const population = zonedParcels.reduce((s, z) => s + z.residents, 0);
+  const population = residents.reduce((sum, value) => sum + value, 0);
   const transit: CityBlueprint['transit'] = {
     busStops: [], busRoutes: [], trainStations: [], trainLines: [],
     subwayStations: subwayPlan?.subwayStations ?? [], subwayLines: subwayPlan?.subwayLines ?? [],
@@ -340,7 +351,10 @@ export function generateCity(input: AtlasParams, onProgress?: ProgressObserver):
   }).flatMap((owner) => owner.polygons);
   progress('crossings');
   const crossingPlan = CityCrossings.plan({ nodes: streetNodes, edges: streetEdges, ground, obstacles: crossingObstacles,
-    landExclusions: { water: waterSurfaces, blocks: layout.waterExcludedBlocks } });
+    landExclusions: { water: waterSurfaces, blocks: layout.waterExcludedBlocks }, report: degradations });
+  for (const { edgeId, clear } of offGridStreets(streetEdges, crossingPlan.junctions.flatMap(junction => junction.approaches))) {
+    degradations.add('corridor', edgeId, `street keeps no junction box and its own ${clear.toFixed(2)} m length is off the 2 m grid`);
+  }
   const crossings = crossingPlan.crossings;
   const signals = Signals.build(streetNodes, streetEdges, crossingPlan.junctions);
 
@@ -355,14 +369,12 @@ export function generateCity(input: AtlasParams, onProgress?: ProgressObserver):
 
   const heightRng = Rng.from(seed, 'volumetric');
   const volumetric = {
-    buildings: parcels.map((p) => ({
+    // A park carries no building.
+    buildings: parcels.flatMap((p) => p.footprint && p.envelope ? [{
       parcelId: p.id,
       footprint: p.footprint,
-      height:
-        Math.round(
-          heightRng.int(p.envelope.minFloors, p.envelope.maxFloors) * p.envelope.floorHeight * 100,
-        ) / 100,
-    })),
+      height: Math.round(heightRng.int(p.envelope.minFloors, p.envelope.maxFloors) * p.envelope.floorHeight * 100) / 100,
+    }] : []),
     ground,
   };
 
@@ -383,17 +395,16 @@ export function generateCity(input: AtlasParams, onProgress?: ProgressObserver):
   // --- stats --------------------------------------------------------------
   const emptyCounts = (): Record<string, number> =>
     Object.fromEntries(
-      ['residential', 'hotel', 'offices', 'corpo', 'hospital', 'clinic', 'police', 'military', 'factory', 'commerce', 'mall', 'restaurant', 'coffee_shop'].map((t) => [t, 0]),
+      ['residential', 'hotel', 'offices', 'corpo', 'hospital', 'clinic', 'police', 'military', 'factory', 'commerce', 'mall', 'restaurant', 'coffee_shop', 'park'].map((t) => [t, 0]),
     );
   const parcelCounts = emptyCounts();
   const perDistrictMap = new Map<string, { population: number; parcelCounts: Record<string, number> }>();
   for (const d of districts) perDistrictMap.set(d.id, { population: 0, parcelCounts: emptyCounts() });
-  zonedParcels.forEach((z, i) => {
-    const p = parcels[i];
+  parcels.forEach((p, i) => {
     parcelCounts[p.type] += 1;
     const entry = perDistrictMap.get(p.districtId)!;
     entry.parcelCounts[p.type] += 1;
-    entry.population += z.residents;
+    entry.population += residents[i];
   });
 
   const architecture = planArchitecture({ nodes: streetNodes, edges: streetEdges, highwayStructures: structures });
@@ -429,6 +440,7 @@ export function generateCity(input: AtlasParams, onProgress?: ProgressObserver):
     transit,
     ...(hydrology ? { hydrology } : {}),
     volumetric,
+    report: { degraded: degradations.published() },
     stats: {
       population,
       parcelCounts: parcelCounts as CityBlueprint['stats']['parcelCounts'],

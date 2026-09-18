@@ -16,6 +16,7 @@ const TYPE_HUE: Record<ParcelType, [h: number, s: number]> = {
   mall: [45, 95],
   restaurant: [8, 85],
   coffee_shop: [25, 65],
+  park: [120, 45],
 };
 
 const TIER_LIGHT: Record<WealthTier, number> = {

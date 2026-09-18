@@ -1,8 +1,8 @@
 /**
- * Buildability: a lot becomes a parcel only when it hosts one of its profiles
+ * Buildability: a lot carries a building only when it hosts one of its profiles
  * (its type's, then a lighter fallback). Lots are cut to standard sizes, so a
- * lot that hosts none is not reshaped: it stays open area, and its block keeps
- * exact coverage.
+ * lot that hosts none is not reshaped: it is published as a park, and its block
+ * keeps exact coverage.
  */
 import type { Polygon } from '../../schema/blueprint';
 import { FootprintHost, HostedFootprint, HostingProfile } from '../zoning/FootprintHost';
@@ -27,22 +27,20 @@ export interface BuildableLot {
 
 export interface BuildabilityResult {
   lots: BuildableLot[];
-  /** Lots demoted to open area, by block index. */
-  openAreas: Map<number, Polygon[]>;
+  /** Positions of the lots that host no core; their parcel is a park. */
+  unhosted: number[];
 }
 
 export class Buildability {
   static enforce(lots: LotCandidate[], hoster: FootprintHost): BuildabilityResult {
     const survivors: BuildableLot[] = [];
-    const openAreas = new Map<number, Polygon[]>();
+    const unhosted: number[] = [];
     lots.forEach((lot, index) => {
       const hosted = host(lot.polygon, lot.profiles, hoster);
-      if (hosted) { survivors.push({ index, polygon: lot.polygon, ...hosted }); return; }
-      const list = openAreas.get(lot.blockIndex) ?? [];
-      list.push(lot.polygon);
-      openAreas.set(lot.blockIndex, list);
+      if (hosted) survivors.push({ index, polygon: lot.polygon, ...hosted });
+      else unhosted.push(index);
     });
-    return { lots: survivors, openAreas };
+    return { lots: survivors, unhosted };
   }
 }
 
