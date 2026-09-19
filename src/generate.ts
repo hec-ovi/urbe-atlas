@@ -30,6 +30,7 @@ import { StreetCorridors } from './streets/construction/StreetCorridors';
 import { Buildability } from './blocks/Buildability';
 import { FootprintHost } from './zoning/FootprintHost';
 import { BlockTemplates, placeOpenAreas, placeTemplate, StandardLots, STANDARD_LOT_SIZES, type BlockCells } from './blocks/StandardLots';
+import { TemplateBands } from './blocks/TemplateBands';
 import { Zoning, LotInput } from './zoning/Zoning';
 import { hostingProfiles } from './zoning/profiles';
 import type { FootprintPolicy } from './zoning/FootprintPolicy';
@@ -140,6 +141,8 @@ export function generateCity(input: AtlasParams, onProgress?: ProgressObserver):
     districtIndex: number;
     /** Standard catalog size, absent on a landmark lot. */
     sizeId?: string;
+    /** Template slot this lot fills, absent when its block publishes no template. */
+    slot?: string;
   }
   const rawLots: RawLot[] = [];
   const blockOpenAreas: Polygon[][] = builtBlocks.map(() => []);
@@ -204,9 +207,13 @@ export function generateCity(input: AtlasParams, onProgress?: ProgressObserver):
     const landmark = landmarks.get(blockIndex);
     if (landmark) rawLots.push({ polygon: landmark.polygon, blockIndex, districtIndex });
     const absorbed = new Set(landmark?.cells);
-    for (const value of cells) {
-      if (!absorbed.has(value)) rawLots.push({ polygon: value.polygon, blockIndex, districtIndex, sizeId: value.sizeId });
-    }
+    // A block that keeps its whole tiling publishes its template, and its lots take that template's bands.
+    const template = landmark ? undefined : blockTemplateId[blockIndex];
+    cells.forEach((value, slot) => {
+      if (absorbed.has(value)) return;
+      rawLots.push({ polygon: value.polygon, blockIndex, districtIndex, sizeId: value.sizeId,
+        ...(template ? { slot: `${template}#${slot}` } : {}) });
+    });
   }
   if (rawLots.length === 0) throw unsatisfiable('no buildable parcels produced; enlarge size');
 
@@ -254,6 +261,8 @@ export function generateCity(input: AtlasParams, onProgress?: ProgressObserver):
 
   const parcels: Parcel[] = [];
   const residents: number[] = [];
+  // Every lot of one template slot carries that template's band, the first block's.
+  const templateBands = new TemplateBands();
   rawLots.forEach((raw, index) => {
     const entry = built.get(index);
     const id = `p${parcels.length}`;
@@ -266,8 +275,9 @@ export function generateCity(input: AtlasParams, onProgress?: ProgressObserver):
       access: access(raw),
       ...(raw.sizeId ? { lotSize: raw.sizeId } : { landmark: true as const }),
     };
-    // floors stay within what the hosted core allows
     let envelope = entry?.zoned.envelope;
+    if (envelope) envelope = templateBands.apply(raw.slot, envelope);
+    // floors stay within what the hosted core allows
     if (entry && envelope && envelope.maxFloors > entry.lot.floorCap) {
       const maxFloors = entry.lot.floorCap;
       envelope = {

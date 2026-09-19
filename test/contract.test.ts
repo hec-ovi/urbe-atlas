@@ -20,7 +20,7 @@ import { StreetReservations } from '../src/streets/layout/reservations/StreetRes
 import { GENERATION_STAGES, type GenerationProgress } from '../schema/progress';
 import type { AtlasParams } from '../schema/params';
 import type { ExplicitSidePlanningReservation } from '../src/streets/construction/corridors/schema';
-import type { CityBlueprint, HighwayStructure, ParcelType, Vec2 } from '../schema/blueprint';
+import type { CityBlueprint, HighwayStructure, Parcel, ParcelType, Vec2 } from '../schema/blueprint';
 
 const PARCEL_TYPES: ParcelType[] = [
   'residential', 'hotel', 'offices', 'corpo', 'hospital', 'clinic', 'police',
@@ -249,6 +249,30 @@ describe('blueprint output', () => {
     }
     expect(bp.streets.edges.every((edge) => edge.path.length === 2
       && (edge.path[0][0] === edge.path[1][0] || edge.path[0][1] === edge.path[1][1]))).toBe(true);
+  });
+
+  it('hands one envelope band to every lot of a template slot', () => {
+    const bp = generateCity({ seed: 'urbe', size: { width: 1000, depth: 1000 } });
+    const byId = new Map(bp.parcels.map((parcel) => [parcel.id, parcel]));
+    const band = (parcel: Parcel): string => `${parcel.envelope!.minFloors}-${parcel.envelope!.maxFloors}`;
+    const slots = new Map<string, Set<string>>();
+    let untemplated = 0;
+    for (const block of bp.blocks) {
+      if (!block.template) { untemplated += block.parcelIds.length; continue; }
+      block.parcelIds.forEach((id, slot) => {
+        const parcel = byId.get(id)!;
+        // a park carries no band
+        if (!parcel.envelope) return;
+        const key = `${block.template}#${slot}`;
+        slots.set(key, (slots.get(key) ?? new Set<string>()).add(band(parcel)));
+      });
+    }
+    expect(slots.size).toBeGreaterThan(20);
+    // One band per slot across every block of its template, so a block repeats with its buildings.
+    expect([...slots].filter(([, bands]) => bands.size > 1).map(([key]) => key)).toEqual([]);
+    // The city's bands are then the slots' bands plus whatever the lots outside a template keep.
+    const distinct = new Set(bp.parcels.filter((parcel) => parcel.envelope).map(band));
+    expect(distinct.size).toBeLessThanOrEqual(slots.size + untemplated);
   });
 
   it('tiles equal blocks from one template with identical lots', () => {

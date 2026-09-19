@@ -1,6 +1,6 @@
 # Box map
 
-Package 0.12.4, blueprint 0.26.0, architecture 1.0.0.
+Package 0.12.5, blueprint 0.26.0, architecture 1.0.0.
 
 - src/streets/layout/medians: constructs selected reserved avenue islands with 2 m paved centers, square ends, curb/gutter and ornament anchors. Input/output: `src/streets/layout/medians/schema.ts`. src/streets/layout/medians/CONTRACT.md. Depends on layout, module records and geometry; reserves no traffic lanes.
 
@@ -49,7 +49,7 @@ Package 0.12.4, blueprint 0.26.0, architecture 1.0.0.
 
 - src/ui: URL-selected creation and city inspection, template dropdown, editable street design, blocking generation progress and cancellation. Input: `src/cities/forms/schema.ts`, jobs: `src/cities/schema.ts`, output: mounted DOM and component events. src/ui/CONTRACT.md. Depends on the city catalog, root blueprint, street modules, fitted paving and Engine exterior/manifest contracts.
 
-- src/blocks: standard lot catalog and the block templates that tile every block size, zone and street tier once, three bays wide on rich streets, plus landmark plots and the hosting check that turns an unbuildable lot into open area. Input/output: `src/blocks/StandardLots.ts`, `schema/blueprint.ts`. Depends on Atlas geometry and the zoning hosting policy; the root generator zones what it produces.
+- src/blocks: standard lot catalog, one envelope band per template slot, and the block templates that tile every block size, zone and street tier once, three bays wide on rich streets, plus landmark plots and the hosting check that turns an unbuildable lot into open area. Input/output: `src/blocks/StandardLots.ts`, `schema/blueprint.ts`. Depends on Atlas geometry and the zoning hosting policy; the root generator zones what it produces.
 
 - src/zoning: district population forecasts, use eligibility, tiers that step down on lots under three bays, complete footprints with 3 m compact stair columns and floor envelopes with 4 m default clear height. src/zoning/CONTRACT.md. Inputs/outputs: `schema/blueprint.ts`, `schema/params.ts`, `src/zoning/population-schema.ts`. Depends on Atlas geometry, mirrored Interior core feasibility and Exterior floor policy; Buildability consumes its hosting policy.
 

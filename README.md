@@ -26,7 +26,7 @@ Generator flags: `--size N`, `--max-floors N`, `--no-highways`, `--no-subways`, 
 
 ## Out
 
-Package 0.12.4 publishes blueprint 0.26.0 and architecture 1.0.0. District street construction uses uniform 4.2 m sidewalk paving, 2 m-deep parking bays, each ending in a 45 degree return, on one kerb of every street, and blue, red or yellow block finishes. Selected central avenues add 3.4 m ornamental medians outside the traffic lanes. Frontage/corner supports link to the saved ground array, native parking footprints and protected station/highway references. [Reservation contract](src/streets/layout/reservations/CONTRACT.md).
+Package 0.12.5 publishes blueprint 0.26.0 and architecture 1.0.0. District street construction uses uniform 4.2 m sidewalk paving, 2 m-deep parking bays, each ending in a 45 degree return, on one kerb of every street, and blue, red or yellow block finishes. Selected central avenues add 3.4 m ornamental medians outside the traffic lanes. Frontage/corner supports link to the saved ground array, native parking footprints and protected station/highway references. [Reservation contract](src/streets/layout/reservations/CONTRACT.md).
 
 One JSON blueprint (`schema/blueprint.ts`):
 
@@ -37,7 +37,7 @@ One JSON blueprint (`schema/blueprint.ts`):
 - **hydrology**, when requested: exact water-surface polygons, shoreline paths and construction bands, water material keys, and typed bridge or tunnel contacts where a street or railway crosses the water. Land, buildings and station entrances stay outside the reserved water.
 - **standard lot sizes** in `meta.lotSizes`: six rectangles from 16 x 32 m to 56 x 56 m. Every block is subdivided into rows of those sizes, every ordinary parcel names the one it is, and the land a row cannot fill stays open area. 10 to 30 parcels per city are flagged landmarks on their own merged plot, for the hospital, the police station and the singular towers.
 - **report** in `report.degraded`: the elements generation had to simplify, each with its id, kind and reason. A junction arm without clear carriageway loses its box, a crossing without complete landings keeps its box and loses its markings, a lot that carries no two-floor building is published as a park, and a subway that cannot reserve its land leaves the city without one. One element never kills a plan.
-- **block templates** in `meta.blockTemplates`: the tiling of each block size, zone and street tier the city uses, as lot offsets and sizes. A block names its template, so a consumer builds one block per template and instances it. Rich and high_rich streets are cut in lots at least 24 m on the short side, three 8 m bays; lower tiers also take the 16 m lot.
+- **block templates** in `meta.blockTemplates`: the tiling of each block size, zone and street tier the city uses, as lot offsets and sizes. A block names its template, so a consumer builds one block per template and instances it. Every lot of one template slot carries the same floor band, decided by the first block that used the template. Rich and high_rich streets are cut in lots at least 24 m on the short side, three 8 m bays; lower tiers also take the 16 m lot.
 - **volumetric**: one prism per parcel plus ground cover polygons, for map rendering; the preview traces floor elevations on each prism without generating hidden caps between floors
 - **stats**: population estimate and parcel counts per type and per district
 
