@@ -1,5 +1,7 @@
 # Changelog
 
+0.12.6: every parcel's access point stands on a side of its own lot that fronts a street, at the line where the lot meets the street's paving. A block is tiled as a ring of rows, one along each frontage it has room for, at one catalog depth, so no lot is landlocked; the land the ring encloses is the block's courtyard. Package 0.12.6, blueprint 0.26.0.
+
 0.12.5: every lot of one block template slot carries the same envelope band. The first block to use a template fixes each slot's floors from its own district and every later block builds that band there, so a block repeats with its buildings and a district's skyline comes from the templates it uses. Lots outside a template keep their own band, and floor pitch stays per use. Package 0.12.5, blueprint 0.26.0.
 
 0.12.4: a rich or high_rich parcel sits on a lot at least 24 m wide on its short side, three 8 m bays. Blocks in rich districts cut only lots that wide, a block too small for one keeps the whole catalog and steps down to mid, and lower tiers keep their 16 m lots. Package 0.12.4, blueprint 0.26.0.

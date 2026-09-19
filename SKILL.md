@@ -27,7 +27,7 @@ Only `seed` is required.
 
 ## Response
 
-Package 0.12.5 returns blueprint 0.26.0 and architecture 1.0.0. Default district streets use uniform 4.2 m paving, 0.2 m curbs, 0.5 m gutters and a 2 m-deep parking bay, ending in a 45 degree return at each end, on one kerb of every street. Whole-block finishes and road district styles are explicit. Selected central avenues reserve 3.4 m ornamental islands separately from traffic lanes.
+Package 0.12.6 returns blueprint 0.26.0 and architecture 1.0.0. Default district streets use uniform 4.2 m paving, 0.2 m curbs, 0.5 m gutters and a 2 m-deep parking bay, ending in a 45 degree return at each end, on one kerb of every street. Whole-block finishes and road district styles are explicit. Selected central avenues reserve 3.4 m ornamental islands separately from traffic lanes.
 
 The plan is rectangles: blocks and lots are axis-aligned rectangles on the 8 m module, streets are straight segments between rectangular junction boxes, and every published land or ground ring has four corners.
 

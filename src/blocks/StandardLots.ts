@@ -3,9 +3,11 @@
  *
  * A block is a rectangle, and its buildable land is filled with rows of
  * standard rectangles: every ordinary parcel is exactly one catalog size, so a
- * downstream building kit built for that size fits it without stretching. What
- * a row cannot fill stays open area. Selected runs of neighbouring cells merge
- * into one landmark lot, the only lot shape outside the catalog.
+ * downstream building kit built for that size fits it without stretching. The
+ * rows ring the block, one along each frontage it has room for, so every lot
+ * has a door on a street; what they cannot fill, the courtyard they enclose
+ * included, stays open area. Selected runs of neighbouring cells merge into one
+ * landmark lot, the only lot shape outside the catalog.
  *
  * The tiling is keyed by block width, depth, zone and whether the street is
  * rich, never by block id or position, so two blocks alike in those carry the
@@ -194,35 +196,75 @@ function tile(id: string, width: number, depth: number, zone: DistrictKind, rich
 function fillRows(id: string, width: number, depth: number, zone: DistrictKind, sizes: readonly StandardLotSize[],
   inside: { offset: Vec2; width: number; depth: number }, rng: Rng): BlockTemplatePlan {
   const span = [inside.width, inside.depth];
-  // Rows run along the longer side, so lots front the block's longer street faces.
+  // Rows run along the longer side, so the deep rows front the block's longer street faces.
   const along = inside.width >= inside.depth ? 0 : 1;
-  const across = 1 - along;
-  const rows = rowDepths(span[across], new Set(sizes.map(size => size.depth)));
+  const [run, across] = [span[along], span[1 - along]];
   const lots: BlockTemplateLot[] = [];
   const placement: BlockTemplatePlan['rows'] = [];
   const openAreas: LocalRectangle[] = [];
+  // Block-local point, from a station along the row direction and a depth across it.
   const at = (station: number, offset: number): Vec2 => (along === 0
     ? [round(inside.offset[0] + station), round(inside.offset[1] + offset)]
     : [round(inside.offset[0] + offset), round(inside.offset[1] + station)]);
-  let offset = 0;
-  rows.forEach((rowDepth, row) => {
+  /**
+   * One row of lots: `start` is its first station and its depth offset, and a
+   * turned row runs across the block instead of along it, so the side rows
+   * front the short streets.
+   */
+  const band = (row: number, start: Vec2, length: number, rowDepth: number, turned: boolean): void => {
+    const place = (station: number, size: number): { offset: Vec2; width: number; depth: number } => ({
+      offset: turned ? at(start[1], round(start[0] + station)) : at(round(start[0] + station), start[1]),
+      ...sides(turned ? rowDepth : size, turned ? size : rowDepth, along),
+    });
     let station = 0;
-    for (let index = 0; ; index++) {
-      const remaining = span[along] - station;
-      const fitting = sizes.filter(size => size.depth === rowDepth && size.width <= remaining);
+    for (let position = 0; ; position++) {
+      const fitting = sizes.filter(size => size.depth === rowDepth && size.width <= length - station);
       if (!fitting.length) break;
       const choice = fitting[rng.weighted(fitting.map(size => KIND_WEIGHTS[zone][size.id]))];
-      lots.push({ offset: at(station, offset), ...sides(choice.width, rowDepth, along), sizeId: choice.id });
-      placement.push({ row, index });
+      lots.push({ ...place(station, choice.width), sizeId: choice.id });
+      placement.push({ row, index: position });
       station += choice.width;
     }
-    if (station < span[along]) {
-      openAreas.push({ offset: at(station, offset), ...sides(span[along] - station, rowDepth, along) });
-    }
-    offset += rowDepth;
-  });
-  if (offset < span[across]) openAreas.push({ offset: at(0, offset), ...sides(span[along], span[across] - offset, along) });
+    if (station < length - 1e-9) openAreas.push(place(station, round(length - station)));
+  };
+  const ring = ringDepth(sizes, zone, across, rng);
+  if (ring === null) {
+    openAreas.push({ offset: at(0, 0), ...sides(run, across, along) });
+    return { id, width, depth, zone, lots, rows: placement, openAreas };
+  }
+  const paired = across >= ring * 2;
+  // The rows that front the two long faces, then the side rows between them: every lot has a street.
+  band(0, [0, 0], run, ring, false);
+  if (paired) band(1, [0, round(across - ring)], run, ring, false);
+  const middle = paired ? round(across - ring * 2) : round(across - ring);
+  const sideRun = round(run - ring * 2);
+  const sided = paired && middle > 0 && sideRun > 0 && sizes.some(size => size.depth === ring && size.width <= middle);
+  if (sided) {
+    band(2, [ring, 0], middle, ring, true);
+    band(3, [ring, round(run - ring)], middle, ring, true);
+  }
+  // What the ring leaves inside is the block's courtyard.
+  if (middle > 0) {
+    openAreas.push(sided
+      ? { offset: at(ring, ring), ...sides(sideRun, middle, along) }
+      : { offset: at(0, ring), ...sides(run, middle, along) });
+  }
   return { id, width, depth, zone, lots, rows: placement, openAreas };
+}
+
+/**
+ * Depth of the ring of rows a block carries. Every depth that leaves room for
+ * the row facing the opposite street is a candidate, drawn on the zone's taste
+ * for the sizes cut at that depth, so a zone keeps the lot sizes it favours.
+ */
+function ringDepth(sizes: readonly StandardLotSize[], zone: DistrictKind, across: number, rng: Rng): number | null {
+  const depths = DEPTHS.filter(depth => sizes.some(size => size.depth === depth));
+  const paired = depths.filter(depth => depth * 2 <= across);
+  const pool = paired.length ? paired : depths.filter(depth => depth <= across);
+  if (!pool.length) return null;
+  const weight = (depth: number): number =>
+    sizes.filter(size => size.depth === depth).reduce((sum, size) => sum + KIND_WEIGHTS[zone][size.id], 0);
+  return pool[rng.weighted(pool.map(weight))];
 }
 
 /** A cell's published width and depth: width is its frontage along the row. */
@@ -274,27 +316,3 @@ function sidesOf(region: Polygon): [number, number] | null {
   return Math.abs(area(region) - width * depth) <= 1e-6 ? [width, depth] : null;
 }
 
-/** Deepest stack of standard row depths that fits across the block, deeper rows first. */
-function rowDepths(across: number, available: ReadonlySet<number>): number[] {
-  const depths = DEPTHS.filter(depth => available.has(depth));
-  const rows: number[] = [];
-  let left = across;
-  for (;;) {
-    const best = depths.filter(depth => depth <= left)
-      .map(depth => ({ depth, total: depth + fill(left - depth, depths) }))
-      .sort((a, b) => b.total - a.total || b.depth - a.depth)[0];
-    if (!best) return rows;
-    rows.push(best.depth);
-    left -= best.depth;
-  }
-}
-
-/** Largest total the depths can reach inside `left`, used to compare row choices. */
-function fill(left: number, depths: readonly number[]): number {
-  let best = 0;
-  for (const depth of depths) {
-    if (depth > left) continue;
-    best = Math.max(best, depth + fill(left - depth, depths));
-  }
-  return best;
-}

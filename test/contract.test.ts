@@ -228,6 +228,25 @@ describe('blueprint output', () => {
     expect(twoBay.every((parcel) => parcel.tier === 'poor' || parcel.tier === 'mid')).toBe(true);
   });
 
+  it('puts every door on its own lot, where that lot meets the street', () => {
+    for (const params of [{ seed: '4d523a00-1741-45d0-b7fb-e89d957f7c1c', size: { width: 500, depth: 500 } },
+      { seed: 'urbe', size: { width: 1000, depth: 1000 } }] as AtlasParams[]) {
+      const bp = generateCity(params);
+      const blocks = new Map(bp.blocks.map((block) => [block.id, block]));
+      const edgeIds = new Set(bp.streets.edges.map((edge) => edge.id));
+      expect(bp.parcels.length).toBeGreaterThan(0);
+      // the door stands on the lot's own boundary
+      expect(bp.parcels.filter((parcel) => distanceToOutline(parcel.access.point, parcel.lot) > 0.01)
+        .map((parcel) => parcel.id)).toEqual([]);
+      // and on the side of it the street's own paving runs along, never on a landlocked side
+      expect(bp.parcels.filter((parcel) => {
+        const block = blocks.get(parcel.blockId)!;
+        return ![...block.sidewalk, ...block.curb].some((ring) => distanceToOutline(parcel.access.point, ring) <= 0.01);
+      }).map((parcel) => parcel.id)).toEqual([]);
+      expect(bp.parcels.every((parcel) => edgeIds.has(parcel.access.edgeId))).toBe(true);
+    }
+  });
+
   it('publishes every land and ground ring as an axis-aligned rectangle', () => {
     const bp = defaultCity();
     const rectangle = (ring: Vec2[]): boolean =>

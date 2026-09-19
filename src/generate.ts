@@ -244,19 +244,26 @@ export function generateCity(input: AtlasParams, onProgress?: ProgressObserver):
   const built = new Map(buildable.lots.map((lot) => [lot.index, { lot,
     zoned: lot.profile === 0 ? zoned[lot.index] : Zoning.retype(zoned[lot.index], planned[rawLots[lot.index].districtIndex], retypeRng.fork(lot.index)) }]));
 
-  // access: the block sidewalk point nearest the lot, then the edge serving it
-  const access = (raw: RawLot): Parcel['access'] => {
-    const point = snapPoint(closestSidewalkPoint(raw.polygon, builtBlocks[raw.blockIndex].sidewalk, waterSurfaces));
-    let edgeId = sidewalkedEdges[raw.blockIndex][0];
-    let best = Infinity;
-    for (const candidate of sidewalkedEdges[raw.blockIndex]) {
+  const nearestEdge = (point: Vec2, blockIndex: number): { edgeId: string; distance: number } => {
+    let edgeId = sidewalkedEdges[blockIndex][0];
+    let distance = Infinity;
+    for (const candidate of sidewalkedEdges[blockIndex]) {
       const e = streetEdgeById.get(candidate)!;
       for (let s = 0; s < e.path.length - 1; s++) {
         const d = dist(point, closestOnSegment(point, e.path[s], e.path[s + 1]).point);
-        if (d < best) { best = d; edgeId = candidate; }
+        if (d < distance) { distance = d; edgeId = candidate; }
       }
     }
-    return { edgeId, point };
+    return { edgeId, distance };
+  };
+  // access: the door stands on the lot's own frontage, on the street closest to it
+  const access = (raw: RawLot): Parcel['access'] => {
+    const block = builtBlocks[raw.blockIndex];
+    const doors = frontageDoors(raw.polygon, block.interior[0], waterSurfaces);
+    const candidates = doors.length ? doors : [closestSidewalkPoint(raw.polygon, block.sidewalk, waterSurfaces)];
+    const best = candidates.map(point => ({ point, ...nearestEdge(point, raw.blockIndex) }))
+      .reduce((low, candidate) => (candidate.distance < low.distance ? candidate : low));
+    return { edgeId: best.edgeId, point: snapPoint(best.point) };
   };
 
   const parcels: Parcel[] = [];
@@ -472,6 +479,40 @@ export function generateCity(input: AtlasParams, onProgress?: ProgressObserver):
 }
 
 /** Point on the block's sidewalk band closest to any vertex of the lot. */
+/**
+ * Doors a lot offers: the middle of each of its sides that lies on the block's
+ * buildable boundary, where the sidewalk starts. Water on a side moves the door
+ * along it to the nearest dry station; a side that is wet end to end offers none.
+ */
+function frontageDoors(lot: Polygon, land: Polygon, water: Polygon[]): Vec2[] {
+  const box = bounds(lot), face = bounds(land);
+  const near = (a: number, b: number): boolean => Math.abs(a - b) < 1e-6;
+  const [x0, z0] = box.min, [x1, z1] = box.max;
+  const sides: [Vec2, Vec2][] = [];
+  if (near(z0, face.min[1])) sides.push([[x0, z0], [x1, z0]]);
+  if (near(z1, face.max[1])) sides.push([[x0, z1], [x1, z1]]);
+  if (near(x0, face.min[0])) sides.push([[x0, z0], [x0, z1]]);
+  if (near(x1, face.max[0])) sides.push([[x1, z0], [x1, z1]]);
+  return sides.flatMap(([start, end]) => {
+    const door = dryStation(start, end, water);
+    return door ? [door] : [];
+  });
+}
+
+/** The middle of a side, or the station nearest the middle that stands clear of water. */
+function dryStation(start: Vec2, end: Vec2, water: Polygon[]): Vec2 | null {
+  const wet = (point: Vec2): boolean =>
+    water.some((surface) => pointInPolygon(point, surface) || distanceToOutline(point, surface) < 0.001);
+  for (let step = 0; step <= 7; step++) {
+    for (const side of step === 0 ? [0] : [-1, 1]) {
+      const share = 0.5 + side * step / 16;
+      const point: Vec2 = [start[0] + (end[0] - start[0]) * share, start[1] + (end[1] - start[1]) * share];
+      if (!wet(point)) return point;
+    }
+  }
+  return null;
+}
+
 function closestSidewalkPoint(lot: Polygon, sidewalk: Polygon[], water: Polygon[] = []): Vec2 {
   let best: Vec2 = lot[0];
   let bestD = Infinity;
