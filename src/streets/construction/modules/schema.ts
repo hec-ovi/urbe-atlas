@@ -74,7 +74,11 @@ interface ParkingIdentity {
 
 export type ModuleParking = ParkingIdentity & (
   | { profile?: undefined; slotLength: 4; width: 2 }
-  | { profile: 'native'; frontageId: string; slotLength: 6; width: 2 | 2.5; endRun: 2; footprint: Polygon;
+  | { profile: 'native'; frontageId: string; slotLength: 6; width: 2 | 2.5;
+      /** Length of the 45 degree return the bay closes with at each end. */
+      endRun: 2;
+      /** Four points: the full kerb line, then the back line pulled in by one end run at each end. */
+      footprint: Polygon;
       /** Complete construction span, including two metres beyond each bay end. */
       support: { start: number; end: number }; walkingClearance: number }
 );

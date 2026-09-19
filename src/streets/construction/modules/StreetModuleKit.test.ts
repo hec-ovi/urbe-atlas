@@ -112,7 +112,8 @@ describe('StreetModuleKit public construction', () => {
     expect(native.support).toEqual({ start: 6, end: 26 });
     expect(native.end - native.start).toBe(16);
     expect(native.slots.map(area)).toEqual([15, 15]);
-    expect(area(native.footprint)).toBe(40);
+    // 16 m at the kerb, 12 m at the back: a 2 m return on each end of a 2.5 m deep bay.
+    expect(area(native.footprint)).toBe(35);
     expect(difference(native.slots, [native.footprint])).toEqual([]);
     expect(block.planning!.frontages.some(frontage => frontage.id === native.frontageId)).toBe(true);
     expect([plain.side, plain.start, plain.end, plain.slotCount]).toEqual([2, 16, 32, 3]);

@@ -31,7 +31,7 @@ Source straight groups use 1 m panels; `centerDouble` adds a 2 x 2 m middle pane
 
 ## Parking and guardrails
 
-Native parking requires a 6 m source or 4 m district panel band. Each bay has 1 to 6 slots in a rectangular notch and 2 m support aprons beyond both ends. Starts are even stations, at least 8 m from the straight-run origin. Complete support stays 6 m clear of corners, caller reservations and other bays. Records publish frontage identity, slot footprints, bay footprint, support interval and walking clearance. Curbs and gutters use shared authored 1 mm offset vertices; road geometry and planning use the same footprint. Streets owns native panel fitting; modules retain complete compatibility paving.
+Native parking requires a 6 m source or 4 m district panel band. Each bay has 1 to 6 slots in a rectangular notch and 2 m support aprons beyond both ends. The published bay footprint returns 45 degrees over the end run at each end inside that notch. Starts are even stations, at least 8 m from the straight-run origin. Complete support stays 6 m clear of corners, caller reservations and other bays. Records publish frontage identity, slot footprints, bay footprint, support interval and walking clearance. Curbs and gutters use shared authored 1 mm offset vertices; the notch road geometry stays rectangular around the returning bay. Streets owns native panel fitting; modules retain complete compatibility paving.
 
 Source parking without `profile` uses 4 x 2 m slots on 4/6 m sides with 2 m rectangular returns and at least 2 m walking width. Starts are even stations, at least 6 m from either corner reservation. District parking requires `profile: 'native'`.
 

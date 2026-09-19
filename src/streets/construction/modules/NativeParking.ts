@@ -9,14 +9,17 @@ export const NATIVE_PARKING = { slotLength: 6, depth: 2.5, endRun: 2, apron: 2 }
 /**
  * A parking bay is a rectangular notch in the sidewalk: the carriageway keeps
  * its straight edge, the curb and gutter turn square around the bay, and the
- * paving takes what is left.
+ * paving takes what is left. The bay drawn inside that notch returns 45 degrees
+ * over the end run at each end, so a car enters and leaves on the diagonal.
  */
 export class NativeParking {
   static length(slots: number): number { return slots * NATIVE_PARKING.slotLength + NATIVE_PARKING.endRun * 2; }
 
+  /** The bay a car sees: full length at the kerb, returning 45 degrees over the end run at each end. */
   static footprint(slots: number, sizing = moduleSizing()): Polygon {
-    const rim = measure(sizing.curb + sizing.gutter);
-    return rectangle(0, -rim, this.length(slots), measure(sizing.parkingDepth));
+    const rim = measure(sizing.curb + sizing.gutter), run = NATIVE_PARKING.endRun;
+    const length = this.length(slots), back = measure(sizing.parkingDepth - rim);
+    return [[0, -rim], [length, -rim], [measure(length - run), back], [run, back]];
   }
 
   static build(slots: number, sizing = moduleSizing(), panelWidth = 6): ModuleDefinition {

@@ -49,6 +49,8 @@ const fixtureParams = (name: string): AtlasParams =>
 
 const distance = (a: Vec2, b: Vec2): number => Math.hypot(a[0] - b[0], a[1] - b[1]);
 const round3 = (value: number): number => Math.round(value * 1000) / 1000;
+// Translating before the shoelace sum prevents cancellation at city coordinates.
+const localArea = (ring: Vec2[]): number => polygonArea(ring.map(([x, z]): Vec2 => [x - ring[0][0], z - ring[0][1]]));
 
 describe('blueprint output', () => {
   it('covers every declared collection with valid shapes, hosted cores, references and plain reservations', () => {
@@ -513,10 +515,22 @@ describe('parameters', () => {
       expect([parking.start % 2, parking.end % 2, parking.support.start % 2, parking.support.end % 2]).toEqual([0, 0, 0, 0]);
       expect(parking.end - parking.start).toBe(parking.slotCount * 6 + 4);
       expect(parking.slots).toHaveLength(parking.slotCount);
-      // A bay is exactly the ground record it replaces, on its own owner.
-      expect(notches.get(parking.ownerId)!.filter((index) => difference([ground[index].polygon], [parking.footprint]).length === 0
-        && difference([parking.footprint], [ground[index].polygon]).length === 0)).toHaveLength(1);
+      expect(parking.slots.map((slot) => Number(localArea(slot).toFixed(6)))).toEqual(Array(parking.slotCount).fill(12));
+      // The bay keeps the full length at the kerb and returns 45 degrees over its end run at each end:
+      // 40 m2 for the three slots a downtown frontage carries.
+      const [kerbStart, kerbEnd, backEnd, backStart] = parking.footprint;
+      expect(parking.footprint).toHaveLength(4);
+      expect(distance(kerbStart, kerbEnd)).toBeCloseTo(parking.end - parking.start, 8);
+      expect(distance(backStart, backEnd)).toBeCloseTo(parking.end - parking.start - parking.endRun * 2, 8);
+      expect(distance(kerbStart, backStart)).toBeCloseTo(Math.hypot(parking.endRun, parking.depth), 8);
+      expect(distance(kerbEnd, backEnd)).toBeCloseTo(Math.hypot(parking.endRun, parking.depth), 8);
+      expect(localArea(parking.footprint)).toBeCloseTo((parking.end - parking.start - parking.endRun) * parking.depth, 6);
+      // The bay stands in one roadway record of its own owner, the notch its module cut in the kerb.
+      expect(notches.get(parking.ownerId)!.filter((index) =>
+        difference([parking.footprint], [ground[index].polygon]).length === 0)).toHaveLength(1);
     }
+    const downtownBay = construction.reservations!.parking.find((parking) => parking.slotCount === 3);
+    expect(localArea(downtownBay!.footprint)).toBeCloseTo(40, 6);
     // No block keeps a notch without a bay: the two sets are one to one.
     expect(construction.reservations!.owners.filter((owner) => owner.kind === 'block')
       .reduce((total, owner) => total + notches.get(owner.id)!.length, 0)).toBe(construction.reservations!.parking.length);

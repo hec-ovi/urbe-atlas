@@ -2,7 +2,7 @@ import { intersection, difference } from '../../../geom/clip';
 import { area } from '../../../geom/polygon';
 import { invariantFailure } from '../../../errors';
 import type { ReservationCity, StreetReservations } from './schema';
-import type { Polygon } from '../../../../schema/blueprint';
+import type { Polygon, Vec2 } from '../../../../schema/blueprint';
 
 const fail = (message: string, details: Record<string, unknown> = {}): never => { throw invariantFailure(message, details); };
 const point = (value: number[]): boolean => Array.isArray(value) && value.length === 2 && value.every(Number.isFinite);
@@ -88,7 +88,7 @@ export function validateReservations(value: StreetReservations, city: Reservatio
     }
   }
   indexed(value.parking, 'parking');
-  // A bay replaces one authored roadway record: the notch its module cut in the sidewalk.
+  // A bay stands in one authored roadway record: the notch its module cut in the sidewalk.
   const notches = new Map<string, number[]>(), replaced = new Set<number>();
   for (const bay of value.parking) {
     if (!notches.has(bay.ownerId)) {
@@ -104,14 +104,16 @@ export function validateReservations(value: StreetReservations, city: Reservatio
       || !near(bay.walkingClearance, frontage!.pavedWidth - bay.depth) || bay.walkingClearance < 2
       || !near(bay.support.start, bay.start - 2) || !near(bay.support.end, bay.end + 2)
       || bay.support.start < 0 || bay.support.end > frontage!.stationRange[1]) fail('invalid native parking dimensions', { parkingId: bay.id });
-    const at = (station: number, depth: number): number[] => [frontage!.start[0] + frontage!.inward[1] * station + frontage!.inward[0] * depth,
+    const at = (station: number, depth: number): Vec2 => [frontage!.start[0] + frontage!.inward[1] * station + frontage!.inward[0] * depth,
       frontage!.start[1] - frontage!.inward[0] * station + frontage!.inward[1] * depth];
-    const expected = [at(bay.start, 0), at(bay.end, 0), at(bay.end, bay.depth), at(bay.start, bay.depth)];
-    const notch = notches.get(bay.ownerId)!.filter(index => !replaced.has(index) && sameRing(ground[index].polygon, bay.footprint));
+    // The bay returns 45 degrees over its end run at each end; the notch it stands in keeps the full rectangle.
+    const expected = [at(bay.start, 0), at(bay.end, 0), at(bay.end - bay.endRun, bay.depth), at(bay.start + bay.endRun, bay.depth)];
+    const cut = [at(bay.start, 0), at(bay.end, 0), at(bay.end, bay.depth), at(bay.start, bay.depth)];
+    const notch = notches.get(bay.ownerId)!.filter(index => !replaced.has(index) && sameRing(ground[index].polygon, cut));
     if (bay.footprint.length !== 4 || bay.footprint.some((p, i) => !point(p) || p.some((n, axis) => Math.abs(n - expected[i][axis]) > 1e-8))
       || bay.slots.some(slot => slot.length !== 4 || !slot.every(point) || Math.abs(localArea(slot) - bay.slotLength * bay.depth) > 1e-6)
       || difference(bay.slots, [bay.footprint]).length || notch.length !== 1) {
-      fail('parking differs from its authored ground footprint', { parkingId: bay.id });
+      fail('parking differs from the ground record it stands in', { parkingId: bay.id });
     }
     replaced.add(notch[0]);
   }

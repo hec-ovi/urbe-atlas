@@ -57,8 +57,10 @@ export interface StreetParking {
   slotCount: number;
   slotLength: 6;
   depth: 2 | 2.5;
+  /** Length of the 45 degree return the bay closes with at each end. */
   endRun: 2;
   walkingClearance: number;
+  /** Four points: the full kerb line, then the back line pulled in by one end run at each end. */
   footprint: Polygon;
   slots: Polygon[];
 }

@@ -1,5 +1,7 @@
 # Changelog
 
+0.12.3: a parking bay ends in a 45 degree return over its 2 m end run. Its footprint keeps the full length at the kerb and pulls the back line in one end run at each end, 40 m2 for three 6 x 2 m slots, and it stands in the roadway ground record its module notched into the kerb. Package 0.12.3, blueprint 0.26.0.
+
 0.12.2: a parking bay's footprint is exactly the roadway ground record its module notched into the kerb, one record per bay, checked inside generation on every plan. Package 0.12.2, blueprint 0.26.0.
 
 0.12.1: parcel core hosting mirrors Interior's published core feasibility, a 1.6 m minimum strip depth and a 0.24 m deepest facade: walkup 10.38 x 7.58 m, walkup with two stairs 16.88 x 7.58 m, compact elevator core 12.38 x 11.58 m, standard elevator core 19.38 x 7.58 m, bands 11.58 m heavy and 7.58 m light. A test reads Interior's schema, so the mirror cannot drift. Package 0.12.1, blueprint 0.26.0.
