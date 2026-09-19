@@ -7,14 +7,15 @@
  * a row cannot fill stays open area. Selected runs of neighbouring cells merge
  * into one landmark lot, the only lot shape outside the catalog.
  *
- * The tiling is keyed by block width, depth and zone, never by block id or
- * position, so two blocks of the same size and zone carry the same template id
- * and the same lots and a consumer builds the tiling once.
+ * The tiling is keyed by block width, depth, zone and whether the street is
+ * rich, never by block id or position, so two blocks alike in those carry the
+ * same template id and the same lots and a consumer builds the tiling once.
  */
 import type { BlockTemplate, BlockTemplateLot, Polygon, Vec2 } from '../../schema/blueprint';
-import type { DistrictKind } from '../../schema/params';
+import type { DistrictKind, WealthTier } from '../../schema/params';
 import type { StandardLotSize } from '../../schema/blueprint';
 import { Rng } from '../core/rng';
+import { RICH_MIN_SIDE, richLots } from '../zoning/TierPolicy';
 import { area } from '../geom/polygon';
 
 /**
@@ -94,25 +95,26 @@ export interface BlockShape {
   interior: { offset: Vec2; width: number; depth: number };
 }
 
-/** The tilings a city uses, one per block size and zone. */
+/** The tilings a city uses, one per block size, zone and street tier. */
 export class BlockTemplates {
   private readonly plans = new Map<string, BlockTemplatePlan>();
   private readonly ids = new Set<string>();
 
   constructor(private readonly seed: string) {}
 
-  /** The tiling for a block of this size in this zone, built once and reused. */
-  get(block: BlockShape, zone: DistrictKind): BlockTemplatePlan {
+  /** The tiling for a block of this size, zone and street tier, built once and reused. */
+  get(block: BlockShape, zone: DistrictKind, tier: WealthTier): BlockTemplatePlan {
     const inside = block.interior;
-    const key = [zone, round(block.width), round(block.depth), round(inside.offset[0]), round(inside.offset[1]),
-      round(inside.width), round(inside.depth)].join(':');
+    const rich = richLots(tier);
+    const key = [zone, rich ? 'rich' : 'plain', round(block.width), round(block.depth), round(inside.offset[0]),
+      round(inside.offset[1]), round(inside.width), round(inside.depth)].join(':');
     let plan = this.plans.get(key);
     if (!plan) {
       const base = `bt-${zone}-${round(block.width)}x${round(block.depth)}`;
       let id = base;
       for (let n = 2; this.ids.has(id); n++) id = `${base}-${n}`;
       this.ids.add(id);
-      plan = tile(id, round(block.width), round(block.depth), zone,
+      plan = tile(id, round(block.width), round(block.depth), zone, rich,
         { offset: [round(inside.offset[0]), round(inside.offset[1])], width: round(inside.width), depth: round(inside.depth) },
         Rng.from(this.seed, 'block-templates').fork(key));
       this.plans.set(key, plan);
@@ -175,14 +177,26 @@ export class StandardLots {
   }
 }
 
-/** Rows of catalog rectangles over one block's buildable rectangle, deterministic in size and zone alone. */
-function tile(id: string, width: number, depth: number, zone: DistrictKind,
+/**
+ * Rows of catalog rectangles over one block's buildable rectangle, deterministic
+ * in size, zone and street tier alone. A rich street cuts three-bay lots only; a
+ * block too small for one keeps the whole catalog and its parcels step down to mid.
+ */
+function tile(id: string, width: number, depth: number, zone: DistrictKind, rich: boolean,
+  inside: { offset: Vec2; width: number; depth: number }, rng: Rng): BlockTemplatePlan {
+  const catalog = STANDARD_LOT_SIZES.filter(size => KIND_WEIGHTS[zone][size.id] > 0);
+  const threeBay = catalog.filter(size => Math.min(size.width, size.depth) >= RICH_MIN_SIDE);
+  const plan = fillRows(id, width, depth, zone, rich ? threeBay : catalog, inside, rng);
+  return rich && !plan.lots.length ? fillRows(id, width, depth, zone, catalog, inside, rng) : plan;
+}
+
+/** One pass of the tiler over the buildable rectangle with the sizes it may cut. */
+function fillRows(id: string, width: number, depth: number, zone: DistrictKind, sizes: readonly StandardLotSize[],
   inside: { offset: Vec2; width: number; depth: number }, rng: Rng): BlockTemplatePlan {
   const span = [inside.width, inside.depth];
   // Rows run along the longer side, so lots front the block's longer street faces.
   const along = inside.width >= inside.depth ? 0 : 1;
   const across = 1 - along;
-  const sizes = STANDARD_LOT_SIZES.filter(size => KIND_WEIGHTS[zone][size.id] > 0);
   const rows = rowDepths(span[across], new Set(sizes.map(size => size.depth)));
   const lots: BlockTemplateLot[] = [];
   const placement: BlockTemplatePlan['rows'] = [];

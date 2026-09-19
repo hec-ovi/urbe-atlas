@@ -44,6 +44,11 @@ const minBand = (type: ParcelType): number => (HEAVY_TYPES.has(type) ? 11.58 : 7
 
 let cached: CityBlueprint | null = null;
 const defaultCity = (): CityBlueprint => (cached ??= generateCity({ seed: 'contract' }));
+let cachedLuxury: CityBlueprint | null = null;
+/** The 500 m all-rich city: district modules, kerbside parking and three-bay lots. */
+const luxuryCity = (): CityBlueprint => (cachedLuxury ??= generateCity({ seed: 'district-luxury',
+  size: { width: 500, depth: 500 }, maxFloors: 30, tierWeights: { poor: 0, mid: 0, rich: 0.5, high_rich: 0.5 },
+  features: { highways: false, subways: false } }));
 const fixtureParams = (name: string): AtlasParams =>
   JSON.parse(readFileSync(new URL(`./fixtures/${name}`, import.meta.url), 'utf8'));
 
@@ -204,6 +209,25 @@ describe('blueprint output', () => {
     }
   });
 
+  it('keeps every rich lot three bays wide and still fills every block', () => {
+    const shortSide = (lot: Vec2[]): number => {
+      const box = bounds(lot);
+      return Math.min(box.max[0] - box.min[0], box.max[1] - box.min[1]);
+    };
+    const bp = luxuryCity();
+    const rich = bp.parcels.filter((parcel) => parcel.tier === 'rich' || parcel.tier === 'high_rich');
+    expect(rich.length).toBeGreaterThan(0);
+    // Three 8 m bays, 24 m: no rich building family is drawn for a narrower lot.
+    expect(rich.filter((parcel) => shortSide(parcel.lot) < 24 - 1e-6).map((parcel) => parcel.id)).toEqual([]);
+    // A rich street widens its lots, it does not empty its block.
+    expect(bp.blocks.filter((block) => block.parcelIds.length === 0)).toEqual([]);
+    expect(bp.blocks.filter((block) => block.template).length).toBeGreaterThan(bp.blocks.length / 2);
+    // Mid and lower tiers keep their two-bay lots.
+    const twoBay = defaultCity().parcels.filter((parcel) => parcel.lotSize === 'lot-16x32');
+    expect(twoBay.length).toBeGreaterThan(0);
+    expect(twoBay.every((parcel) => parcel.tier === 'poor' || parcel.tier === 'mid')).toBe(true);
+  });
+
   it('publishes every land and ground ring as an axis-aligned rectangle', () => {
     const bp = defaultCity();
     const rectangle = (ring: Vec2[]): boolean =>
@@ -238,7 +262,7 @@ describe('blueprint output', () => {
     for (const block of tiled) {
       const template = templates.get(block.template!)!;
       const min = block.boundary.reduce((low, point) => [Math.min(low[0], point[0]), Math.min(low[1], point[1])] as Vec2);
-      // the block is the template's size and zone, and carries exactly its lots
+      // the block is the template's size and zone, and carries exactly its lots (its tier keys the tiling too)
       expect([bounds(block.boundary).max[0] - min[0], bounds(block.boundary).max[1] - min[1]]
         .map((side) => Math.round(side * 1000) / 1000)).toEqual([template.width, template.depth]);
       expect(bp.districts.find((district) => district.id === block.districtId)!.kind).toBe(template.zone);
@@ -483,8 +507,7 @@ describe('parameters', () => {
   });
 
   it('builds district modules with their published medians, finishes and parking dimensions', () => {
-    const city = generateCity({ seed: 'district-luxury', size: { width: 500, depth: 500 }, maxFloors: 30,
-      tierWeights: { poor: 0, mid: 0, rich: 0.5, high_rich: 0.5 }, features: { highways: false, subways: false } });
+    const city = luxuryCity();
     const construction = city.streets.construction!;
     expect(construction.modules!.format).toBe('district');
     expect(construction.medians!.length).toBeGreaterThan(0);

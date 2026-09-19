@@ -167,19 +167,19 @@ export function generateCity(input: AtlasParams, onProgress?: ProgressObserver):
   }), undefined) : undefined;
   const subwayBayPaving = subwayPlan?.subwayStations.flatMap((station) => station.entranceBays?.map((bay) => bay.footprint) ?? []) ?? [];
   const infrastructureNoBuild = union([...existingInfrastructure, ...subwayBayPaving]);
-  // --- standard lots: every block is tiled by its size-and-zone template, leftovers stay open ---
+  // --- standard lots: every block is tiled by its size, zone and street tier, leftovers stay open ---
   const templates = new BlockTemplates(seed);
   const blockTemplateId: (string | undefined)[] = builtBlocks.map(() => undefined);
   const blockTemplateLots: number[] = builtBlocks.map(() => 0);
   const blockCells: BlockCells[] = [];
   const reservedLand = new PolygonIndex([...waterSurfaces, ...infrastructureNoBuild]);
   builtBlocks.forEach((block, blockIndex) => {
-    const kind = planned[blockDistrict[blockIndex]].kind;
+    const { kind, tier } = planned[blockDistrict[blockIndex]];
     const interior = block.interior[0];
     const box = bounds(interior), outer = bounds(block.boundary);
     const template = templates.get({ origin: outer.min, width: outer.max[0] - outer.min[0], depth: outer.max[1] - outer.min[1],
       interior: { offset: [box.min[0] - outer.min[0], box.min[1] - outer.min[1]],
-        width: box.max[0] - box.min[0], depth: box.max[1] - box.min[1] } }, kind);
+        width: box.max[0] - box.min[0], depth: box.max[1] - box.min[1] } }, kind, tier);
     // A block reachable only via highways gets no parcels: open ground instead.
     const served = sidewalkedEdges[blockIndex].length > 0;
     const placed = served ? placeTemplate(template, outer.min) : [];

@@ -1,5 +1,7 @@
 # Changelog
 
+0.12.4: a rich or high_rich parcel sits on a lot at least 24 m wide on its short side, three 8 m bays. Blocks in rich districts cut only lots that wide, a block too small for one keeps the whole catalog and steps down to mid, and lower tiers keep their 16 m lots. Package 0.12.4, blueprint 0.26.0.
+
 0.12.3: a parking bay ends in a 45 degree return over its 2 m end run. Its footprint keeps the full length at the kerb and pulls the back line in one end run at each end, 40 m2 for three 6 x 2 m slots, and it stands in the roadway ground record its module notched into the kerb. Package 0.12.3, blueprint 0.26.0.
 
 0.12.2: a parking bay's footprint is exactly the roadway ground record its module notched into the kerb, one record per bay, checked inside generation on every plan. Package 0.12.2, blueprint 0.26.0.

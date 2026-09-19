@@ -2,20 +2,21 @@
  * Assigns parcel types, tiers and envelopes: base type from the district
  * kind among the types the lot's band can host, then facility quotas (ceil
  * of population / residents-per-facility) replace scored parcels so
- * hospitals, police, commerce land where they make sense.
+ * hospitals, police, commerce land where they make sense. A lot narrower than
+ * three 8 m bays steps down to mid: no rich family is drawn for it.
  */
 import type { Envelope, BuildingParcelType, Vec2 } from '../../schema/blueprint';
 import type { DistrictKind, WealthTier } from '../../schema/params';
 import type { Rng } from '../core/rng';
 import type { PlannedDistrict } from '../districts/DistrictPlanner';
-import { area, centroid } from '../geom/polygon';
+import { area, bounds, centroid } from '../geom/polygon';
 import { dist } from '../geom/vec';
 import { isHeavy } from './bands';
 import { makeEnvelope } from './envelopes';
 import { lotHosts } from './profiles';
 import type { FootprintHost } from './FootprintHost';
 import { BASE_MIX } from './UseMix';
-import { parcelTier } from './TierPolicy';
+import { parcelTier, tierForSide } from './TierPolicy';
 import { residentialCapacity } from './ResidentialCapacity';
 import { populationForecast } from './PopulationForecast';
 import type { DistrictCapacityInput, PopulationForecast } from './population-schema';
@@ -54,7 +55,7 @@ export class Zoning {
       const mix = BASE_MIX[district.kind].filter(([t]) => hosts(lotIndex, t));
       const pool: [BuildingParcelType, number][] = mix.length > 0 ? mix : [[Zoning.fallbackType(district.kind), 1]];
       const type = pool[rng.weighted(pool.map((m) => m[1]))][0];
-      const tier = parcelTier(district.tier, district.kind, rng);
+      const tier = tierForSide(parcelTier(district.tier, district.kind, rng), shortSide(lot.polygon as Vec2[]));
       return { lotIndex, type, tier, envelope: makeEnvelope(type, tier, district.maxFloors, rng), residents: 0 };
     });
 
@@ -142,6 +143,12 @@ export class Zoning {
     const avgFloors = (envelope.minFloors + envelope.maxFloors) / 2;
     return Math.round(residentialCapacity(lotArea, avgFloors));
   }
+}
+
+/** The narrow side of a lot rectangle: what decides whether a rich family fits. */
+function shortSide(polygon: Vec2[]): number {
+  const box = bounds(polygon);
+  return Math.min(box.max[0] - box.min[0], box.max[1] - box.min[1]);
 }
 
 function totalResidents(parcels: ZonedParcel[], lots: LotInput[]): number {

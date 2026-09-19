@@ -1,7 +1,7 @@
 /**
  * Every ordinary parcel is exactly one published lot size, the rest are flagged
  * landmarks, and a block that names a template carries exactly that template's
- * lots, so two blocks of the same size and zone are the same block.
+ * lots, so two blocks of the same size, zone and street tier are the same block.
  */
 import type { CityBlueprint } from '../../schema/blueprint';
 import { invariantFailure } from '../errors';

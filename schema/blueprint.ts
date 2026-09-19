@@ -102,7 +102,7 @@ export interface BlueprintMeta {
    */
   lotSizes?: StandardLotSize[];
   /**
-   * Every block tiling in the city, keyed by size and zone. Present on
+   * Every block tiling in the city, keyed by size, zone and street tier. Present on
    * generated worlds; optional when reading older artifacts.
    */
   blockTemplates?: BlockTemplate[];
@@ -307,9 +307,9 @@ export interface Block {
 }
 
 /**
- * One block size and zone, with the lots it tiles into. Two blocks of the same
- * width, depth and zone carry the same template id and the same lots, so a
- * consumer builds the tiling once and instances it at every block origin.
+ * One block size, zone and street tier, with the lots it tiles into. Two blocks
+ * alike in width, depth, zone and tier carry the same template id and the same
+ * lots, so a consumer builds the tiling once and instances it at every origin.
  */
 export interface BlockTemplate {
   id: string;
