@@ -51,6 +51,7 @@ import { planArchitecture } from './architecture/Architecture';
 import { Degradations } from './report/Degradations';
 import { offGridStreets } from './invariants/clearLengths';
 import { MIN_ENVELOPE_FLOORS } from './zoning/envelopes';
+import { factoryEnvelope } from './zoning/FactoryEnvelopes';
 
 export const BLUEPRINT_VERSION = '0.26.0';
 export const HYDROLOGY_BLUEPRINT_VERSION = BLUEPRINT_VERSION;
@@ -268,7 +269,7 @@ export function generateCity(input: AtlasParams, onProgress?: ProgressObserver):
 
   const parcels: Parcel[] = [];
   const residents: number[] = [];
-  // Every lot of one template slot carries that template's band, the first block's.
+  // Template bands are shared; factories apply their own low/tower policy afterwards.
   const templateBands = new TemplateBands();
   rawLots.forEach((raw, index) => {
     const entry = built.get(index);
@@ -284,6 +285,11 @@ export function generateCity(input: AtlasParams, onProgress?: ProgressObserver):
     };
     let envelope = entry?.zoned.envelope;
     if (envelope) envelope = templateBands.apply(raw.slot, envelope);
+    if (entry && envelope) envelope = factoryEnvelope(envelope, {
+      type: entry.zoned.type, original: entry.zoned.envelope,
+      lot: raw.polygon, footprint: entry.lot.footprint, floorCap: entry.lot.floorCap,
+      district: planned[raw.districtIndex], slot: raw.slot,
+    }, seed);
     // floors stay within what the hosted core allows
     if (entry && envelope && envelope.maxFloors > entry.lot.floorCap) {
       const maxFloors = entry.lot.floorCap;
