@@ -160,7 +160,7 @@ export interface StreetGraph {
 export interface HighwayStructure {
   /** Highway edges covered by this structure, ordered from path start to end. */
   edgeIds: string[];
-  /** Continuous centerline assembled from edgeIds, with shared points once. */
+  /** Continuous deck centerline, trimmed beyond terminal grade junctions. */
   path: Polyline;
   /** Full deck width. */
   width: number;
@@ -170,9 +170,13 @@ export interface HighwayStructure {
   deckThickness: number;
   /** Length over which each open end rises from grade. Zero at a junction or closed ring. */
   ramps: { start: number; end: number };
+  /** At-grade distances omitted from the start and end of the source edge chain. */
+  approaches?: { start: number; end: number };
+  /** Parapets stand outside the carriageway, measured up from its surface. */
+  barriers?: { left: { height: number; width: number }; right: { height: number; width: number } };
   /** Height knots along path. Consumers interpolate linearly by distance. */
   elevationProfile: ElevationPoint[];
-  /** Columns supporting the flat deck, in path order. */
+  /** Columns supporting ramps and flat deck, in path order. */
   supports: HighwaySupport[];
 }
 

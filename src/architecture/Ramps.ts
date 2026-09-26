@@ -6,8 +6,9 @@
  * stretches run from the foot to the head, in the direction of the climb.
  */
 import type { Ramp, RampStretch } from '../../schema/architecture';
-import type { HighwayStructure, StreetEdge, Vec2 } from '../../schema/blueprint';
+import type { HighwayStructure, StreetEdge } from '../../schema/blueprint';
 import { length as pathLength } from '../geom/polyline';
+import { runEdges } from '../streets/construction/highway/RunEdges';
 
 /** One structure edge placed along the structure path. */
 interface Piece {
@@ -18,14 +19,12 @@ interface Piece {
   forward: boolean;
 }
 
-const gap = (a: Vec2, b: Vec2): number => Math.hypot(a[0] - b[0], a[1] - b[1]);
-
 export class Ramps {
   static of(structures: readonly HighwayStructure[], edges: ReadonlyMap<string, StreetEdge>): Ramp[] {
     const out: Ramp[] = [];
     for (const structure of structures) {
-      const pieces = Ramps.pieces(structure, edges);
-      const total = pieces.at(-1)?.end ?? 0;
+      const pieces = [...runEdges(structure, edges)];
+      const total = pathLength(structure.path);
       const deck = pieces.filter(piece => piece.end > structure.ramps.start && piece.start < total - structure.ramps.end)
         .map(piece => piece.edge.id);
       const head = structure.level;
@@ -38,20 +37,6 @@ export class Ramps {
       }
     }
     return out;
-  }
-
-  private static pieces(structure: HighwayStructure, edges: ReadonlyMap<string, StreetEdge>): Piece[] {
-    let cursor = structure.path[0];
-    let at = 0;
-    return structure.edgeIds.map(id => {
-      const edge = edges.get(id)!;
-      const forward = gap(edge.path[0], cursor) <= gap(edge.path.at(-1)!, cursor);
-      cursor = forward ? edge.path.at(-1)! : edge.path[0];
-      const length = pathLength(edge.path);
-      const piece = { edge, start: at, end: at + length, forward };
-      at += length;
-      return piece;
-    });
   }
 
   /** One climb from structure distance `foot` to `head`, either direction along the path. */

@@ -1,5 +1,6 @@
 import { invariantFailure } from '../../../errors';
-import { length as pathLength } from '../../../geom/polyline';
+import { length as pathLength, pointAt } from '../../../geom/polyline';
+import { dist } from '../../../geom/vec';
 import { LEVELS } from '../../../levels';
 import { HIGHWAY_WIDTH } from '../../widths';
 import { HIGHWAY_DECK } from './dimensions';
@@ -29,7 +30,22 @@ export function designHighwayEnvelopes(edges: readonly HighwayConstructionEdge[]
         throw invariantFailure(`highway construction dimensions disagree with edge ${id}`);
       }
     }
-    const total = pathLength(run.path);
+    const sourceLength = pathLength(run.path);
+    const setback = (end: boolean): number => {
+      const edge = byId.get(run.edgeIds[end ? run.edgeIds.length - 1 : 0])!;
+      const point = run.path[end ? run.path.length - 1 : 0];
+      const node = dist(edge.path[0], point) < 0.002 ? edge.from : edge.to;
+      return Math.max(0, ...edges.filter(e => e.class !== 'highway' && (e.from === node || e.to === node))
+        .map(e => (e.width ?? 0) / 2 + Math.max(e.sidewalk?.left ?? 0, e.sidewalk?.right ?? 0) + 1));
+    };
+    const approaches = { start: run.rampAtStart ? setback(false) : 0, end: run.rampAtEnd ? setback(true) : 0 };
+    const total = sourceLength - approaches.start - approaches.end;
+    if (total <= 0) throw invariantFailure(`highway ${first.id} has no room beyond its grade approaches`);
+    let station = 0;
+    const path = [pointAt(run.path, approaches.start), ...run.path.filter((point, index) => {
+      if (index) station += dist(run.path[index - 1], point);
+      return station > approaches.start && station < sourceLength - approaches.end;
+    }), pointAt(run.path, sourceLength - approaches.end)];
     const maxRamp = total / ((run.rampAtStart ? 1 : 0) + (run.rampAtEnd ? 1 : 0) || 1);
     const ramps = {
       start: run.rampAtStart ? Math.min(HIGHWAY_DECK.rampLength, maxRamp) : 0,
@@ -37,11 +53,14 @@ export function designHighwayEnvelopes(edges: readonly HighwayConstructionEdge[]
     };
     return {
       edgeIds: run.edgeIds,
-      path: run.path,
+      path,
       width,
       level,
       deckThickness: HIGHWAY_DECK.thickness,
       ramps,
+      approaches,
+      barriers: { left: { height: HIGHWAY_DECK.barrierHeight, width: HIGHWAY_DECK.barrierWidth },
+        right: { height: HIGHWAY_DECK.barrierHeight, width: HIGHWAY_DECK.barrierWidth } },
       elevationProfile: highwayElevationProfile(total, level, ramps),
     };
   });

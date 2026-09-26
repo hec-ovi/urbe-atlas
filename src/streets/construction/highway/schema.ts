@@ -14,6 +14,7 @@ export interface HighwayConstructionEdge extends ClassedEdge {
   width?: number;
   level?: number;
   elevationProfile?: ElevationPoint[];
+  sidewalk?: { left: number; right: number };
 }
 
 export interface HighwayRun {

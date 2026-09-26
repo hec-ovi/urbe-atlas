@@ -86,6 +86,8 @@ export class Planting {
             : index >= treeStart && index < treeStart + treeCount ? 'tree'
               : sideRng.chance(BIN_CHANCE) ? 'bin' : undefined;
           if (!furniture) continue;
+          // Crown and lamp envelopes stay clear of the complete highway band.
+          if (edges.some(highway => highway.class === 'highway' && distanceTo(highway.path, position) <= highway.width / 2 + 3)) continue;
           if (obstacles.blocks(position)) continue;
           // a tight bend pinches the offset line back toward the roadway: verify every point on its own edge
           const off = distanceTo(edge.path, position);

@@ -8,6 +8,7 @@ import { HIGHWAY_DECK } from './dimensions';
 import { lateralOffsets } from './SupportStations';
 import type { SupportObstacle } from './SupportStations';
 import type { HighwayEnvelope } from './schema';
+import { levelAt } from './Profiles';
 
 export type Support = HighwayStructure['supports'][number];
 
@@ -30,7 +31,9 @@ export function clearSupportAt(
       [position[0] - half, position[1] + half],
     ];
     if (!hitsAny(footprint, obstacles)) {
-      return { position, footprint, bottom: LEVELS.ground, top: envelope.level - envelope.deckThickness };
+      const top = Math.min(levelAt(envelope.elevationProfile, along - half), levelAt(envelope.elevationProfile, along + half)) - envelope.deckThickness;
+      if (top <= LEVELS.ground) return null;
+      return { position, footprint, bottom: LEVELS.ground, top };
     }
   }
   return null;

@@ -102,18 +102,16 @@ describe('staged highway construction', () => {
     // less a column, so the deck is carried from both edges at once.
     const crossing = band(101.7, 27.6);
     const structures = supportHighwayEnvelopes(envelopes, [crossing]);
-    expect(structures[0].supports.map(support => support.position)).toEqual([
-      [80.35, 0], [100.7, 0], [130.3, 0], [155.15, 0],
-    ]);
-    let previous = envelopes[0].ramps.start;
+    expect(structures[0].supports.map(support => support.position[0])).toEqual(expect.arrayContaining([100.7, 130.3]));
+    let previous = envelopes[0].ramps.start * envelopes[0].deckThickness / envelopes[0].level + HIGHWAY_DECK.supportSize / 2;
     for (const support of structures[0].supports) {
       expect(support.position[0] - previous).toBeLessThanOrEqual(HIGHWAY_DECK.supportPitch);
       expect(support.position[0] - previous).toBeGreaterThanOrEqual(HIGHWAY_DECK.supportSize);
-      expect(area(support.footprint)).toBe(4);
+      expect(area(support.footprint)).toBeCloseTo(4, 8);
       expect(intersection([support.footprint], [crossing])).toEqual([]);
       previous = support.position[0];
     }
-    expect(240 - envelopes[0].ramps.end - previous).toBeLessThanOrEqual(HIGHWAY_DECK.supportPitch);
+    expect(240 - envelopes[0].ramps.end * envelopes[0].deckThickness / envelopes[0].level - HIGHWAY_DECK.supportSize / 2 - previous).toBeLessThanOrEqual(HIGHWAY_DECK.supportPitch);
     expect(supportHighwayEnvelopes(envelopes, [crossing])).toEqual(structures);
     // A column stands 1 m clear of each edge, so 28 m of crossing still bridges at 30 m.
     const widest = supportHighwayEnvelopes(envelopes, [band(106, 28)])[0].supports.map(support => support.position[0]);

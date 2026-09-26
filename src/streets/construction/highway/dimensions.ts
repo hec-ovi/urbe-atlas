@@ -5,4 +5,6 @@ export const HIGHWAY_DECK = {
   supportPitch: 30,
   supportSize: 2,
   buildingClearance: 1,
+  barrierHeight: 1.1,
+  barrierWidth: 0.3,
 } as const;

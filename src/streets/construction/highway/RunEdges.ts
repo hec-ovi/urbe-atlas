@@ -1,5 +1,5 @@
 import { invariantFailure } from '../../../errors';
-import { length as pathLength } from '../../../geom/polyline';
+import { length as pathLength, pointAt } from '../../../geom/polyline';
 import { dist } from '../../../geom/vec';
 import type { ClassedEdge, HighwayEnvelope } from './schema';
 
@@ -8,7 +8,7 @@ export function* runEdges<T extends ClassedEdge>(
   envelope: HighwayEnvelope,
   byId: ReadonlyMap<string, T>,
 ): Generator<{ edge: T; start: number; end: number; length: number; forward: boolean }> {
-  let start = 0;
+  let start = -(envelope.approaches?.start ?? 0);
   let position = envelope.path[0];
   for (const edgeId of envelope.edgeIds) {
     const edge = byId.get(edgeId);
@@ -16,8 +16,9 @@ export function* runEdges<T extends ClassedEdge>(
       throw invariantFailure(`highway run has no path for edge ${edgeId}`);
     }
     const length = pathLength(edge.path);
-    const forward = dist(edge.path[0], position) <= 0.002;
-    const backward = dist(edge.path[edge.path.length - 1], position) <= 0.002;
+    const inset = start < 0 ? -start : 0;
+    const forward = dist(pointAt(edge.path, inset), position) <= 0.002;
+    const backward = dist(pointAt(edge.path, length - inset), position) <= 0.002;
     if (!forward && !backward) {
       throw invariantFailure(`highway run loses edge ${edge.id} at ${position.join(',')}`);
     }
