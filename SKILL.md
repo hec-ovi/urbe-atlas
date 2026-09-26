@@ -5,7 +5,7 @@ Atlas plans a city from a seed and a few parameters: districts, streets with the
 ## Call it
 
 - Library: `import { generateCity } from 'atlas'`, then `generateCity(params)` returns the blueprint.
-- CLI: `npm run build:cli` once, then `npm run generate -- --seed <seed> --out <file.json> [--size N] [--max-floors N] [--no-highways] [--no-subways] [--no-alleys]`.
+- CLI: `npm run build:cli` once, then `npm run generate -- --seed <seed> --out <file.json> [--size N] [--max-floors N] [--district-count MIN,MAX] [--hydrology lagoon|river|sea-coast] [--no-highways] [--no-subways] [--no-alleys]`.
 - HTTP, from the preview server: `POST /api/cities` with the same parameters queues a job and returns its record; `GET /api/cities/:id` reports its state; `GET /api/cities/:id/blueprint` returns the finished blueprint.
 
 ## Request

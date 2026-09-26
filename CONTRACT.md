@@ -22,7 +22,7 @@ Params: [schema/params.ts](schema/params.ts). Only `seed` is required; every oth
 Building footprints are rectangles on the shared half-metre construction grid, with one hosting policy for use eligibility and final buildability.
 Nested parameter objects and arrays are validated at runtime. Unknown district kinds, wealth tiers and feature names, non-boolean toggles, malformed ranges and non-finite numbers fail with `E_INVALID_PARAMS`. Browser parameter imports apply the same validation before changing the form.
 
-CLI: after `npm run build:cli`, `npm run generate -- --seed <seed> --out <file.json> [--size N] [--max-floors N] [--no-highways] [--no-subways] [--no-alleys]` executes the prepared artifact without modifying the Atlas package and writes the blueprint JSON only to the requested path. Exit 1 on AtlasError (code printed), 2 on usage error. `npm run preview` prepares the same CLI before its server starts.
+CLI: after `npm run build:cli`, `npm run generate -- --seed <seed> --out <file.json> [--size N] [--max-floors N] [--district-count MIN,MAX] [--hydrology lagoon|river|sea-coast] [--no-highways] [--no-subways] [--no-alleys]` executes the prepared artifact without modifying the Atlas package and writes the blueprint JSON only to the requested path. Exit 1 on AtlasError (code printed), 2 on usage error. `npm run preview` prepares the same CLI before its server starts.
 
 Build: `npm run build` type-checks the package, writes the CLI to `dist/cli.mjs`, the city worker to `dist/city-worker.mjs`, and the browser preview under `dist/preview/`. `build:cli` and `build:cities` prepare their individual entries. Preview startup prepares both Node entries. Each build preserves the other outputs.
 

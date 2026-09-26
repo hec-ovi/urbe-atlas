@@ -1,5 +1,7 @@
 # Changelog
 
+0.12.8: the CLI takes `--district-count MIN,MAX` and `--hydrology lagoon|river|sea-coast`, both validated by Atlas as in the library; output without them is unchanged. Package 0.12.8, blueprint 0.26.0.
+
 0.12.7: suitable factories in industrial districts receive a deterministic one-third chance of a 3–6-floor envelope, bounded by the district and hosted core. Eligibility requires a lot at least 24 m wide on both sides and a hosted footprint at least 18 m wide on both sides. Decisions repeat by template slot; unselected factories retain their original low band and other parcel types retain their existing template bands and random streams. Factory nominal height allowance remains 10 m per floor; Exterior owns actual floor elevations. Package 0.12.7, blueprint 0.26.0.
 
 0.12.6: every parcel's access point stands on a side of its own lot that fronts a street, at the line where the lot meets the street's paving. A block is tiled as a ring of rows, one along each frontage it has room for, at one catalog depth, so no lot is landlocked; the land the ring encloses is the block's courtyard. Package 0.12.6, blueprint 0.26.0.
