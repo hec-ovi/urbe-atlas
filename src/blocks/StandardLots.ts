@@ -22,7 +22,8 @@ import { area } from '../geom/polygon';
 
 /**
  * Six sizes, every dimension a multiple of the 8 m module so rows and row
- * depths pack with at most 7 m left over. Widths are street frontages, depths
+ * depths pack with at most 7 m left over: a row draws its widths so they sum
+ * to the longest frontage they can fill exactly. Widths are street frontages, depths
  * run back from the street. They cover 512 m2 shopfronts and row houses up to
  * 3136 m2 commercial and industrial plots.
  */
@@ -216,9 +217,15 @@ function fillRows(id: string, width: number, depth: number, zone: DistrictKind, 
       offset: turned ? at(start[1], round(start[0] + station)) : at(round(start[0] + station), start[1]),
       ...sides(turned ? rowDepth : size, turned ? size : rowDepth, along),
     });
+    // The row closes on the longest frontage its widths can sum to, so a street
+    // face runs unbroken to its corner instead of stopping a lot short of it:
+    // each draw keeps that exact sum reachable with the widths left.
+    const reach = reachable(sizes.filter(size => size.depth === rowDepth).map(size => size.width), length);
+    let full = reach.length - 1;
+    while (full > 0 && !reach[full]) full--;
     let station = 0;
     for (let position = 0; ; position++) {
-      const fitting = sizes.filter(size => size.depth === rowDepth && size.width <= length - station);
+      const fitting = sizes.filter(size => size.depth === rowDepth && station + size.width <= full && reach[full - station - size.width]);
       if (!fitting.length) break;
       const choice = fitting[rng.weighted(fitting.map(size => KIND_WEIGHTS[zone][size.id]))];
       lots.push({ ...place(station, choice.width), sizeId: choice.id });
@@ -250,6 +257,14 @@ function fillRows(id: string, width: number, depth: number, zone: DistrictKind, 
       : { offset: at(0, ring), ...sides(run, middle, along) });
   }
   return { id, width, depth, zone, lots, rows: placement, openAreas };
+}
+
+/** Which whole-metre frontages up to `length` the widths sum to exactly, index 0 always. */
+function reachable(widths: readonly number[], length: number): boolean[] {
+  const limit = Math.max(0, Math.floor(length + 1e-9));
+  const reach = Array.from({ length: limit + 1 }, (_, index) => index === 0);
+  for (let total = 1; total <= limit; total++) reach[total] = widths.some(width => width <= total && reach[total - width]);
+  return reach;
 }
 
 /**

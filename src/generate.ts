@@ -31,6 +31,7 @@ import { Buildability } from './blocks/Buildability';
 import { FootprintHost } from './zoning/FootprintHost';
 import { BlockTemplates, placeOpenAreas, placeTemplate, StandardLots, STANDARD_LOT_SIZES, type BlockCells } from './blocks/StandardLots';
 import { TemplateBands } from './blocks/TemplateBands';
+import { publicSquares } from './blocks/PublicSquares';
 import { Zoning, LotInput } from './zoning/Zoning';
 import { hostingProfiles } from './zoning/profiles';
 import type { FootprintPolicy } from './zoning/FootprintPolicy';
@@ -266,6 +267,16 @@ export function generateCity(input: AtlasParams, onProgress?: ProgressObserver):
     return { edgeId: best.edgeId, point: snapPoint(best.point) };
   };
 
+  // Each district opens a corner lot at its most central crossings as a public square.
+  const gradeEdges = new Map(streetEdges.filter((edge) => edge.class !== 'highway' && edge.class !== 'alley').map((edge) => [edge.id, edge]));
+  const squareCrossings = graph.nodes.flatMap((node) => {
+    const incident = node.edgeIds.map((id) => gradeEdges.get(id)).filter((edge) => edge !== undefined);
+    return incident.length >= 3 ? [{ position: node.position, roads: incident.filter((edge) => edge.class === 'road').length }] : [];
+  });
+  const squares = publicSquares(rawLots.map((raw, index) => ({ polygon: raw.polygon, blockIndex: raw.blockIndex, districtIndex: raw.districtIndex,
+    standard: raw.sizeId !== undefined, type: built.get(index)?.zoned.type ?? 'park' })), squareCrossings,
+  planned.map((district) => district.center), planned.map((_, index) => blockDistrict.filter((district) => district === index).length));
+
   const parcels: Parcel[] = [];
   const residents: number[] = [];
   // Template bands are shared; factories apply their own low/tower policy afterwards.
@@ -282,6 +293,12 @@ export function generateCity(input: AtlasParams, onProgress?: ProgressObserver):
       access: access(raw),
       ...(raw.sizeId ? { lotSize: raw.sizeId } : { landmark: true as const }),
     };
+    // a public square is open ground, a park with no building
+    if (squares.has(index)) {
+      parcels.push({ ...common, type: 'park' });
+      residents.push(0);
+      return;
+    }
     let envelope = entry?.zoned.envelope;
     if (envelope) envelope = templateBands.apply(raw.slot, envelope);
     if (entry && envelope) envelope = factoryEnvelope(envelope, {

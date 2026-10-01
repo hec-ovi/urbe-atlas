@@ -116,7 +116,8 @@ describe('blueprint output', () => {
     ];
     expect(new Set(all).size).toBe(all.length);
 
-    expect(bp.volumetric.buildings.length).toBe(bp.parcels.length);
+    // a park (a public square) is the one parcel with no building
+    expect(bp.volumetric.buildings.length).toBe(bp.parcels.filter((p) => p.type !== 'park').length);
     expect(bp.volumetric.ground.length).toBeGreaterThan(0);
     expect(bp.stats.population).toBeGreaterThan(0);
     expect(bp.stats.perDistrict.length).toBe(bp.districts.length);
@@ -259,7 +260,7 @@ describe('blueprint output', () => {
       ['block', bp.blocks.map((block) => block.boundary)],
       ['block paving', bp.blocks.flatMap((block) => [...block.curb, ...block.sidewalk, ...block.openAreas])],
       ['lot', bp.parcels.map((parcel) => parcel.lot)],
-      ['footprint', bp.parcels.map((parcel) => parcel.footprint)],
+      ['footprint', bp.parcels.flatMap((parcel) => parcel.footprint ? [parcel.footprint] : [])],
       ['ground', bp.volumetric.ground.map((region) => region.polygon)],
       ['building', bp.volumetric.buildings.map((building) => building.footprint)],
     ];
@@ -511,6 +512,8 @@ describe('parameters', () => {
     const downtown = new Set(city.districts.filter((d) => d.kind === 'downtown').map((d) => d.id));
     expect(city.parcels.length).toBeGreaterThan(0);
     for (const parcel of city.parcels) {
+      // a park (a public square) has no envelope to cap
+      if (parcel.type === 'park') continue;
       const envelope = parcel.envelope;
       expect(envelope.maxFloors).toBeLessThanOrEqual(downtown.has(parcel.districtId) ? 3 : 6);
       expect(envelope.floorHeight).toBeGreaterThanOrEqual(4.5);
