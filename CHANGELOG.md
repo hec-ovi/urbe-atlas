@@ -1,5 +1,7 @@
 # Changelog
 
+0.13.0: a city shows more than one kind of street. An edge's `districtStyle` follows its district's kind and tier and its own class: industrial districts stay industrial and high_rich districts luxury throughout, while rich districts, and mid-tier downtown and commercial ones, pave their avenues as luxury and keep their side streets and alleys ordinary. Package 0.13.0, blueprint 0.26.0.
+
 0.12.9: highway decks start beyond grade junctions with flat routing approaches, profile-aligned ramp stretches, parapet dimensions and supports beneath the ramps; planting clears highway envelopes; invariants reject low slabs across grade carriageways and unsupported spans.
 
 0.12.8: the CLI takes `--district-count MIN,MAX` and `--hydrology lagoon|river|sea-coast`, both validated by Atlas as in the library; output without them is unchanged. Package 0.12.8, blueprint 0.26.0.

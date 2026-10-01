@@ -9,7 +9,7 @@ import type {
   StreetEdge,
   Vec2,
 } from '../schema/blueprint';
-import type { AtlasParams } from '../schema/params';
+import type { AtlasParams, DistrictKind, WealthTier } from '../schema/params';
 import { GENERATION_STAGES, GENERATION_TOTAL, type GenerationStageId, type ProgressObserver } from '../schema/progress';
 import { Rng } from './core/rng';
 import { resolveParams } from './params/defaults';
@@ -116,8 +116,7 @@ export function generateCity(input: AtlasParams, onProgress?: ProgressObserver):
     return {
       ...e,
       districtIds,
-      ...(layout.modules.format === 'district' ? { districtStyle: planned[di].kind === 'industrial' ? 'industrial' as const
-        : planned[di].tier === 'rich' || planned[di].tier === 'high_rich' ? 'luxury' as const : 'ordinary' as const } : {}),
+      ...(layout.modules.format === 'district' ? { districtStyle: streetStyle(planned[di].kind, planned[di].tier, e.class) } : {}),
     };
   });
   applyHighwayElevationProfiles(streetEdges);
@@ -547,4 +546,19 @@ function closestSidewalkPoint(lot: Polygon, sidewalk: Polygon[], water: Polygon[
     }
   }
   return best;
+}
+
+/**
+ * The kind of street an edge is built as, from its district and tier and its own class, so a city
+ * shows more than one: industrial districts are industrial throughout; the richest districts pave
+ * every street; rich districts, and mid-tier downtown and commercial ones, pave their avenues and
+ * keep asphalt on their side streets and alleys; everything else is asphalt.
+ */
+export function streetStyle(kind: DistrictKind, tier: WealthTier, streetClass: string): 'luxury' | 'industrial' | 'ordinary' {
+  if (kind === 'industrial') return 'industrial';
+  if (tier === 'high_rich') return 'luxury';
+  const avenue = streetClass === 'road' || streetClass === 'highway';
+  if (tier === 'rich') return avenue ? 'luxury' : 'ordinary';
+  if (tier === 'mid' && (kind === 'downtown' || kind === 'commercial')) return avenue ? 'luxury' : 'ordinary';
+  return 'ordinary';
 }

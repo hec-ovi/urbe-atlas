@@ -5,6 +5,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { ARCHITECTURE_VERSION, AtlasError, BLUEPRINT_VERSION, generateCity } from '../src';
+import { streetStyle } from '../src/generate';
 import { bandWidth } from '../src/geom/band';
 import { difference, intersection } from '../src/geom/clip';
 import { orientedBoundingBox } from '../src/geom/obb';
@@ -555,6 +556,20 @@ describe('parameters', () => {
     expect(construction.modules!.format).toBe('district');
     expect(construction.medians!.length).toBeGreaterThan(0);
     expect(city.streets.edges.filter((edge) => edge.class !== 'highway').every((edge) => edge.districtStyle !== undefined)).toBe(true);
+    // A street's kind follows its district, tier and class, so a rich city paves its avenues and keeps asphalt on side streets.
+    for (const edge of city.streets.edges) {
+      const [a, b] = [edge.path[0]!, edge.path.at(-1)!], mid: [number, number] = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
+      const district = city.districts.find((d) => pointInPolygon(mid, d.boundary));
+      if (!district || edge.districtIds.length > 1) continue;
+      expect(edge.districtStyle, edge.id).toBe(streetStyle(district.kind, district.tier, edge.class));
+    }
+    // A city of several districts shows more than one kind of street.
+    expect(new Set(defaultCity().streets.edges.filter((edge) => edge.class !== 'highway').map((edge) => edge.districtStyle)).size).toBeGreaterThan(1);
+    expect(streetStyle('industrial', 'poor', 'street')).toBe('industrial');
+    expect(streetStyle('residential', 'high_rich', 'street')).toBe('luxury');
+    expect([streetStyle('downtown', 'rich', 'road'), streetStyle('downtown', 'rich', 'street')]).toEqual(['luxury', 'ordinary']);
+    expect([streetStyle('commercial', 'mid', 'road'), streetStyle('residential', 'mid', 'road'), streetStyle('mixed', 'poor', 'road')])
+      .toEqual(['luxury', 'ordinary', 'ordinary']);
     for (const owner of construction.reservations!.owners.filter((owner) => owner.kind === 'block')) {
       const block = city.blocks.find((block) => block.id === owner.id)!;
       const district = city.districts.find((district) => district.id === block.districtId)!;
