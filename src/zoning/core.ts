@@ -20,7 +20,7 @@ import { orientedBoundingBox } from '../geom/obb';
 export const INTERIOR = {
   snap: 0.5,
   corridorWidth: 2.5,
-  elevatorShaft: 2.5,
+  elevatorShaft: 3.5,
   riserShaft: 1.2,
   serviceStub: 1.2,
   margin: 0.5,

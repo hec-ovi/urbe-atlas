@@ -14,7 +14,7 @@ import { rectangleCoverageGap } from './rectangleCoverage';
 import { Zoning } from './Zoning';
 import type { DistrictCapacityInput } from './population-schema';
 
-const profile: HostingProfile = { setback: 0, band: 7.58, heavy: false, keep: 0 };
+const profile: HostingProfile = { setback: 0, band: 8.58, heavy: false, keep: 0 };
 const grid: BuildingGrid = { origin: [0, 0], angle: 0, spacing: 0.5 };
 const FEASIBILITY = new URL('../../../interior/schemas/core-feasibility.json', import.meta.url);
 const FLOOR_CONSTANTS = new URL('../../../exterior/schemas/floor-constants.json', import.meta.url);
@@ -30,10 +30,10 @@ describe('footprint hosting', () => {
     expect(host.fit(inset, profile)).toEqual({ footprint: inset, floorCap: Infinity });
     expect(host.fit(inset, { ...profile, setback: 1, keep: 1 })?.footprint)
       .toEqual([[1, 1], [19, 1], [19, 19], [1, 19]]);
-    // a corpo lot needs the compact core plus its setback before any rectangle stands
-    expect(host.fit([[0, 0], [14, 0], [14, 14], [0, 14]], hostingProfile('corpo'))).toBeNull();
-    expect(host.fit([[0, 0], [14.5, 0], [14.5, 14], [0, 14]], hostingProfile('corpo'))).toEqual({
-      footprint: [[1, 1], [13.5, 1], [13.5, 13], [1, 13]], floorCap: Infinity,
+    // a corpo lot needs the compact core, 3.5 m lift shaft and all, plus its setback before any rectangle stands
+    expect(host.fit([[0, 0], [15, 0], [15, 14], [0, 14]], hostingProfile('corpo'))).toBeNull();
+    expect(host.fit([[0, 0], [15.5, 0], [15.5, 14], [0, 14]], hostingProfile('corpo'))).toEqual({
+      footprint: [[1, 1], [14.5, 1], [14.5, 13], [1, 13]], floorCap: Infinity,
     });
   });
 
@@ -54,7 +54,7 @@ describe('footprint hosting', () => {
 describe('mirrored building constants', () => {
   it('mirrors interior core feasibility and the published floor constants', () => {
     expect([WALKUP_RECT, WALKUP_TWO_STAIRS_RECT, COMPACT_RECT, STANDARD_RECT])
-      .toEqual([[10.38, 7.58], [16.88, 7.58], [12.38, 11.58], [19.38, 7.58]]);
+      .toEqual([[10.38, 8.58], [16.88, 8.58], [13.38, 11.58], [20.38, 8.58]]);
     const { constants } = JSON.parse(readFileSync(FEASIBILITY, 'utf8'));
     expect(INTERIOR).toEqual({
       ...Object.fromEntries(Object.keys(INTERIOR).map((key) => [key, constants[key]])),
