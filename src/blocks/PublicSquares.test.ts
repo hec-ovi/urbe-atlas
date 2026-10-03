@@ -24,8 +24,8 @@ describe('public squares', () => {
     expect([...publicSquares(lots, crossings, [[0, 0]], [16])].sort()).toEqual([2, 3]);
   });
 
-  it('opens at least one square in every district of three or more blocks of a generated city', () => {
-    const city = generateCity({ seed: 'squares', size: { width: 900, depth: 900 } });
+  it('opens at least one square in every district of three or more blocks of a city that asks for squares', () => {
+    const city = generateCity({ seed: 'squares', size: { width: 900, depth: 900 }, features: { publicSquares: true } });
     const blocks = new Map<string, number>();
     for (const block of city.blocks) blocks.set(block.districtId, (blocks.get(block.districtId) ?? 0) + 1);
     const parks = city.parcels.filter((parcel) => parcel.type === 'park');
@@ -37,5 +37,11 @@ describe('public squares', () => {
       expect(park.lotSize).toBeDefined();
       expect(park.footprint).toBeUndefined();
     }
+  });
+
+  it('opens none by default, where every parcel is a building', () => {
+    const city = generateCity({ seed: 'squares', size: { width: 900, depth: 900 } });
+    expect(city.meta.params.features.publicSquares).toBe(false);
+    expect(city.parcels.filter((parcel) => parcel.type === 'park')).toEqual([]);
   });
 });

@@ -54,5 +54,11 @@ export interface FeatureToggles {
   airTunnels?: boolean;
   /** Permit underground connections downstream. Echoed in blueprint meta. Default true. */
   undergroundTunnels?: boolean;
+  /**
+   * Open public squares: `park` parcels at each district's most central
+   * crossings. Default false, because Connections, Naming and Quests do not
+   * take a parcel without a building yet.
+   */
+  publicSquares?: boolean;
 }
 import type { HydrologyParams } from '../src/hydro/types';

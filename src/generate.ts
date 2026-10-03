@@ -267,13 +267,14 @@ export function generateCity(input: AtlasParams, onProgress?: ProgressObserver):
     return { edgeId: best.edgeId, point: snapPoint(best.point) };
   };
 
-  // Each district opens a corner lot at its most central crossings as a public square.
+  // Each district opens a corner lot at its most central crossings as a public
+  // square, when the city asks for squares: its consumers must take a parcel without a building.
   const gradeEdges = new Map(streetEdges.filter((edge) => edge.class !== 'highway' && edge.class !== 'alley').map((edge) => [edge.id, edge]));
   const squareCrossings = graph.nodes.flatMap((node) => {
     const incident = node.edgeIds.map((id) => gradeEdges.get(id)).filter((edge) => edge !== undefined);
     return incident.length >= 3 ? [{ position: node.position, roads: incident.filter((edge) => edge.class === 'road').length }] : [];
   });
-  const squares = publicSquares(rawLots.map((raw, index) => ({ polygon: raw.polygon, blockIndex: raw.blockIndex, districtIndex: raw.districtIndex,
+  const squares = !params.features.publicSquares ? new Set<number>() : publicSquares(rawLots.map((raw, index) => ({ polygon: raw.polygon, blockIndex: raw.blockIndex, districtIndex: raw.districtIndex,
     standard: raw.sizeId !== undefined, type: built.get(index)?.zoned.type ?? 'park' })), squareCrossings,
   planned.map((district) => district.center), planned.map((_, index) => blockDistrict.filter((district) => district === index).length));
 

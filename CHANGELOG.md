@@ -1,5 +1,7 @@
 # Changelog
 
+0.15.0: public squares wait behind `features.publicSquares`, off by default, and the CLI's `--public-squares`: a square is a `park` parcel with no footprint, no envelope and no volumetric building, which Connections rejects (`parcel <id> footprint needs 3+ points`) and Naming and Quests do not type, so a default plan stays every parcel a building until they take one. Unbroken street faces stay on. Package 0.15.0, blueprint 0.26.0.
+
 0.14.0: a street face runs unbroken to its corner. Each row of a block's lot ring draws its catalog widths so they sum to the longest frontage they can fill exactly, so a row leaves open less than the narrowest lot its zone cuts instead of an 8 to 16 m gap. Each district of three or more blocks opens a public square, and one more per 16 of its blocks: the standard corner lot nearest its most central crossings, avenue crossings first, published as a `park` with no footprint and no envelope (PublicSquares). Package 0.14.0, blueprint 0.26.0.
 
 0.13.1: core hosting mirrors Interior's 3.5 m lift shafts: walkup 10.38 x 8.58 m, walkup with two stairs 16.88 x 8.58 m, compact elevator core 13.38 x 11.58 m and standard elevator core 20.38 x 8.58 m, so the light band is 8.58 m and a heavy lot needs a footprint 13.5 m long. Package 0.13.1, blueprint 0.26.0.

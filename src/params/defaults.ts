@@ -29,7 +29,7 @@ const MIN_DISTRICT_AREA = 90_000; // 300 m x 300 m
 const DISTRICT_KINDS: DistrictKind[] = ['downtown', 'commercial', 'residential', 'industrial', 'mixed'];
 const WEALTH_TIERS: WealthTier[] = ['poor', 'mid', 'rich', 'high_rich'];
 const FEATURE_KEYS: (keyof FeatureToggles)[] = [
-  'highways', 'trains', 'subways', 'alleys', 'airTunnels', 'undergroundTunnels',
+  'highways', 'trains', 'subways', 'alleys', 'airTunnels', 'undergroundTunnels', 'publicSquares',
 ];
 
 /**
@@ -130,6 +130,7 @@ export function resolveParams(input: AtlasParams): ResolvedParams {
     alleys: featureInput?.alleys ?? true,
     airTunnels: featureInput?.airTunnels ?? true,
     undergroundTunnels: featureInput?.undergroundTunnels ?? true,
+    publicSquares: featureInput?.publicSquares ?? false,
   };
 
   if (input.hydrology !== undefined) validateHydrologyParams(input.hydrology);

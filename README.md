@@ -18,7 +18,7 @@ npm run generate -- --seed urbe --out city.json
 
 The preview opens creation with a fresh seed and a template dropdown. Its Streets section carries the whole district street design: lane width per road class, the four sidewalk band widths, crossing headroom and the paving finish, with the dimensions the district modules fix stated next to them. Generate city shows completed server stages in a blocking dialog, each named with what it produces, alongside a standing note on what a finished blueprint carries and what it leaves to later stages; Cancel terminates the worker and removes the partial city. Saved cities open at `?city=id`; the Atlas logo returns to creation. Forms load from `/api/forms/creation` and `/api/forms/visualization`. `ATLAS_CITY_DATA_DIR` selects persistent storage, default `.atlas-cities`. Saved blueprints can be opened and downloaded. Generate exteriors starts a separate Engine job for the displayed blueprint; building previews open after verification.
 
-Generator flags: `--size N`, `--max-floors N`, `--no-highways`, `--no-subways`, `--no-alleys`. Only `--seed` is required; everything else has a documented default in `schema/params.ts`.
+Generator flags: `--size N`, `--max-floors N`, `--no-highways`, `--no-subways`, `--no-alleys`, `--public-squares`. Only `--seed` is required; everything else has a documented default in `schema/params.ts`.
 
 ## In
 

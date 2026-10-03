@@ -5,7 +5,7 @@ Atlas plans a city from a seed and a few parameters: districts, streets with the
 ## Call it
 
 - Library: `import { generateCity } from 'atlas'`, then `generateCity(params)` returns the blueprint.
-- CLI: `npm run build:cli` once, then `npm run generate -- --seed <seed> --out <file.json> [--size N] [--max-floors N] [--district-count MIN,MAX] [--hydrology lagoon|river|sea-coast] [--no-highways] [--no-subways] [--no-alleys]`.
+- CLI: `npm run build:cli` once, then `npm run generate -- --seed <seed> --out <file.json> [--size N] [--max-floors N] [--district-count MIN,MAX] [--hydrology lagoon|river|sea-coast] [--no-highways] [--no-subways] [--no-alleys] [--public-squares]`.
 - HTTP, from the preview server: `POST /api/cities` with the same parameters queues a job and returns its record; `GET /api/cities/:id` reports its state; `GET /api/cities/:id/blueprint` returns the finished blueprint.
 
 ## Request
@@ -20,7 +20,7 @@ Only `seed` is required.
 | `maxFloors` | 40 | Global floor cap. |
 | `maxFloorsByDistrict` | none | Floor cap per district kind: downtown, commercial, residential, industrial, mixed. |
 | `tierWeights` | poor 0.3, mid 0.45, rich 0.2, high_rich 0.05 | Wealth mix. |
-| `features` | all true | `highways`, `subways`, `alleys`, `airTunnels`, `undergroundTunnels`. |
+| `features` | all true but `publicSquares` | `highways`, `subways`, `alleys`, `airTunnels`, `undergroundTunnels`; `publicSquares` opens `park` parcels at district crossings, off by default. |
 | `hydrology` | none | `{ type: 'lagoon' \| 'river' \| 'sea-coast' }`. |
 
 `streetDesign`, `pavingDesign` and `landmarkFloors` are advanced; see CONTRACT.md.
