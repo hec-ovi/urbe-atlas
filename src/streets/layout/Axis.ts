@@ -42,6 +42,7 @@ export function axis(extent: number, profiles: RoadProfile[], rng: Rng, highwayR
   }
   // Blocks run about 120 m and grow with the square root of the city beyond a
   // kilometre, so a 3 km city gets 200 m superblocks instead of 25 more streets.
+  // Holding 120 m at 3 km was measured and not taken: docs/RESEARCH.md, Plan.
   const land = Math.max(extent - MARGIN, 1);
   const count = Math.max(2, Math.min(Math.floor(land / 120), Math.round(Math.sqrt(land * 1000) / 120)));
   const highwayIndex = highwayRng?.int(Math.max(1, Math.ceil(count / 4)), Math.min(count - 1, Math.floor(count * 3 / 4)));
