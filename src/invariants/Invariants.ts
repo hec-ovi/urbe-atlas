@@ -24,6 +24,7 @@ import { checkClearLengths } from './clearLengths';
 import { checkCityHydrology } from '../hydro/CityHydrologyInvariants';
 import { checkStandardLots } from './standardLots';
 import { checkRectangles } from './rectangles';
+import { checkYardsAndVendors } from './yards';
 import { intersection } from '../geom/clip';
 import { validateStreetSections } from '../streets/construction/validateSections';
 import { validateStreetDomain } from '../streets/domain/validateStreetDomain';
@@ -90,14 +91,13 @@ export class Invariants {
 
     checkRectangles(bp);
     checkStandardLots(bp);
+    checkYardsAndVendors(bp);
 
     // Footprint hosting and complete floor allocation under the active generation policy.
     validateFootprints(bp);
     for (const p of bp.parcels) {
-      if (p.type === 'park') {
-        if (p.footprint || p.envelope) throw invariantFailure(`park ${p.id} carries a building envelope`);
-        continue;
-      }
+      // A park's building is its pavilion, checked with the vendor sites.
+      if (p.type === 'park') continue;
       if (!p.footprint || !p.envelope) throw invariantFailure(`parcel ${p.id} (${p.type}) has no footprint or envelope`);
       if (p.envelope.maxFloors < MIN_ENVELOPE_FLOORS || p.envelope.maxHeight < MIN_ENVELOPE_FLOORS * FLOOR_GENERATION_POLICY.defaultFloorHeight) {
         throw invariantFailure(

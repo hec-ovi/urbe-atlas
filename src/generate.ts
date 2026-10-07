@@ -32,6 +32,9 @@ import { FootprintHost } from './zoning/FootprintHost';
 import { BlockTemplates, placeOpenAreas, placeTemplate, StandardLots, STANDARD_LOT_SIZES, type BlockCells } from './blocks/StandardLots';
 import { TemplateBands } from './blocks/TemplateBands';
 import { publicSquares } from './blocks/PublicSquares';
+import { Yards } from './blocks/Yards';
+import { VendorSites } from './blocks/VendorSites';
+import { PAVILION_ENVELOPE } from './zoning/envelopes';
 import { Zoning, LotInput } from './zoning/Zoning';
 import { hostingProfiles } from './zoning/profiles';
 import type { FootprintPolicy } from './zoning/FootprintPolicy';
@@ -181,9 +184,14 @@ export function generateCity(input: AtlasParams, onProgress?: ProgressObserver):
     const { kind, tier } = planned[blockDistrict[blockIndex]];
     const interior = block.interior[0];
     const box = bounds(interior), outer = bounds(block.boundary);
-    const template = templates.get({ origin: outer.min, width: outer.max[0] - outer.min[0], depth: outer.max[1] - outer.min[1],
-      interior: { offset: [box.min[0] - outer.min[0], box.min[1] - outer.min[1]],
-        width: box.max[0] - box.min[0], depth: box.max[1] - box.min[1] } }, kind, tier);
+    const shape = { origin: outer.min, width: outer.max[0] - outer.min[0], depth: outer.max[1] - outer.min[1],
+      interior: { offset: [box.min[0] - outer.min[0], box.min[1] - outer.min[1]] as Vec2,
+        width: box.max[0] - box.min[0], depth: box.max[1] - box.min[1] } };
+    // A courtyard gate opens onto a pedestrian street: a block whose template gate faces a highway takes the variant that shuts it.
+    let template = templates.get(shape, kind, tier);
+    if (template.gateSide !== undefined && !sidewalkedEdges[blockIndex].includes(block.edgeIds[template.gateSide])) {
+      template = templates.get(shape, kind, tier, template.gateSide);
+    }
     // A block reachable only via highways gets no parcels: open ground instead.
     const served = sidewalkedEdges[blockIndex].length > 0;
     const placed = served ? placeTemplate(template, outer.min) : [];
@@ -334,10 +342,16 @@ export function generateCity(input: AtlasParams, onProgress?: ProgressObserver):
   // --- blocks and districts to schema ------------------------------------
   // A block names its template only when its parcels are exactly the template's
   // lots: a landmark merge or a lot the zoning could not build breaks that.
+  // Every open rectangle belongs to a yard that says what it is for.
+  let yardCount = 0;
+  const sidewalked = sidewalkedEdges.map((ids) => new Set(ids));
+  const blockSides = builtBlocks.map((b, i) => b.edgeIds.map((id) => (sidewalked[i].has(id) ? id : null)));
   const blocks: Block[] = builtBlocks.map((b, i) => {
     const parcelIds = parcels.filter((p) => p.blockId === `b${i}`);
     const tiled = blockTemplateId[i] !== undefined && parcelIds.length === blockTemplateLots[i]
       && parcelIds.every((p) => p.lotSize !== undefined);
+    const yards = Yards.of({ open: blockOpenAreas[i], interior: b.interior[0], sides: blockSides[i], zone: planned[blockDistrict[i]].kind },
+      subwayBayPaving, existingInfrastructure, () => `y${yardCount++}`);
     return {
       id: `b${i}`,
       districtId: `d${blockDistrict[i]}`,
@@ -347,6 +361,7 @@ export function generateCity(input: AtlasParams, onProgress?: ProgressObserver):
       sidewalk: b.sidewalk,
       parcelIds: parcelIds.map((p) => p.id),
       openAreas: blockOpenAreas[i],
+      yards,
     };
   });
 
@@ -367,6 +382,26 @@ export function generateCity(input: AtlasParams, onProgress?: ProgressObserver):
     subwayStations: subwayPlan?.subwayStations ?? [], subwayLines: subwayPlan?.subwayLines ?? [],
     ...(subwayPlan?.subwayDemand ? { subwayDemand: subwayPlan.subwayDemand } : {}),
   };
+
+  // --- small public businesses: a pavilion on every park, stalls in yards and forecourts ---
+  const vendorSites = VendorSites.plan({
+    seed,
+    blocks: blocks.map((block, i) => ({ id: block.id, districtId: block.districtId, zone: planned[blockDistrict[i]].kind,
+      interior: builtBlocks[i].interior[0], sides: blockSides[i], yards: block.yards ?? [] })),
+    parks: parcels.flatMap((parcel, index) => parcel.type === 'park'
+      ? [{ parcelId: parcel.id, blockId: parcel.blockId, square: squares.has(index), lot: parcel.lot, access: parcel.access }] : []),
+    stations: transit.subwayStations.map((station) => ({ id: station.id, entrances: station.entrances })),
+    crossings: squareCrossings.map((crossing) => crossing.position),
+    avenues: new Set(streetEdges.filter((edge) => edge.class === 'road').map((edge) => edge.id)),
+  });
+  // A park's building is its pavilion: the cabin of its vendor site.
+  const pavilions = new Map(vendorSites.flatMap((site) => (site.parcelId ? [[site.parcelId, site.footprint] as const] : [])));
+  for (const parcel of parcels) {
+    const cabin = parcel.type === 'park' ? pavilions.get(parcel.id) : undefined;
+    if (!cabin) continue;
+    parcel.footprint = cabin;
+    parcel.envelope = { ...PAVILION_ENVELOPE };
+  }
 
   progress('ground');
   // --- crossings, ground, volumetric -------------------------------------
@@ -409,11 +444,12 @@ export function generateCity(input: AtlasParams, onProgress?: ProgressObserver):
 
   const heightRng = Rng.from(seed, 'volumetric');
   const volumetric = {
-    // A park carries no building.
+    // A park's building is its one-storey pavilion, drawn without the height stream.
     buildings: parcels.flatMap((p) => p.footprint && p.envelope ? [{
       parcelId: p.id,
       footprint: p.footprint,
-      height: Math.round(heightRng.int(p.envelope.minFloors, p.envelope.maxFloors) * p.envelope.floorHeight * 100) / 100,
+      height: p.type === 'park' ? p.envelope.maxHeight
+        : Math.round(heightRng.int(p.envelope.minFloors, p.envelope.maxFloors) * p.envelope.floorHeight * 100) / 100,
     }] : []),
     ground,
   };
@@ -480,6 +516,7 @@ export function generateCity(input: AtlasParams, onProgress?: ProgressObserver):
     transit,
     ...(hydrology ? { hydrology } : {}),
     volumetric,
+    vendorSites,
     report: { degraded: degradations.published() },
     stats: {
       population,

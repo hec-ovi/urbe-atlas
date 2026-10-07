@@ -28,7 +28,7 @@ export type StreetClass = 'street' | 'road' | 'highway' | 'alley';
 
 export type ParcelType =
   | BuildingParcelType
-  /** Public green: a standard lot that cannot carry a building, published with no envelope. */
+  /** Public open ground (a square, or a lot that cannot carry a building) with one pavilion cabin standing in it. */
   | 'park';
 
 /** Every parcel type that carries a building. */
@@ -59,6 +59,8 @@ export interface CityBlueprint {
   /** Present only when AtlasParams.hydrology is supplied. */
   hydrology?: HydrologyPlan;
   volumetric: Volumetric;
+  /** Small public businesses on open ground. Absent when reading older artifacts. */
+  vendorSites?: VendorSite[];
   stats: CityStats;
   /** What generation simplified. Present on generated worlds; optional when reading older artifacts. */
   report?: BlueprintReport;
@@ -308,6 +310,85 @@ export interface Block {
   parcelIds: string[];
   /** Unbuilt leftover areas (plazas, courtyards). Parcels + sidewalk + openAreas cover the block. */
   openAreas: Polygon[];
+  /**
+   * What the open areas are for: every rectangle of `openAreas` belongs to
+   * exactly one yard. Absent when reading older artifacts.
+   */
+  yards?: BlockYard[];
+}
+
+/**
+ * The use a yard's ground is dressed for. `garden`: the green courtyard of
+ * homes (residential and mixed districts). `court`: the paved courtyard of
+ * shops and offices (downtown and commercial). `yard`: a working yard
+ * (industrial districts, and land beside a highway). `forecourt`: the paved
+ * open ground beside a subway entrance bay. `strip`: land narrower than 8 m
+ * on every side, for planting, bins and a bench.
+ */
+export type YardKind = 'garden' | 'court' | 'yard' | 'forecourt' | 'strip';
+
+/** Touching open rectangles of one block, and what they are for. */
+export interface BlockYard {
+  /** Globally unique, prefix `y`. */
+  id: string;
+  kind: YardKind;
+  /** Axis-aligned rectangles, each one of the block's `openAreas`. */
+  areas: Polygon[];
+  /** Street edges the yard opens onto: the block frontages its rectangles reach. Empty for an enclosed yard. */
+  streets: string[];
+}
+
+/** What a vendor site sells: street food, pawn and repair, a 24/7 counter, or a bar kiosk. */
+export type VendorKind = 'food' | 'repair' | 'convenience' | 'bar';
+
+/**
+ * Where a vendor site stands: in a public `square` (a park parcel, as its
+ * pavilion), on an empty `lot` (a park parcel that could carry no building),
+ * in the `gate` through which a block's yard opens onto a street, or on a
+ * station `forecourt` beside a subway entrance.
+ */
+export type VendorSetting = 'square' | 'lot' | 'gate' | 'forecourt';
+
+/** The shifts a post is worked through, the vocabulary of Interior's published capacity. */
+export type VendorShift = 'day' | 'evening' | 'night';
+
+/** One staffed role of a vendor site, shaped like an Interior capacity post. */
+export interface VendorPost {
+  /** Interior's staffing vocabulary: `vendor`, `cook` or `waiter`. */
+  role: 'vendor' | 'cook' | 'waiter';
+  /** The most people the role holds at once. */
+  posts: number;
+  shifts: VendorShift[];
+}
+
+/**
+ * A small public business: a 2 to 4 m cabin on open ground, with the posts the
+ * simulation staffs. It stands on block land, never on the sidewalk, with its
+ * counter on the street side so its customers queue on the paving.
+ */
+export interface VendorSite {
+  /** Globally unique, prefix `v`. */
+  id: string;
+  kind: VendorKind;
+  setting: VendorSetting;
+  districtId: string;
+  blockId: string;
+  /** The park parcel the cabin stands on (`square` and `lot`); the parcel's footprint is this cabin. */
+  parcelId?: string;
+  /** The yard the cabin stands in (`gate` and `forecourt`). */
+  yardId?: string;
+  /** Axis-aligned cabin rectangle on the half-metre building grid, 2 to 4 m a side. */
+  footprint: Polygon;
+  /** Middle of the counter side, at the cabin wall. */
+  counter: Vec2;
+  /** Outward unit normal of the counter side, toward the street. */
+  facing: Vec2;
+  /** The street its customers come from. */
+  edgeId: string;
+  /** Subway station whose entrance the site serves, within 60 m. */
+  stationId?: string;
+  /** Staffed roles; the simulation fills them as it fills an opened building's posts. */
+  posts: VendorPost[];
 }
 
 /**
@@ -341,11 +422,14 @@ export interface Parcel {
   tier: WealthTier;
   /** Full lot polygon; lots + open areas + sidewalk tile their block. */
   lot: Polygon;
-  /** Buildable footprint: the lot inset by the type's setback, trimmed to the band the type needs end to end. Absent on a park. */
+  /**
+   * Buildable footprint: the lot inset by the type's setback, trimmed to the band the type needs end to end.
+   * On a park, the 2 to 4 m pavilion cabin standing in it (its vendor site); absent on parks of older artifacts.
+   */
   footprint?: Polygon;
   /** Street access: the entrance connects to this edge's sidewalk at this point. */
   access: { edgeId: string; point: Vec2 };
-  /** Absent on a park, which carries no building. */
+  /** On a park, the one-storey pavilion envelope; absent on parks of older artifacts. */
   envelope?: Envelope;
   /**
    * Ordinary parcel: the `meta.lotSizes` entry its lot is exactly, in either

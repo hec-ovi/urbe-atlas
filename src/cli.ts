@@ -1,7 +1,7 @@
 /**
  * Generate a blueprint from the command line.
  * npm run generate -- --seed urbe --out samples/city-urbe.json [--size 3000]
- * [--max-floors 40] [--district-count 4,8] [--hydrology river] [--no-highways] [--no-subways] [--no-alleys] [--public-squares]
+ * [--max-floors 40] [--district-count 4,8] [--hydrology river] [--no-highways] [--no-subways] [--no-alleys] [--no-public-squares]
  */
 import { writeFileSync } from 'node:fs';
 import { generateCity } from './index';
@@ -20,7 +20,7 @@ function opt(name: string): string | undefined {
 const seed = opt('seed');
 const out = opt('out');
 if (!seed || !out) {
-  console.error('usage: --seed <seed> --out <file.json> [--size N] [--max-floors N] [--district-count MIN,MAX] [--hydrology lagoon|river|sea-coast] [--no-highways] [--no-subways] [--no-alleys] [--public-squares]');
+  console.error('usage: --seed <seed> --out <file.json> [--size N] [--max-floors N] [--district-count MIN,MAX] [--hydrology lagoon|river|sea-coast] [--no-highways] [--no-subways] [--no-alleys] [--no-public-squares]');
   process.exit(2);
 }
 
@@ -39,7 +39,7 @@ try {
       highways: !flag('no-highways'),
       subways: !flag('no-subways'),
       alleys: !flag('no-alleys'),
-      publicSquares: flag('public-squares'),
+      publicSquares: !flag('no-public-squares'),
     },
   });
   const json = JSON.stringify(bp);

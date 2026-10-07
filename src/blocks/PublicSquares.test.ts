@@ -24,24 +24,28 @@ describe('public squares', () => {
     expect([...publicSquares(lots, crossings, [[0, 0]], [16])].sort()).toEqual([2, 3]);
   });
 
-  it('opens at least one square in every district of three or more blocks of a city that asks for squares', () => {
-    const city = generateCity({ seed: 'squares', size: { width: 900, depth: 900 }, features: { publicSquares: true } });
+  it('opens at least one square in every district of three or more blocks, by default', () => {
+    const city = generateCity({ seed: 'squares', size: { width: 900, depth: 900 } });
+    expect(city.meta.params.features.publicSquares).toBe(true);
     const blocks = new Map<string, number>();
     for (const block of city.blocks) blocks.set(block.districtId, (blocks.get(block.districtId) ?? 0) + 1);
     const parks = city.parcels.filter((parcel) => parcel.type === 'park');
     for (const [districtId, count] of blocks) {
       if (count >= 3) expect(parks.some((parcel) => parcel.districtId === districtId), districtId).toBe(true);
     }
-    // A square is a standard lot with no building, on a block it shares with built lots.
+    // A square is a standard lot whose one building is its pavilion, a vendor cabin near its crossing.
     for (const park of parks) {
       expect(park.lotSize).toBeDefined();
-      expect(park.footprint).toBeUndefined();
+      const pavilion = city.vendorSites!.find((site) => site.parcelId === park.id)!;
+      expect(park.footprint).toEqual(pavilion.footprint);
+      expect(park.envelope!.maxHeight).toBe(3);
     }
+    expect(city.vendorSites!.filter((site) => site.setting === 'square')).toHaveLength(parks.length);
   });
 
-  it('opens none by default, where every parcel is a building', () => {
-    const city = generateCity({ seed: 'squares', size: { width: 900, depth: 900 } });
-    expect(city.meta.params.features.publicSquares).toBe(false);
+  it('opens none when the city turns squares off', () => {
+    const city = generateCity({ seed: 'squares', size: { width: 900, depth: 900 }, features: { publicSquares: false } });
     expect(city.parcels.filter((parcel) => parcel.type === 'park')).toEqual([]);
+    expect(city.vendorSites!.some((site) => site.setting === 'square')).toBe(false);
   });
 });

@@ -11,6 +11,9 @@ import { activeMinFloorHeight } from './floorMinimums';
 /** A building kit stacks a base and a crown, so every envelope carries two floors. */
 export const MIN_ENVELOPE_FLOORS = 2;
 
+/** A park's pavilion: one 3 m storey, the cabin of the vendor site standing in it. */
+export const PAVILION_ENVELOPE: Readonly<Envelope> = Object.freeze({ minFloors: 1, maxFloors: 1, floorHeight: 3, maxHeight: 3 });
+
 /** Nominal floor height, meters, by type. */
 const FLOOR_HEIGHT: Record<BuildingParcelType, number> = {
   residential: 2.9,

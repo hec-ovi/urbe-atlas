@@ -56,8 +56,8 @@ export interface FeatureToggles {
   undergroundTunnels?: boolean;
   /**
    * Open public squares: `park` parcels at each district's most central
-   * crossings. Default false, because Connections, Naming and Quests do not
-   * take a parcel without a building yet.
+   * crossings, each with its pavilion, a vendor cabin, as its footprint.
+   * Default true.
    */
   publicSquares?: boolean;
 }

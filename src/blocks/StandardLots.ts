@@ -84,6 +84,8 @@ export interface BlockTemplatePlan extends BlockTemplate {
   rows: { row: number; index: number }[];
   /** Land no row claims, as block-local rectangles. */
   openAreas: LocalRectangle[];
+  /** The block side the courtyard's gate opens onto (0 south, 1 east, 2 north, 3 west), when it has one. */
+  gateSide?: number;
 }
 
 const round = (value: number): number => Math.round(value * 1000) / 1000;
@@ -105,21 +107,26 @@ export class BlockTemplates {
 
   constructor(private readonly seed: string) {}
 
-  /** The tiling for a block of this size, zone and street tier, built once and reused. */
-  get(block: BlockShape, zone: DistrictKind, tier: WealthTier): BlockTemplatePlan {
+  /**
+   * The tiling for a block of this size, zone and street tier, built once and reused.
+   * @param shut a block side no pedestrian street fronts (a highway): the courtyard's gate opens elsewhere
+   */
+  get(block: BlockShape, zone: DistrictKind, tier: WealthTier, shut?: number): BlockTemplatePlan {
     const inside = block.interior;
     const rich = richLots(tier);
     const key = [zone, rich ? 'rich' : 'plain', round(block.width), round(block.depth), round(inside.offset[0]),
-      round(inside.offset[1]), round(inside.width), round(inside.depth)].join(':');
+      round(inside.offset[1]), round(inside.width), round(inside.depth), ...(shut === undefined ? [] : [`shut${shut}`])].join(':');
     let plan = this.plans.get(key);
     if (!plan) {
       const base = `bt-${zone}-${round(block.width)}x${round(block.depth)}`;
       let id = base;
       for (let n = 2; this.ids.has(id); n++) id = `${base}-${n}`;
       this.ids.add(id);
+      // A variant that shuts a side draws its lots from the plain tiling's stream: only its gate moves.
+      const stream = key.replace(/:shut\d$/, '');
       plan = tile(id, round(block.width), round(block.depth), zone, rich,
         { offset: [round(inside.offset[0]), round(inside.offset[1])], width: round(inside.width), depth: round(inside.depth) },
-        Rng.from(this.seed, 'block-templates').fork(key));
+        Rng.from(this.seed, 'block-templates').fork(stream), shut);
       this.plans.set(key, plan);
     }
     return plan;
@@ -186,16 +193,16 @@ export class StandardLots {
  * block too small for one keeps the whole catalog and its parcels step down to mid.
  */
 function tile(id: string, width: number, depth: number, zone: DistrictKind, rich: boolean,
-  inside: { offset: Vec2; width: number; depth: number }, rng: Rng): BlockTemplatePlan {
+  inside: { offset: Vec2; width: number; depth: number }, rng: Rng, shut?: number): BlockTemplatePlan {
   const catalog = STANDARD_LOT_SIZES.filter(size => KIND_WEIGHTS[zone][size.id] > 0);
   const threeBay = catalog.filter(size => Math.min(size.width, size.depth) >= RICH_MIN_SIDE);
-  const plan = fillRows(id, width, depth, zone, rich ? threeBay : catalog, inside, rng);
-  return rich && !plan.lots.length ? fillRows(id, width, depth, zone, catalog, inside, rng) : plan;
+  const plan = fillRows(id, width, depth, zone, rich ? threeBay : catalog, inside, rng, shut);
+  return rich && !plan.lots.length ? fillRows(id, width, depth, zone, catalog, inside, rng, shut) : plan;
 }
 
 /** One pass of the tiler over the buildable rectangle with the sizes it may cut. */
 function fillRows(id: string, width: number, depth: number, zone: DistrictKind, sizes: readonly StandardLotSize[],
-  inside: { offset: Vec2; width: number; depth: number }, rng: Rng): BlockTemplatePlan {
+  inside: { offset: Vec2; width: number; depth: number }, rng: Rng, shut?: number): BlockTemplatePlan {
   const span = [inside.width, inside.depth];
   // Rows run along the longer side, so the deep rows front the block's longer street faces.
   const along = inside.width >= inside.depth ? 0 : 1;
@@ -256,7 +263,53 @@ function fillRows(id: string, width: number, depth: number, zone: DistrictKind, 
       ? { offset: at(ring, ring), ...sides(sideRun, middle, along) }
       : { offset: at(0, ring), ...sides(run, middle, along) });
   }
+  // A courtyard the ring closes all round opens onto a side street through a
+  // gate: the narrowest lot of the side rows stays open, so the yard is reached
+  // from the street and the street meets a gap in the block face.
+  // Side row 2 fronts the west street when rows run along x, the south one otherwise; row 3 the opposite.
+  const sideOf = (row: number): number => (along === 0 ? (row === 2 ? 3 : 1) : (row === 2 ? 0 : 2));
+  if (sided && middle > 0) {
+    const gate = gateLot(lots, placement, along, middle, row => sideOf(row) !== shut);
+    if (gate >= 0) {
+      const gateSide = sideOf(placement[gate].row);
+      const [lot] = lots.splice(gate, 1);
+      placement.splice(gate, 1);
+      openAreas.push({ offset: lot.offset, width: lot.width, depth: lot.depth });
+      return { id, width, depth, zone, lots, rows: placement, openAreas, gateSide };
+    }
+  }
   return { id, width, depth, zone, lots, rows: placement, openAreas };
+}
+
+/**
+ * The side-row lot a closed courtyard opens through: the narrowest frontage,
+ * then the one nearest the middle of its row, then the first side row.
+ */
+function gateLot(lots: readonly BlockTemplateLot[], placement: BlockTemplatePlan['rows'], along: 0 | 1, middle: number,
+  open: (row: number) => boolean): number {
+  let best = -1, bestKey: number[] = [];
+  lots.forEach((lot, index) => {
+    const { row } = placement[index];
+    if (row !== 2 && row !== 3 || !open(row)) return;
+    // A side row is turned: its lots front the side street across the block's long axis.
+    const frontage = along === 0 ? lot.depth : lot.width;
+    const start = along === 0 ? lot.offset[1] : lot.offset[0];
+    const rowStart = Math.min(...lots.filter((_, other) => placement[other].row === row)
+      .map(other => (along === 0 ? other.offset[1] : other.offset[0])));
+    const centre = Math.abs(start - rowStart + frontage / 2 - middle / 2);
+    const key = [frontage, round(centre), row, placement[index].index];
+    if (best < 0 || lexicographic(key, bestKey) < 0) {
+      best = index;
+      bestKey = key;
+    }
+  });
+  return best;
+}
+
+/** Negative when `a` sorts before `b`, element by element. */
+function lexicographic(a: readonly number[], b: readonly number[]): number {
+  for (let i = 0; i < Math.min(a.length, b.length); i++) if (a[i] !== b[i]) return a[i] - b[i];
+  return a.length - b.length;
 }
 
 /** Which whole-metre frontages up to `length` the widths sum to exactly, index 0 always. */

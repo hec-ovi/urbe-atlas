@@ -130,7 +130,7 @@ export function resolveParams(input: AtlasParams): ResolvedParams {
     alleys: featureInput?.alleys ?? true,
     airTunnels: featureInput?.airTunnels ?? true,
     undergroundTunnels: featureInput?.undergroundTunnels ?? true,
-    publicSquares: featureInput?.publicSquares ?? false,
+    publicSquares: featureInput?.publicSquares ?? true,
   };
 
   if (input.hydrology !== undefined) validateHydrologyParams(input.hydrology);

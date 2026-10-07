@@ -52,6 +52,6 @@ export const GENERATION_TOTAL = GENERATION_STAGES.length;
 
 /** What a finished blueprint carries, and what it leaves to the stages that read it. */
 export const GENERATION_RESULT = {
-  contains: 'A finished blueprint is the city plan: districts, the street graph with its reserved widths and its lane and turn model, blocks, parcels with a footprint and a floor range, subway lines, and the ground partition with the street panels laid on it.',
+  contains: 'A finished blueprint is the city plan: districts, the street graph with its reserved widths and its lane and turn model, blocks with yards that say what their open ground is for, parcels with a footprint and a floor range, vendor cabins with their posts, subway lines, and the ground partition with the street panels laid on it.',
   excludes: 'It contains no buildings. A parcel is a lot, a footprint and a height it may reach; the shells, the interiors, the names and the finishes come from separate stages that read this file.',
 };

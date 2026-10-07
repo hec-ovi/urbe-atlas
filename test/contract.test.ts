@@ -87,8 +87,12 @@ describe('blueprint output', () => {
       expect(districtIds.has(p.districtId)).toBe(true);
       expect(blockIds.has(p.blockId)).toBe(true);
       expect(edgeIds.has(p.access.edgeId)).toBe(true);
-      if (p.type === 'park') continue;
+      // every parcel stands a footprint and an envelope, a park its one-storey pavilion
       expect(p.footprint!.length).toBeGreaterThanOrEqual(3);
+      if (p.type === 'park') {
+        expect(p.envelope).toEqual({ minFloors: 1, maxFloors: 1, floorHeight: 3, maxHeight: 3 });
+        continue;
+      }
       const envelope = p.envelope!;
       expect(envelope.maxHeight).toBeCloseTo(envelope.maxFloors * envelope.floorHeight, 1);
       expect(envelope.minFloors).toBeGreaterThanOrEqual(1);
@@ -113,11 +117,12 @@ describe('blueprint output', () => {
       ...bp.districts.map((x) => x.id), ...bp.streets.nodes.map((x) => x.id), ...bp.streets.edges.map((x) => x.id),
       ...(bp.streets.construction?.runs ?? []).map((x) => x.id), ...bp.blocks.map((x) => x.id),
       ...bp.parcels.map((x) => x.id), ...bp.transit.subwayStations.map((x) => x.id), ...bp.transit.subwayLines.map((x) => x.id),
+      ...bp.blocks.flatMap((x) => x.yards!.map((yard) => yard.id)), ...bp.vendorSites!.map((x) => x.id),
     ];
     expect(new Set(all).size).toBe(all.length);
 
-    // a park (a public square) is the one parcel with no building
-    expect(bp.volumetric.buildings.length).toBe(bp.parcels.filter((p) => p.type !== 'park').length);
+    // every parcel has a volume, a park's pavilion included
+    expect(bp.volumetric.buildings.length).toBe(bp.parcels.length);
     expect(bp.volumetric.ground.length).toBeGreaterThan(0);
     expect(bp.stats.population).toBeGreaterThan(0);
     expect(bp.stats.perDistrict.length).toBe(bp.districts.length);
@@ -185,21 +190,64 @@ describe('blueprint output', () => {
     }
   });
 
-  it('gives every standard lot two floors and publishes a lot that cannot as a park', () => {
+  it('gives every standard lot two floors and publishes a lot that cannot as a park with a pavilion', () => {
     const bp = defaultCity();
     const parks = bp.parcels.filter((parcel) => parcel.type === 'park');
     expect(bp.parcels.length).toBeGreaterThan(parks.length);
+    const pavilions = new Map(bp.vendorSites!.flatMap((site) => (site.parcelId ? [[site.parcelId, site]] : [])));
     for (const parcel of bp.parcels) {
       if (parcel.type === 'park') {
-        expect(parcel.footprint, `${parcel.id} park footprint`).toBeUndefined();
-        expect(parcel.envelope, `${parcel.id} park envelope`).toBeUndefined();
+        expect(parcel.footprint, `${parcel.id} park footprint`).toEqual(pavilions.get(parcel.id)!.footprint);
+        expect(parcel.envelope!.maxFloors, `${parcel.id} park envelope`).toBe(1);
         continue;
       }
       expect(parcel.envelope!.maxFloors, `${parcel.id} floors`).toBeGreaterThanOrEqual(2);
       expect(parcel.envelope!.maxHeight, `${parcel.id} height`).toBeGreaterThanOrEqual(9);
     }
-    expect(bp.volumetric.buildings.length).toBe(bp.parcels.length - parks.length);
+    expect(bp.volumetric.buildings.length).toBe(bp.parcels.length);
     expect(bp.stats.parcelCounts.park).toBe(parks.length);
+  });
+
+  it('names every open rectangle in a yard and stands vendor cabins with staffed posts on open ground', () => {
+    const bp = defaultCity();
+    const kinds = new Set(['garden', 'court', 'yard', 'forecourt', 'strip']);
+    let open = 0, named = 0;
+    for (const block of bp.blocks) {
+      open += block.openAreas.length;
+      for (const yard of block.yards!) {
+        expect(kinds.has(yard.kind), yard.kind).toBe(true);
+        named += yard.areas.length;
+      }
+    }
+    expect(named).toBe(open);
+    // A closed courtyard opens onto a street: almost every yard is reached from one.
+    const yards = bp.blocks.flatMap((block) => block.yards!);
+    expect(yards.filter((yard) => yard.streets.length).length / yards.length).toBeGreaterThan(0.9);
+
+    const sites = bp.vendorSites!;
+    const settings = new Set(sites.map((site) => site.setting));
+    for (const setting of ['square', 'gate', 'forecourt']) expect(settings.has(setting as never), setting).toBe(true);
+    expect(new Set(sites.map((site) => site.kind))).toEqual(new Set(['food', 'repair', 'convenience', 'bar']));
+    const blocks = new Map(bp.blocks.map((block) => [block.id, block]));
+    for (const site of sites) {
+      const box = bounds(site.footprint);
+      for (const side of [box.max[0] - box.min[0], box.max[1] - box.min[1]]) {
+        expect(side).toBeGreaterThanOrEqual(2);
+        expect(side).toBeLessThanOrEqual(4);
+      }
+      expect(site.posts.reduce((sum, post) => sum + post.posts, 0)).toBeGreaterThan(0);
+      // the cabin stands inside its block's buildable land, off the sidewalk
+      const block = blocks.get(site.blockId)!;
+      expect(block.sidewalk.every((strip) => intersection([site.footprint], [strip]).every((piece) => polygonArea(piece) < 1e-6))).toBe(true);
+      if (site.stationId) {
+        const station = bp.transit.subwayStations.find((candidate) => candidate.id === site.stationId)!;
+        expect(Math.min(...station.entrances.map((point) => distance(point, site.counter)))).toBeLessThanOrEqual(60);
+      }
+    }
+    // a cabin moved onto the street fails the plan
+    const moved = structuredClone(bp);
+    moved.vendorSites![0].footprint = moved.vendorSites![0].footprint.map(([x, z]) => [x, z - 400]);
+    expect(() => Invariants.check(moved)).toThrow(AtlasError);
   });
 
   it('cuts every ordinary parcel to one published lot size and flags the landmarks', () => {
@@ -299,8 +347,8 @@ describe('blueprint output', () => {
       if (!block.template) { untemplated += block.parcelIds.length; continue; }
       block.parcelIds.forEach((id, slot) => {
         const parcel = byId.get(id)!;
-        // a park carries no band
-        if (!parcel.envelope) return;
+        // a park carries its pavilion, not the slot's band
+        if (parcel.type === 'park') return;
         const key = `${block.template}#${slot}`;
         slots.set(key, (slots.get(key) ?? new Set<string>()).add(band(parcel)));
       });
@@ -309,7 +357,7 @@ describe('blueprint output', () => {
     // One band per slot across every block of its template, so a block repeats with its buildings.
     expect([...slots].filter(([, bands]) => bands.size > 1).map(([key]) => key)).toEqual([]);
     // The city's bands are then the slots' bands plus whatever the lots outside a template keep.
-    const distinct = new Set(bp.parcels.filter((parcel) => parcel.envelope).map(band));
+    const distinct = new Set(bp.parcels.filter((parcel) => parcel.type !== 'park').map(band));
     expect(distinct.size).toBeLessThanOrEqual(slots.size + untemplated);
   });
 
