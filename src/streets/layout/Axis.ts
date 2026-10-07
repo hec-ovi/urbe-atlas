@@ -14,6 +14,8 @@ const MIN_PANEL = 48;
  * reach a highway run may end from the city edge.
  */
 const MARGIN = 24;
+/** Land an axis gives each block and its street, metres. */
+const PITCH = 120;
 
 export interface AxisOptions { blockGap?: number; centralAvenue?: boolean; medianIndices?: number[] }
 
@@ -40,11 +42,10 @@ export function axis(extent: number, profiles: RoadProfile[], rng: Rng, highwayR
   if (widths.some(width => !Number.isFinite(width) || width <= 0)) {
     throw invalidParams('street grid profiles require 1, 2 or 4 lanes with positive widths');
   }
-  // Blocks run about 120 m and grow with the square root of the city beyond a
-  // kilometre, so a 3 km city gets 200 m superblocks instead of 25 more streets.
-  // Holding 120 m at 3 km was measured and not taken: docs/RESEARCH.md, Plan.
+  // One block per 120 m of land, street included, at every city size: a
+  // crossing about every 120 m, and blocks of 104 to 122 m kerb to kerb.
   const land = Math.max(extent - MARGIN, 1);
-  const count = Math.max(2, Math.min(Math.floor(land / 120), Math.round(Math.sqrt(land * 1000) / 120)));
+  const count = Math.max(2, Math.floor(land / PITCH));
   const highwayIndex = highwayRng?.int(Math.max(1, Math.ceil(count / 4)), Math.min(count - 1, Math.floor(count * 3 / 4)));
   const selected = Array.from({ length: count + 1 }, (_, i) => {
     const eligible = profiles.map((profile, index) => ({ profile, width: widths[index] }))

@@ -127,8 +127,9 @@ describe('blueprint output', () => {
       const bp = defaultCity();
       const bytes = Buffer.byteLength(JSON.stringify(bp));
       const reservations = bp.streets.construction!.planningReservations!;
-      // The default 3 x 3 km plan is a browser load and a walk for every consumer.
-      expect(bytes).toBeLessThan(10_000_000);
+      // The default 3 x 3 km plan is a browser load and a walk for every consumer:
+      // 576 blocks at the 120 m street pitch write about 24 MB.
+      expect(bytes).toBeLessThan(30_000_000);
       expect(Buffer.byteLength(JSON.stringify(reservations)) / bytes).toBeLessThan(0.15);
 
       const edges = new Map(bp.streets.edges.map((edge) => [edge.id, edge]));
@@ -166,6 +167,22 @@ describe('blueprint output', () => {
     }
     expect(offGrid).toEqual([]);
     expect(declared.size).toBe(0);
+  });
+
+  it('cuts blocks of at most 122 m kerb to kerb at 3 km, a street about every 120 m', () => {
+    const bp = defaultCity();
+    const sides = bp.blocks.flatMap((block) => {
+      const box = bounds(block.boundary);
+      return [box.max[0] - box.min[0], box.max[1] - box.min[1]];
+    });
+    expect(Math.max(...sides)).toBeLessThanOrEqual(122);
+    expect(Math.min(...sides)).toBeGreaterThanOrEqual(96);
+    // 2976 m of land inside the outer sidewalk ring takes 24 blocks and 25 streets on each axis
+    for (const axis of [0, 1]) {
+      const lines = [...new Set(bp.streets.nodes.map((node) => node.position[axis]))].sort((a, b) => a - b);
+      expect(lines.length).toBe(25);
+      expect((lines.at(-1)! - lines[0]) / (lines.length - 1)).toBeLessThanOrEqual(125);
+    }
   });
 
   it('gives every standard lot two floors and publishes a lot that cannot as a park', () => {
