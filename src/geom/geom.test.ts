@@ -82,6 +82,24 @@ describe('boolean region operations', () => {
     expect(snapPoint([1.0006, -1.0006])).toEqual([1.001, -1.001]);
   });
 
+  it('keeps every hole of a street grid with hundreds of blocks and islands', () => {
+    // 3 km of streets around 26 x 26 blocks, each street column carrying a narrow island:
+    // the old split through the biggest hole ran out of depth here and dropped islands.
+    const holes: Polygon[] = [];
+    for (let column = 0; column < 26; column++) {
+      for (let row = 0; row < 26; row++) holes.push(rectangle(20 + column * 114, 20 + row * 114, 100, 100));
+      holes.push(rectangle(124.7 + column * 114, 30, 3.4, 80));
+    }
+    const city = rectangle(0, 0, 3000, 3000);
+    const pieces = difference([city], holes);
+    const expected = area(city) - holes.reduce((sum, hole) => sum + area(hole), 0);
+    expect(pieces.reduce((sum, piece) => sum + area(piece), 0)).toBeCloseTo(expected, 3);
+    expect(pieces.every((piece) => isSimpleRing(piece) && signedArea(piece) > 0)).toBe(true);
+    for (const hole of holes) {
+      expect(pieces.reduce((sum, piece) => sum + intersection([piece], [hole]).reduce((s, p) => s + area(p), 0), 0)).toBeLessThan(1e-6);
+    }
+  });
+
   it('nodes crossings and exact vertex contacts into stable simple grid rings', () => {
     // an exact nonadjacent vertex contact is split into simple cycles, area unchanged
     const touching: Polygon = [

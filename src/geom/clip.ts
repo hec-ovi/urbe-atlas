@@ -58,9 +58,19 @@ function fromPath(path: IntPath): Polygon {
 }
 
 /**
+ * Deepest split a region with holes may take. Every split halves the holes
+ * left on either side, so this holds any region Atlas can build; it only
+ * stops a hole thinner than the grid from splitting forever.
+ */
+const SPLIT_DEPTH = 48;
+
+/**
  * Clipper marks holes by opposite winding. The schema's Polygon is a simple
  * ring, so regions with holes get split by a line through each hole until
- * every piece is simply connected.
+ * every piece is simply connected. Each split goes through the hole whose
+ * centre is the median of the holes' centres, so either side keeps at most
+ * half of them: a street grid of a few hundred blocks and islands splits in
+ * about ten levels, and no hole is ever left out of the result.
  */
 function fromPaths(paths: IntPath[], minArea = 1e-6, depth = 0): Polygon[] {
   paths = normalizePaths(paths);
@@ -72,7 +82,7 @@ function fromPaths(paths: IntPath[], minArea = 1e-6, depth = 0): Polygon[] {
     if (a > 0) outers.push(path);
     else if (a < 0) holes.push(path);
   }
-  if (holes.length === 0 || depth >= 12) {
+  if (holes.length === 0 || depth >= SPLIT_DEPTH) {
     const out: Polygon[] = [];
     for (const path of outers) {
       const poly = ensureCCW(fromPath(path));
@@ -80,16 +90,18 @@ function fromPaths(paths: IntPath[], minArea = 1e-6, depth = 0): Polygon[] {
     }
     return out;
   }
-  // split the whole region vertically through the interior of the biggest hole
-  let biggest = holes[0];
-  for (const h of holes) if (Math.abs(clipArea(h)) > Math.abs(clipArea(biggest))) biggest = h;
-  let minX = Infinity;
-  let maxX = -Infinity;
-  for (const p of biggest) {
-    if (p.x < minX) minX = p.x;
-    if (p.x > maxX) maxX = p.x;
-  }
-  const cutX = Math.round((minX + maxX) / 2);
+  // split the whole region vertically through the interior of the median hole
+  const spans = holes.map((hole) => {
+    let minX = Infinity;
+    let maxX = -Infinity;
+    for (const p of hole) {
+      if (p.x < minX) minX = p.x;
+      if (p.x > maxX) maxX = p.x;
+    }
+    return { minX, maxX, centre: (minX + maxX) / 2 };
+  }).sort((a, b) => a.centre - b.centre || a.minX - b.minX || a.maxX - b.maxX);
+  const median = spans[Math.floor(spans.length / 2)];
+  const cutX = Math.round(median.centre);
   let loX = Infinity;
   let hiX = -Infinity;
   let loY = Infinity;
